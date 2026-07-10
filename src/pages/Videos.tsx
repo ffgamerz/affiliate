@@ -26,7 +26,6 @@ import {
 } from '@mui/material'
 import { Add, Edit, Delete, YouTube, Facebook, Instagram, Info, Upload } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth.tsx'
 
 interface Video {
   id: string
@@ -66,7 +65,6 @@ const platformIcons: Record<string, React.ReactElement | null> = {
 }
 
 export default function Videos() {
-  const { user } = useAuth()
   const location = useLocation()
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
@@ -117,26 +115,23 @@ export default function Videos() {
     if (location.state && (location.state as any).filterEmptyPlatform) {
       setFilterEmptyPlatform((location.state as any).filterEmptyPlatform)
     }
-  }, [user, location])
+  }, [location])
 
   const fetchData = async () => {
-    if (!user) return
-
     const { data: videosData } = await supabase
       .from('videos')
       .select('*')
-      .eq('user_id', user.id)
       .order('created_at', { ascending: false })
+      // .order('id', { ascending: false })
 
     setVideos(videosData || [])
     setLoading(false)
   }
 
   const handleAddVideo = async () => {
-    if (!user || !title) return
+    if (!title) return
 
     const { error } = await supabase.from('videos').insert({
-      user_id: user.id,
       title,
       description,
       youtube_url: youtubeUrl || null,

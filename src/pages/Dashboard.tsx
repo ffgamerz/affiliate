@@ -8,7 +8,6 @@ import {
   CircularProgress,
 } from '@mui/material'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth.tsx'
 
 interface Video {
   id: string
@@ -26,27 +25,24 @@ interface Video {
 const platforms = ['youtube', 'tiktok', 'facebook', 'instagram', 'threads', 'shopee']
 
 export default function Dashboard() {
-  const { user } = useAuth()
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user) return
-
-      const { data: videosData } = await supabase
-        .from('videos')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+  const { data: videosData } = await supabase
+    .from('videos')
+    .select('*')
+    .order('created_at', { ascending: false })
+    // .order('id', { ascending: false })
 
       setVideos(videosData || [])
       setLoading(false)
     }
 
     fetchData()
-  }, [user])
+  }, [])
 
   const getPlatformStats = () => {
     const totalVideos = videos.length
