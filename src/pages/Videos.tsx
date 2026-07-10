@@ -86,9 +86,9 @@ export default function Videos() {
   const [filterEmptyPlatform, setFilterEmptyPlatform] = useState<string | null>(null)
   
   // Pagination states
-  const [hasMore, setHasMore] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
   const ITEMS_PER_PAGE = 10
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
+  const [loadingMore, setLoadingMore] = useState(false)
   const observerTarget = useRef<HTMLDivElement>(null)
   
   // Copy to clipboard state
@@ -320,18 +320,17 @@ export default function Videos() {
     return matchesSearch && matchesDate && matchesEmptyPlatform
   })
 
-  // Infinite scroll observer
+  // Infinite scroll observer - load more when scrolled to bottom
   const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
     const target = entries[0]
-    if (target.isIntersecting && hasMore && !loadingMore) {
+    if (target.isIntersecting && !loadingMore && visibleCount < filteredVideos.length) {
       setLoadingMore(true)
-      // Simulate loading more data (in real app, fetch next page from API)
       setTimeout(() => {
+        setVisibleCount((prev) => prev + ITEMS_PER_PAGE)
         setLoadingMore(false)
-        setHasMore(false) // For demo, stop after one load
-      }, 1000)
+      }, 800)
     }
-  }, [hasMore, loadingMore])
+  }, [loadingMore, visibleCount, filteredVideos.length])
 
   useEffect(() => {
     const observer = new IntersectionObserver(handleObserver, {
@@ -403,7 +402,7 @@ export default function Videos() {
         </Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {filteredVideos.map((video) => (
+          {filteredVideos.slice(0, visibleCount).map((video) => (
             <Card key={video.id}>
               <CardContent>
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'start' }}>
@@ -520,7 +519,7 @@ export default function Videos() {
             minHeight: 60
           }}>
             {loadingMore && <CircularProgress size={24} />}
-            {!hasMore && filteredVideos.length > ITEMS_PER_PAGE && (
+            {visibleCount >= filteredVideos.length && filteredVideos.length > ITEMS_PER_PAGE && (
               <Typography color="text.secondary" variant="body2">
                 No more videos to load
               </Typography>
@@ -811,8 +810,7 @@ export default function Videos() {
                 {selectedVideoForInfo && platforms.map((platform) => {
                   const url = selectedVideoForInfo[`${platform.key}_url` as keyof Video] as string | null
                   const uploadDate = selectedVideoForInfo[`${platform.key}_upload_date` as keyof Video] as string | null
-                  
-                  if (!url) return null
+                  const isUploaded = !!url
                   
                   return (
                     <TableRow key={platform.key} hover>
@@ -822,17 +820,25 @@ export default function Videos() {
                           {platform.label}
                         </Box>
                       </TableCell>
-                      <TableCell>{uploadDate || '-'}</TableCell>
                       <TableCell>
-                        <Button
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          size="small"
-                          variant="text"
-                        >
-                          Open Link
-                        </Button>
+                        {isUploaded ? (uploadDate || '-') : (
+                          <Chip label="Not Uploaded" size="small" color="warning" variant="outlined" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isUploaded ? (
+                          <Button
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            size="small"
+                            variant="text"
+                          >
+                            Open Link
+                          </Button>
+                        ) : (
+                          <Typography color="text.secondary" variant="body2">-</Typography>
+                        )}
                       </TableCell>
                     </TableRow>
                   )
