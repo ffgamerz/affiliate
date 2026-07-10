@@ -86,7 +86,6 @@ export default function Videos() {
   const [filterEmptyPlatform, setFilterEmptyPlatform] = useState<string | null>(null)
   
   // Pagination states
-  const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const ITEMS_PER_PAGE = 10

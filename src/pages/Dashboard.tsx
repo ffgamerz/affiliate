@@ -6,8 +6,6 @@ import {
   Card,
   CardContent,
   CircularProgress,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.tsx'
@@ -32,8 +30,6 @@ export default function Dashboard() {
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
   useEffect(() => {
     const fetchData = async () => {
