@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -12,8 +13,11 @@ import {
   TextField,
   IconButton,
   Chip,
+  Snackbar,
+  Alert,
+  CircularProgress,
 } from '@mui/material'
-import { Add, Edit, Delete, Link as LinkIcon, YouTube, Facebook, Instagram, Videocam } from '@mui/icons-material'
+import { Add, Edit, Delete, YouTube, Facebook, Instagram, Videocam, Info } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.tsx'
 
@@ -22,41 +26,83 @@ interface Video {
   title: string
   description: string | null
   created_at: string
+  youtube_url: string | null
+  youtube_upload_date: string | null
+  facebook_url: string | null
+  facebook_upload_date: string | null
+  instagram_url: string | null
+  instagram_upload_date: string | null
+  shopee_url: string | null
+  shopee_upload_date: string | null
+  threads_url: string | null
+  threads_upload_date: string | null
+  tiktok_url: string | null
+  tiktok_upload_date: string | null
 }
 
-interface VideoPlatform {
-  id: string
-  video_id: string
-  platform: string
-  video_url: string | null
-  upload_date: string | null
-  views: number | null
-  likes: number | null
-  status: string
-}
+const platforms = [
+  { key: 'youtube', label: 'YouTube' },
+  { key: 'tiktok', label: 'TikTok' },
+  { key: 'facebook', label: 'Facebook' },
+  { key: 'instagram', label: 'Instagram' },
+  { key: 'threads', label: 'Threads' },
+  { key: 'shopee', label: 'Shopee' },
+]
 
-const platformIcons: Record<string, React.ReactElement> = {
+const platformIcons: Record<string, React.ReactElement | null> = {
   youtube: <YouTube />,
-  tiktok: <Videocam />,
+  tiktok: null,
   facebook: <Facebook />,
   instagram: <Instagram />,
-  threads: <Typography variant="caption">T</Typography>,
-  shopee: <Typography variant="caption">S</Typography>,
+  threads: null,
+  shopee: null,
 }
 
 export default function Videos() {
   const { user } = useAuth()
+  const location = useLocation()
   const [videos, setVideos] = useState<Video[]>([])
-  const [platforms, setPlatforms] = useState<VideoPlatform[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [editingVideo, setEditingVideo] = useState<Video | null>(null)
+  const [descriptionOpen, setDescriptionOpen] = useState(false)
+  const [selectedDescription, setSelectedDescription] = useState('')
+  const [videoPlayerOpen, setVideoPlayerOpen] = useState(false)
+  const [selectedVideoUrl, setSelectedVideoUrl] = useState('')
+  const [videoLoading, setVideoLoading] = useState(false)
+  
+  // Search and filter states
+  const [searchQuery, setSearchQuery] = useState('')
+  const [dateFilter, setDateFilter] = useState('')
+  const [filterEmptyPlatform, setFilterEmptyPlatform] = useState<string | null>(null)
+  
+  // Copy to clipboard state
+  const [snackbar, setSnackbar] = useState({ open: false, message: '' })
+  
+  // Form states
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [youtubeUploadDate, setYoutubeUploadDate] = useState('')
+  const [facebookUrl, setFacebookUrl] = useState('')
+  const [facebookUploadDate, setFacebookUploadDate] = useState('')
+  const [instagramUrl, setInstagramUrl] = useState('')
+  const [instagramUploadDate, setInstagramUploadDate] = useState('')
+  const [shopeeUrl, setShopeeUrl] = useState('')
+  const [shopeeUploadDate, setShopeeUploadDate] = useState('')
+  const [threadsUrl, setThreadsUrl] = useState('')
+  const [threadsUploadDate, setThreadsUploadDate] = useState('')
+  const [tiktokUrl, setTiktokUrl] = useState('')
+  const [tiktokUploadDate, setTiktokUploadDate] = useState('')
 
   useEffect(() => {
     fetchData()
-  }, [user])
+    
+    // Check if navigated from Dashboard with platform filter
+    if (location.state && (location.state as any).filterEmptyPlatform) {
+      setFilterEmptyPlatform((location.state as any).filterEmptyPlatform)
+    }
+  }, [user, location])
 
   const fetchData = async () => {
     if (!user) return
@@ -67,17 +113,8 @@ export default function Videos() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
-    const { data: platformsData } = await supabase
-      .from('video_platforms')
-      .select('*')
-
     setVideos(videosData || [])
-    setPlatforms(platformsData || [])
     setLoading(false)
-  }
-
-  const getVideoPlatforms = (videoId: string) => {
-    return platforms.filter((p) => p.video_id === videoId)
   }
 
   const handleAddVideo = async () => {
@@ -87,12 +124,23 @@ export default function Videos() {
       user_id: user.id,
       title,
       description,
+      youtube_url: youtubeUrl || null,
+      youtube_upload_date: youtubeUploadDate || null,
+      facebook_url: facebookUrl || null,
+      facebook_upload_date: facebookUploadDate || null,
+      instagram_url: instagramUrl || null,
+      instagram_upload_date: instagramUploadDate || null,
+      shopee_url: shopeeUrl || null,
+      shopee_upload_date: shopeeUploadDate || null,
+      threads_url: threadsUrl || null,
+      threads_upload_date: threadsUploadDate || null,
+      tiktok_url: tiktokUrl || null,
+      tiktok_upload_date: tiktokUploadDate || null,
     })
 
     if (!error) {
       setOpen(false)
-      setTitle('')
-      setDescription('')
+      resetForm()
       fetchData()
     }
   }
@@ -102,14 +150,28 @@ export default function Videos() {
 
     const { error } = await supabase
       .from('videos')
-      .update({ title, description })
+      .update({
+        title,
+        description,
+        youtube_url: youtubeUrl || null,
+        youtube_upload_date: youtubeUploadDate || null,
+        facebook_url: facebookUrl || null,
+        facebook_upload_date: facebookUploadDate || null,
+        instagram_url: instagramUrl || null,
+        instagram_upload_date: instagramUploadDate || null,
+        shopee_url: shopeeUrl || null,
+        shopee_upload_date: shopeeUploadDate || null,
+        threads_url: threadsUrl || null,
+        threads_upload_date: threadsUploadDate || null,
+        tiktok_url: tiktokUrl || null,
+        tiktok_upload_date: tiktokUploadDate || null,
+      })
       .eq('id', editingVideo.id)
 
     if (!error) {
       setOpen(false)
       setEditingVideo(null)
-      setTitle('')
-      setDescription('')
+      resetForm()
       fetchData()
     }
   }
@@ -117,24 +179,135 @@ export default function Videos() {
   const handleDeleteVideo = async (id: string) => {
     if (confirm('Are you sure you want to delete this video?')) {
       await supabase.from('videos').delete().eq('id', id)
-      await supabase.from('video_platforms').delete().eq('video_id', id)
       fetchData()
     }
+  }
+
+  const resetForm = () => {
+    setTitle('')
+    setDescription('')
+    setYoutubeUrl('')
+    setYoutubeUploadDate('')
+    setFacebookUrl('')
+    setFacebookUploadDate('')
+    setInstagramUrl('')
+    setInstagramUploadDate('')
+    setShopeeUrl('')
+    setShopeeUploadDate('')
+    setThreadsUrl('')
+    setThreadsUploadDate('')
+    setTiktokUrl('')
+    setTiktokUploadDate('')
   }
 
   const openEditDialog = (video: Video) => {
     setEditingVideo(video)
     setTitle(video.title)
     setDescription(video.description || '')
+    setYoutubeUrl(video.youtube_url || '')
+    setYoutubeUploadDate(video.youtube_upload_date || '')
+    setFacebookUrl(video.facebook_url || '')
+    setFacebookUploadDate(video.facebook_upload_date || '')
+    setInstagramUrl(video.instagram_url || '')
+    setInstagramUploadDate(video.instagram_upload_date || '')
+    setShopeeUrl(video.shopee_url || '')
+    setShopeeUploadDate(video.shopee_upload_date || '')
+    setThreadsUrl(video.threads_url || '')
+    setThreadsUploadDate(video.threads_upload_date || '')
+    setTiktokUrl(video.tiktok_url || '')
+    setTiktokUploadDate(video.tiktok_upload_date || '')
     setOpen(true)
+  }
+
+  const getTodayDate = () => {
+    const today = new Date()
+    return today.toISOString().split('T')[0]
+  }
+
+  const copyToClipboard = async (text: string, platform: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setSnackbar({ open: true, message: `${platform} URL copied to clipboard!` })
+    } catch (err) {
+      setSnackbar({ open: true, message: 'Failed to copy URL' })
+    }
   }
 
   const openAddDialog = () => {
     setEditingVideo(null)
-    setTitle('')
-    setDescription('')
+    resetForm()
+    // Set upload dates to today by default
+    setYoutubeUploadDate(getTodayDate())
+    setFacebookUploadDate(getTodayDate())
+    setInstagramUploadDate(getTodayDate())
+    setShopeeUploadDate(getTodayDate())
+    setThreadsUploadDate(getTodayDate())
+    setTiktokUploadDate(getTodayDate())
     setOpen(true)
   }
+
+  // Helper function to extract YouTube video ID
+  const getYouTubeVideoId = (url: string): string | null => {
+    if (!url) return null
+    
+    // Match various YouTube URL formats including Shorts
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([^&\n?#]+)/,
+      /youtube\.com\/watch\?.*v=([^&\n?#]+)/
+    ]
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern)
+      if (match) return match[1]
+    }
+    
+    return null
+  }
+
+  // Get available platforms for a video
+  const getAvailablePlatforms = (video: Video) => {
+    return platforms.filter(p => {
+      const url = video[`${p.key}_url` as keyof Video] as string | null
+      return !!url
+    })
+  }
+
+  // Get primary platform (first available in priority order)
+  const getPrimaryPlatform = (video: Video) => {
+    const priority = ['youtube', 'tiktok', 'facebook', 'instagram', 'threads', 'shopee']
+    for (const key of priority) {
+      const url = video[`${key}_url` as keyof Video] as string | null
+      if (url) return { key, url, label: platforms.find(p => p.key === key)?.label || key }
+    }
+    return null
+  }
+
+  // Open video player
+  const openVideoPlayer = (url: string) => {
+    setSelectedVideoUrl(url)
+    setVideoPlayerOpen(true)
+    setVideoLoading(true)
+  }
+
+  // Handle iframe load
+  const handleVideoLoad = () => {
+    setVideoLoading(false)
+  }
+
+  // Filter videos based on search query, date, and empty platform filter
+  const filteredVideos = videos.filter((video) => {
+    const matchesSearch = searchQuery === '' || 
+      video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (video.description && video.description.toLowerCase().includes(searchQuery.toLowerCase()))
+    
+    const matchesDate = dateFilter === '' || 
+      video.created_at.split('T')[0] === dateFilter
+    
+    const matchesEmptyPlatform = filterEmptyPlatform === null || 
+      !video[`${filterEmptyPlatform}_url` as keyof Video]
+    
+    return matchesSearch && matchesDate && matchesEmptyPlatform
+  })
 
   return (
     <Box>
@@ -145,30 +318,139 @@ export default function Videos() {
         </Button>
       </Box>
 
+      {/* Search and Filter */}
+      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+        <TextField
+          label="Search Videos"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          sx={{ flex: 1, minWidth: 250 }}
+          placeholder="Search by title or description..."
+        />
+        <TextField
+          label="Filter by Date"
+          type="date"
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
+          sx={{ minWidth: 180 }}
+          slotProps={{ inputLabel: { shrink: true } }}
+        />
+        {(searchQuery || dateFilter || filterEmptyPlatform) && (
+          <Button 
+            variant="outlined" 
+            onClick={() => {
+              setSearchQuery('')
+              setDateFilter('')
+              setFilterEmptyPlatform(null)
+            }}
+          >
+            Clear Filters
+          </Button>
+        )}
+      </Box>
+      
+      {filterEmptyPlatform && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Showing videos without {filterEmptyPlatform} URL
+        </Alert>
+      )}
+
       {loading ? (
-        <Typography>Loading...</Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
+          <CircularProgress />
+        </Box>
+      ) : filteredVideos.length === 0 ? (
+        <Typography color="text.secondary" align="center" sx={{ py: 4 }}>
+          {searchQuery || dateFilter ? 'No videos found matching your criteria' : 'No videos yet. Click "Add Video" to create one!'}
+        </Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {videos.map((video) => (
+          {filteredVideos.map((video) => (
             <Card key={video.id}>
               <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                  <Box>
-                    <Typography variant="h6">{video.title}</Typography>
-                    <Typography color="text.secondary" sx={{ mb: 2 }}>
-                      {video.description || 'No description'}
-                    </Typography>
-                    
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      {getVideoPlatforms(video.id).map((platform) => (
-                        <Chip
-                          key={platform.id}
-                          icon={platformIcons[platform.platform] || <LinkIcon />}
-                          label={platform.platform}
-                          color={platform.status === 'published' ? 'primary' : 'default'}
-                          size="small"
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'start' }}>
+                  {/* YouTube Thumbnail */}
+                  {video.youtube_url && (() => {
+                    const videoId = getYouTubeVideoId(video.youtube_url)
+                    if (videoId) {
+                      return (
+                        <Box
+                          component="img"
+                          src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
+                          alt={video.title}
+                          onClick={() => openVideoPlayer(video.youtube_url!)}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement
+                            // Try hqdefault first
+                            if (target.src.includes('mqdefault')) {
+                              target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+                            } 
+                            // If hqdefault also fails, try maxresdefault
+                            else if (target.src.includes('hqdefault')) {
+                              target.src = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
+                            }
+                            // If all fail, hide the image
+                            else {
+                              target.style.display = 'none'
+                            }
+                          }}
+                          sx={{
+                            width: 90,
+                            height: 160,
+                            objectFit: 'cover',
+                            borderRadius: 1,
+                            cursor: 'pointer',
+                            flexShrink: 0,
+                            '&:hover': {
+                              opacity: 0.8,
+                              transition: 'opacity 0.2s'
+                            }
+                          }}
                         />
-                      ))}
+                      )
+                    }
+                    return null
+                  })()}
+                  
+                  <Box sx={{ flex: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <Typography variant="h6">{video.title}</Typography>
+                      {video.description && (
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            setSelectedDescription(video.description || '')
+                            setDescriptionOpen(true)
+                          }}
+                          sx={{ p: 0.5 }}
+                          title="View description"
+                        >
+                          <Info fontSize="small" />
+                        </IconButton>
+                      )}
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                      {platforms.map((platform) => {
+                        const platformData = video[`${platform.key}_url` as keyof Video] as string | null
+                        const hasUrl = !!platformData
+                        const icon = platformIcons[platform.key]
+                        
+                        return (
+                          <Chip
+                            key={platform.key}
+                            icon={icon || undefined}
+                            label={platform.label}
+                            size="small"
+                            onClick={() => hasUrl && copyToClipboard(platformData!, platform.label)}
+                            sx={{ 
+                              cursor: hasUrl ? 'pointer' : 'default',
+                              opacity: hasUrl ? 1 : 0.5,
+                              '&:hover': hasUrl ? { opacity: 0.8 } : {}
+                            }}
+                          />
+                        )
+                      })}
                     </Box>
                   </Box>
                   
@@ -187,7 +469,8 @@ export default function Videos() {
         </Box>
       )}
 
-      <Dialog open={open} onClose={() => setOpen(false)}>
+      {/* Video Dialog */}
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>{editingVideo ? 'Edit Video' : 'Add Video'}</DialogTitle>
         <DialogContent>
           <TextField
@@ -205,14 +488,243 @@ export default function Videos() {
             fullWidth
             margin="normal"
             multiline
-            rows={3}
+            rows={6}
           />
+          
+          <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
+            Platform Links
+          </Typography>
+          
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <TextField
+                label="Upload Date"
+                type="date"
+                value={youtubeUploadDate}
+                onChange={(e) => setYoutubeUploadDate(e.target.value)}
+                sx={{ flex: 1 }}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+              <TextField
+                label="YouTube URL"
+                value={youtubeUrl}
+                onChange={(e) => setYoutubeUrl(e.target.value)}
+                sx={{ flex: 2 }}
+                placeholder="https://..."
+              />
+            </Box>
+            
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <TextField
+                label="Upload Date"
+                type="date"
+                value={facebookUploadDate}
+                onChange={(e) => setFacebookUploadDate(e.target.value)}
+                sx={{ flex: 1 }}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+              <TextField
+                label="Facebook URL"
+                value={facebookUrl}
+                onChange={(e) => setFacebookUrl(e.target.value)}
+                sx={{ flex: 2 }}
+                placeholder="https://..."
+              />
+            </Box>
+            
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <TextField
+                label="Upload Date"
+                type="date"
+                value={instagramUploadDate}
+                onChange={(e) => setInstagramUploadDate(e.target.value)}
+                sx={{ flex: 1 }}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+              <TextField
+                label="Instagram URL"
+                value={instagramUrl}
+                onChange={(e) => setInstagramUrl(e.target.value)}
+                sx={{ flex: 2 }}
+                placeholder="https://..."
+              />
+            </Box>
+            
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <TextField
+                label="Upload Date"
+                type="date"
+                value={shopeeUploadDate}
+                onChange={(e) => setShopeeUploadDate(e.target.value)}
+                sx={{ flex: 1 }}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+              <TextField
+                label="Shopee URL"
+                value={shopeeUrl}
+                onChange={(e) => setShopeeUrl(e.target.value)}
+                sx={{ flex: 2 }}
+                placeholder="https://..."
+              />
+            </Box>
+            
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <TextField
+                label="Upload Date"
+                type="date"
+                value={threadsUploadDate}
+                onChange={(e) => setThreadsUploadDate(e.target.value)}
+                sx={{ flex: 1 }}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+              <TextField
+                label="Threads URL"
+                value={threadsUrl}
+                onChange={(e) => setThreadsUrl(e.target.value)}
+                sx={{ flex: 2 }}
+                placeholder="https://..."
+              />
+            </Box>
+            
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <TextField
+                label="Upload Date"
+                type="date"
+                value={tiktokUploadDate}
+                onChange={(e) => setTiktokUploadDate(e.target.value)}
+                sx={{ flex: 1 }}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+              <TextField
+                label="TikTok URL"
+                value={tiktokUrl}
+                onChange={(e) => setTiktokUrl(e.target.value)}
+                sx={{ flex: 2 }}
+                placeholder="https://..."
+              />
+            </Box>
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>Cancel</Button>
           <Button onClick={editingVideo ? handleUpdateVideo : handleAddVideo} variant="contained">
             {editingVideo ? 'Update' : 'Add'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for copy notification */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" onClose={() => setSnackbar({ ...snackbar, open: false })}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+      {/* Description Dialog */}
+      <Dialog open={descriptionOpen} onClose={() => setDescriptionOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Description</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', mt: 2 }}>
+            {selectedDescription}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDescriptionOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Video Player Dialog */}
+      <Dialog open={videoPlayerOpen} onClose={() => setVideoPlayerOpen(false)} maxWidth="lg" fullWidth>
+        <DialogTitle>Video Player</DialogTitle>
+        <DialogContent>
+          {/* YouTube Embed Player */}
+          {selectedVideoUrl && getYouTubeVideoId(selectedVideoUrl) && (
+            <>
+              {videoLoading && (
+                <Box sx={{ 
+                  position: 'relative', 
+                  paddingBottom: '56.25%', 
+                  height: 0, 
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: '#000'
+                }}>
+                  <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
+                    <CircularProgress color="primary" />
+                  </Box>
+                </Box>
+              )}
+              <Box sx={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', display: videoLoading ? 'none' : 'block' }}>
+                <iframe
+                  src={`https://www.youtube.com/embed/${getYouTubeVideoId(selectedVideoUrl)}?autoplay=1`}
+                  title="YouTube video player"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    border: 'none'
+                  }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  onLoad={handleVideoLoad}
+                />
+              </Box>
+            </>
+          )}
+
+          {/* Available Platforms */}
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+              Available Platforms:
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              {(() => {
+                // Find the current video to get all platforms
+                const currentVideo = videos.find(v => 
+                  v.youtube_url === selectedVideoUrl || 
+                  v.facebook_url === selectedVideoUrl ||
+                  v.instagram_url === selectedVideoUrl ||
+                  v.tiktok_url === selectedVideoUrl ||
+                  v.threads_url === selectedVideoUrl ||
+                  v.shopee_url === selectedVideoUrl
+                )
+                
+                if (!currentVideo) return null
+                
+                return getAvailablePlatforms(currentVideo).map(platform => {
+                  const url = currentVideo[`${platform.key}_url` as keyof Video] as string
+                  const isYouTube = platform.key === 'youtube'
+                  const icon = platformIcons[platform.key]
+                  
+                  return (
+                    <Button
+                      key={platform.key}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      variant={isYouTube ? 'contained' : 'outlined'}
+                      startIcon={icon || undefined}
+                      size="small"
+                    >
+                      {platform.label}
+                    </Button>
+                  )
+                })
+              })()}
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setVideoPlayerOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>

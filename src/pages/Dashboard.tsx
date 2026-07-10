@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Typography,
   Card,
   CardContent,
-  Button,
+  IconButton,
+  CardActionArea,
+  CircularProgress,
 } from '@mui/material'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.tsx'
@@ -14,21 +17,21 @@ interface Video {
   title: string
   description: string | null
   created_at: string
+  youtube_url: string | null
+  facebook_url: string | null
+  instagram_url: string | null
+  shopee_url: string | null
+  threads_url: string | null
+  tiktok_url: string | null
 }
 
-interface VideoPlatform {
-  id: string
-  video_id: string
-  platform: string
-  video_url: string | null
-  status: string
-}
+const platforms = ['youtube', 'tiktok', 'facebook', 'instagram', 'threads', 'shopee']
 
 export default function Dashboard() {
   const { user } = useAuth()
   const [videos, setVideos] = useState<Video[]>([])
-  const [platforms, setPlatforms] = useState<VideoPlatform[]>([])
   const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,12 +43,7 @@ export default function Dashboard() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
-      const { data: platformsData } = await supabase
-        .from('video_platforms')
-        .select('*')
-
       setVideos(videosData || [])
-      setPlatforms(platformsData || [])
       setLoading(false)
     }
 
@@ -53,16 +51,29 @@ export default function Dashboard() {
   }, [user])
 
   const getPlatformStats = () => {
-    const stats: Record<string, { total: number; published: number }> = {}
-    platforms.forEach((p) => {
-      if (!stats[p.platform]) stats[p.platform] = { total: 0, published: 0 }
-      stats[p.platform].total += 1
-      if (p.status === 'published') stats[p.platform].published += 1
+    const totalVideos = videos.length
+    const stats: Record<string, { count: number; total: number }> = {}
+    
+    platforms.forEach((platform) => {
+      const count = videos.filter((video) => {
+        const url = video[`${platform}_url` as keyof Video] as string | null
+        return !!url
+      }).length
+      
+      stats[platform] = {
+        count,
+        total: totalVideos
+      }
     })
+    
     return stats
   }
 
   const platformStats = getPlatformStats()
+
+  const handlePlatformClick = (platform: string) => {
+    navigate('/videos', { state: { filterEmptyPlatform: platform } })
+  }
 
   return (
     <Box>
@@ -84,12 +95,15 @@ export default function Dashboard() {
         
         {Object.entries(platformStats).map(([platform, stats]) => (
           <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)', md: '1 1 calc(25% - 18px)' } }} key={platform}>
-            <Card>
+            <Card 
+              sx={{ cursor: 'pointer' }}
+              onClick={() => handlePlatformClick(platform)}
+            >
               <CardContent>
                 <Typography color="text.secondary" gutterBottom>
                   {platform.charAt(0).toUpperCase() + platform.slice(1)}
                 </Typography>
-                <Typography variant="h3">{stats.published}/{stats.total}</Typography>
+                <Typography variant="h3">{stats.count}/{stats.total}</Typography>
               </CardContent>
             </Card>
           </Box>
@@ -101,24 +115,62 @@ export default function Dashboard() {
       </Typography>
       
       {loading ? (
-        <Typography>Loading...</Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
+          <CircularProgress />
+        </Box>
       ) : (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-          {videos.slice(0, 4).map((video) => (
-            <Box sx={{ flex: { xs: '1 1 100%', md: '1 1 calc(50% - 8px)' } }} key={video.id}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6">{video.title}</Typography>
-                  <Typography color="text.secondary" sx={{ mb: 1 }}>
-                    {video.description || 'No description'}
-                  </Typography>
-                  <Button size="small" color="primary">
-                    View Details
-                  </Button>
-                </CardContent>
-              </Card>
-            </Box>
-          ))}
+          {videos.slice(0, 4).map((video) => {
+            // Extract YouTube video ID for thumbnail
+            const getYouTubeVideoId = (url: string): string | null => {
+              if (!url) return null
+              const patterns = [
+                /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([^&\n?#]+)/,
+                /youtube\.com\/watch\?.*v=([^&\n?#]+)/
+              ]
+              for (const pattern of patterns) {
+                const match = url.match(pattern)
+                if (match) return match[1]
+              }
+              return null
+            }
+
+            const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
+
+            return (
+              <Box sx={{ flex: { xs: '1 1 100%', md: '1 1 calc(50% - 8px)' } }} key={video.id}>
+                <Card>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                      {videoId && (
+                        <Box
+                          component="img"
+                          src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
+                          alt={video.title}
+                          sx={{
+                            width: 120,
+                            height: 68,
+                            objectFit: 'cover',
+                            borderRadius: 1,
+                            flexShrink: 0
+                          }}
+                        />
+                      )}
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="h6" sx={{ 
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {video.title}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Box>
+            )
+          })}
         </Box>
       )}
     </Box>

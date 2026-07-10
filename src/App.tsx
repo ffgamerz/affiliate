@@ -3,6 +3,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles'
 import { CssBaseline } from '@mui/material'
 import { AuthProvider, useAuth } from './hooks/useAuth.tsx'
 import Login from './pages/Login'
+import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Videos from './pages/Videos'
 import Layout from './components/Layout'
@@ -54,6 +55,7 @@ function AppContent() {
     <Router>
       <Routes>
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
+        <Route path="/register" element={!user ? <Register /> : <Navigate to="/" />} />
         <Route
           path="/*"
           element={user ? <Layout /> : <Navigate to="/login" />}
