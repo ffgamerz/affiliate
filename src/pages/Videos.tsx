@@ -17,7 +17,7 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material'
-import { Add, Edit, Delete, YouTube, Facebook, Instagram, Videocam, Info } from '@mui/icons-material'
+import { Add, Edit, Delete, YouTube, Facebook, Instagram, Info } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.tsx'
 
@@ -270,16 +270,6 @@ export default function Videos() {
       const url = video[`${p.key}_url` as keyof Video] as string | null
       return !!url
     })
-  }
-
-  // Get primary platform (first available in priority order)
-  const getPrimaryPlatform = (video: Video) => {
-    const priority = ['youtube', 'tiktok', 'facebook', 'instagram', 'threads', 'shopee']
-    for (const key of priority) {
-      const url = video[`${key}_url` as keyof Video] as string | null
-      if (url) return { key, url, label: platforms.find(p => p.key === key)?.label || key }
-    }
-    return null
   }
 
   // Open video player

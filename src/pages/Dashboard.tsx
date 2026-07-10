@@ -5,8 +5,6 @@ import {
   Typography,
   Card,
   CardContent,
-  IconButton,
-  CardActionArea,
   CircularProgress,
 } from '@mui/material'
 import { supabase } from '../lib/supabase'
