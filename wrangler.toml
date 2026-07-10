@@ -1,0 +1,6 @@
+name = "video-tracker"
+compatibility_date = "2024-01-01"
+
+[vars]
+VITE_SUPABASE_URL = "your_supabase_url"
+VITE_SUPABASE_ANON_KEY = "your_supabase_anon_key"
