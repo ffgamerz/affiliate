@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
   Box,
@@ -16,8 +16,15 @@ import {
   Snackbar,
   Alert,
   CircularProgress,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
 } from '@mui/material'
-import { Add, Edit, Delete, YouTube, Facebook, Instagram, Info } from '@mui/icons-material'
+import { Add, Edit, Delete, YouTube, Facebook, Instagram, Info, Upload } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.tsx'
 
@@ -70,11 +77,20 @@ export default function Videos() {
   const [videoPlayerOpen, setVideoPlayerOpen] = useState(false)
   const [selectedVideoUrl, setSelectedVideoUrl] = useState('')
   const [videoLoading, setVideoLoading] = useState(false)
+  const [uploadInfoOpen, setUploadInfoOpen] = useState(false)
+  const [selectedVideoForInfo, setSelectedVideoForInfo] = useState<Video | null>(null)
   
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [filterEmptyPlatform, setFilterEmptyPlatform] = useState<string | null>(null)
+  
+  // Pagination states
+  const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const ITEMS_PER_PAGE = 10
+  const observerTarget = useRef<HTMLDivElement>(null)
   
   // Copy to clipboard state
   const [snackbar, setSnackbar] = useState({ open: false, message: '' })
@@ -279,6 +295,12 @@ export default function Videos() {
     setVideoLoading(true)
   }
 
+  // Open upload info dialog
+  const openUploadInfo = (video: Video) => {
+    setSelectedVideoForInfo(video)
+    setUploadInfoOpen(true)
+  }
+
   // Handle iframe load
   const handleVideoLoad = () => {
     setVideoLoading(false)
@@ -298,6 +320,33 @@ export default function Videos() {
     
     return matchesSearch && matchesDate && matchesEmptyPlatform
   })
+
+  // Infinite scroll observer
+  const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
+    const target = entries[0]
+    if (target.isIntersecting && hasMore && !loadingMore) {
+      setLoadingMore(true)
+      // Simulate loading more data (in real app, fetch next page from API)
+      setTimeout(() => {
+        setLoadingMore(false)
+        setHasMore(false) // For demo, stop after one load
+      }, 1000)
+    }
+  }, [hasMore, loadingMore])
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(handleObserver, {
+      root: null,
+      rootMargin: '20px',
+      threshold: 0
+    })
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current)
+    }
+
+    return () => observer.disconnect()
+  }, [handleObserver])
 
   return (
     <Box>
@@ -445,6 +494,12 @@ export default function Videos() {
                   </Box>
                   
                   <Box>
+                    <IconButton 
+                      onClick={() => openUploadInfo(video)}
+                      title="Upload Info"
+                    >
+                      <Upload />
+                    </IconButton>
                     <IconButton onClick={() => openEditDialog(video)}>
                       <Edit />
                     </IconButton>
@@ -456,6 +511,22 @@ export default function Videos() {
               </CardContent>
             </Card>
           ))}
+          
+          {/* Infinite scroll trigger */}
+          <Box ref={observerTarget} sx={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            py: 2,
+            minHeight: 60
+          }}>
+            {loadingMore && <CircularProgress size={24} />}
+            {!hasMore && filteredVideos.length > ITEMS_PER_PAGE && (
+              <Typography color="text.secondary" variant="body2">
+                No more videos to load
+              </Typography>
+            )}
+          </Box>
         </Box>
       )}
 
@@ -721,6 +792,58 @@ export default function Videos() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setVideoPlayerOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Upload Info Dialog */}
+      <Dialog open={uploadInfoOpen} onClose={() => setUploadInfoOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Upload Info - {selectedVideoForInfo?.title}</DialogTitle>
+        <DialogContent>
+          <TableContainer component={Paper} sx={{ mt: 2 }}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell><strong>Platform</strong></TableCell>
+                  <TableCell><strong>Upload Date</strong></TableCell>
+                  <TableCell><strong>URL</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {selectedVideoForInfo && platforms.map((platform) => {
+                  const url = selectedVideoForInfo[`${platform.key}_url` as keyof Video] as string | null
+                  const uploadDate = selectedVideoForInfo[`${platform.key}_upload_date` as keyof Video] as string | null
+                  
+                  if (!url) return null
+                  
+                  return (
+                    <TableRow key={platform.key} hover>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {platformIcons[platform.key]}
+                          {platform.label}
+                        </Box>
+                      </TableCell>
+                      <TableCell>{uploadDate || '-'}</TableCell>
+                      <TableCell>
+                        <Button
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          size="small"
+                          variant="text"
+                        >
+                          Open Link
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUploadInfoOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>

@@ -6,6 +6,8 @@ import {
   Card,
   CardContent,
   CircularProgress,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.tsx'
@@ -30,6 +32,8 @@ export default function Dashboard() {
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
   useEffect(() => {
     const fetchData = async () => {
@@ -70,7 +74,13 @@ export default function Dashboard() {
   const platformStats = getPlatformStats()
 
   const handlePlatformClick = (platform: string) => {
-    navigate('/videos', { state: { filterEmptyPlatform: platform } })
+    if (platform === 'total') {
+      // Navigate to videos page without any filter
+      navigate('/videos')
+    } else {
+      // Navigate to videos page with platform filter
+      navigate('/videos', { state: { filterEmptyPlatform: platform } })
+    }
   }
 
   return (
@@ -79,9 +89,12 @@ export default function Dashboard() {
         Dashboard
       </Typography>
       
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 4 }}>
-        <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)', md: '1 1 calc(25% - 18px)' } }}>
-          <Card>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 4 }}>
+        <Box sx={{ flex: { xs: '1 1 calc(50% - 8px)', sm: '1 1 calc(25% - 12px)' } }}>
+          <Card 
+            sx={{ cursor: 'pointer' }}
+            onClick={() => handlePlatformClick('total')}
+          >
             <CardContent>
               <Typography color="text.secondary" gutterBottom>
                 Total Videos
@@ -92,7 +105,7 @@ export default function Dashboard() {
         </Box>
         
         {Object.entries(platformStats).map(([platform, stats]) => (
-          <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)', md: '1 1 calc(25% - 18px)' } }} key={platform}>
+          <Box sx={{ flex: { xs: '1 1 calc(50% - 8px)', sm: '1 1 calc(25% - 12px)' } }} key={platform}>
             <Card 
               sx={{ cursor: 'pointer' }}
               onClick={() => handlePlatformClick(platform)}
@@ -158,7 +171,9 @@ export default function Dashboard() {
                         <Typography variant="h6" sx={{ 
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical'
                         }}>
                           {video.title}
                         </Typography>
