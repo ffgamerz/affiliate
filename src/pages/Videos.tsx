@@ -629,29 +629,35 @@ export default function Videos() {
       </Dialog>
 
       {/* Video Player Dialog */}
-      <Dialog open={videoPlayerOpen} onClose={() => setVideoPlayerOpen(false)} maxWidth="lg" fullWidth>
+      <Dialog open={videoPlayerOpen} onClose={() => setVideoPlayerOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Video Player</DialogTitle>
-        <DialogContent>
-          {/* YouTube Embed Player */}
+        <DialogContent sx={{ p: 0 }}>
+          {/* YouTube Embed Player - Vertical 9:16 aspect ratio, full height */}
           {selectedVideoUrl && getYouTubeVideoId(selectedVideoUrl) && (
             <>
               {videoLoading && (
                 <Box sx={{ 
-                  position: 'relative', 
-                  paddingBottom: '56.25%', 
-                  height: 0, 
-                  overflow: 'hidden',
+                  width: '100%',
+                  height: '80vh',
+                  maxWidth: 450,
+                  mx: 'auto',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   background: '#000'
                 }}>
-                  <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-                    <CircularProgress color="primary" />
-                  </Box>
+                  <CircularProgress color="primary" />
                 </Box>
               )}
-              <Box sx={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', display: videoLoading ? 'none' : 'block' }}>
+              <Box sx={{ 
+                position: 'relative', 
+                width: '100%',
+                height: '80vh',
+                maxWidth: 450,
+                mx: 'auto',
+                overflow: 'hidden',
+                display: videoLoading ? 'none' : 'block'
+              }}>
                 <iframe
                   src={`https://www.youtube.com/embed/${getYouTubeVideoId(selectedVideoUrl)}?autoplay=1`}
                   title="YouTube video player"
