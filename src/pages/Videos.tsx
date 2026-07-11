@@ -311,15 +311,41 @@ export default function Videos() {
   // Search video in Google Drive - Latest folder
   const searchGoogleDriveLatest = (videoTitle: string) => {
     const latestFolderId = '1-1cXk5CecrMqVFN0krVA3JUf-SrCJejY'
-    const searchQuery = encodeURIComponent(`${videoTitle} parent:${latestFolderId}`)
-    window.open(`https://drive.google.com/drive/u/1/search?q=${searchQuery}`, '_blank')
+    const searchQuery = encodeURIComponent(videoTitle)
+    
+    if (isMobile()) {
+      // Try deep link for Google Drive app
+      const deepLink = `googleDrive://search?q=${searchQuery}`
+      // Fallback to web if deep link fails
+      window.open(deepLink, '_blank')
+      // Also open web as fallback
+      setTimeout(() => {
+        window.open(`https://drive.google.com/drive/u/1/search?q=${searchQuery} parent:${latestFolderId}`, '_blank')
+      }, 1000)
+    } else {
+      // URL for web browser
+      window.open(`https://drive.google.com/drive/u/1/search?q=${searchQuery} parent:${latestFolderId}`, '_blank')
+    }
   }
 
   // Search video in Google Drive - Archive folder
   const searchGoogleDriveArchive = (videoTitle: string) => {
     const archiveFolderId = '1DYoHgOxk3UAB6FQgWgbUhbgx9Xg74vDR'
-    const searchQuery = encodeURIComponent(`${videoTitle} parent:${archiveFolderId}`)
-    window.open(`https://drive.google.com/drive/u/1/search?q=${searchQuery}`, '_blank')
+    const searchQuery = encodeURIComponent(videoTitle)
+    
+    if (isMobile()) {
+      // Try deep link for Google Drive app
+      const deepLink = `googleDrive://search?q=${searchQuery}`
+      // Fallback to web if deep link fails
+      window.open(deepLink, '_blank')
+      // Also open web as fallback
+      setTimeout(() => {
+        window.open(`https://drive.google.com/drive/u/1/search?q=${searchQuery} parent:${archiveFolderId}`, '_blank')
+      }, 1000)
+    } else {
+      // URL for web browser
+      window.open(`https://drive.google.com/drive/u/1/search?q=${searchQuery} parent:${archiveFolderId}`, '_blank')
+    }
   }
 
   // Handle iframe load
