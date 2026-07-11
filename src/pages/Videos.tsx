@@ -587,7 +587,7 @@ export default function Videos() {
                         </Typography>
 
                       {/* Platform Chips */}
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5, maxHeight: 60, overflow: 'hidden' }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0.5, mb: 0.5 }}>
                         {platforms.map((platform) => {
                           const hasUrl = !!video[`${platform.key}_url` as keyof Video]
                           const icon = platformIcons[platform.key]
