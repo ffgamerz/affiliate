@@ -548,35 +548,43 @@ export default function Videos() {
                       />
                     )}
 
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      {/* Title Row */}
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                        <Typography
-                          variant={isMobile ? 'body1' : 'h6'}
-                          sx={{
-                            fontWeight: 600,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            flex: 1,
-                          }}
-                        >
-                          {video.title}
-                        </Typography>
-                        {video.description && (
-                          <IconButton
-                            size="small"
-                            onClick={() => {
-                              setSelectedDescription(video.description || '')
-                              setDescriptionOpen(true)
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        {/* Title Row */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                          <Typography
+                            variant={isMobile ? 'body1' : 'h6'}
+                            sx={{
+                              fontWeight: 600,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              flex: 1,
                             }}
-                            sx={{ p: 0.5 }}
-                            title="View description"
                           >
-                            <Info fontSize="small" />
-                          </IconButton>
-                        )}
-                      </Box>
+                            {video.title}
+                          </Typography>
+                          {video.description && (
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                setSelectedDescription(video.description || '')
+                                setDescriptionOpen(true)
+                              }}
+                              sx={{ p: 0.5 }}
+                              title="View description"
+                            >
+                              <Info fontSize="small" />
+                            </IconButton>
+                          )}
+                        </Box>
+                        {/* Created At Date */}
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
+                          {new Date(video.created_at).toLocaleDateString('en-GB', { 
+                            day: 'numeric', 
+                            month: 'short', 
+                            year: 'numeric' 
+                          })}
+                        </Typography>
 
                       {/* Platform Chips */}
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
