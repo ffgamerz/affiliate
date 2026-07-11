@@ -587,7 +587,7 @@ export default function Videos() {
                         </Typography>
 
                       {/* Platform Chips */}
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5, maxHeight: 60, overflow: 'hidden' }}>
                         {platforms.map((platform) => {
                           const hasUrl = !!video[`${platform.key}_url` as keyof Video]
                           const icon = platformIcons[platform.key]
@@ -647,7 +647,7 @@ export default function Videos() {
 
                       {/* Product Links */}
                       {(video.tiktok_product_url || video.shopee_product_url) && (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.25, maxHeight: 30, overflow: 'hidden' }}>
                           {video.tiktok_product_url && (
                             <Chip
                               icon={<TikTokIcon />}
