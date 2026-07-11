@@ -54,17 +54,21 @@ function AddUserSection() {
     setLoading(true)
     setError(null)
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    })
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      })
 
-    if (error) {
-      setError(error.message)
-    } else {
-      setSuccess(true)
-      setEmail('')
-      setPassword('')
+      if (error) {
+        setError(error.message)
+      } else {
+        setSuccess(true)
+        setEmail('')
+        setPassword('')
+      }
+    } catch (err) {
+      setError('Failed to create user')
     }
     setLoading(false)
   }

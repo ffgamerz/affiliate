@@ -1,5 +1,6 @@
 -- Migration: Create profiles table for admin management
 -- Run this in Supabase SQL editor
+-- NOTE: If you get "already exists" error, just run the individual parts separately
 
 -- 1. Create profiles table linked to auth.users
 CREATE TABLE IF NOT EXISTS profiles (
@@ -26,16 +27,16 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW
   EXECUTE FUNCTION handle_new_user();
 
--- 3. Enable RLS
+-- 3. Enable RLS (safe to run multiple times)
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- 4. Policy: users can read own profile
+-- 4. Drop policy first, then create (avoid "already exists" error)
 DROP POLICY IF EXISTS "Users can read own profile" ON profiles;
 CREATE POLICY "Users can read own profile"
   ON profiles FOR SELECT
   USING (auth.uid() = id);
 
--- 5. Insert profiles for existing users (run once)
+-- 5. Insert profiles for existing users (run once, safe to re-run)
 INSERT INTO profiles (id, email)
 SELECT id, email FROM auth.users
 ON CONFLICT (id) DO NOTHING;
