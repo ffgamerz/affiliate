@@ -303,17 +303,28 @@ export default function Videos() {
     setUploadInfoOpen(true)
   }
 
+  // Detect if the device is mobile (likely has Google Drive app)
+  const isMobileDevice = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  }
+
   // Search video in Google Drive - Latest folder
   const searchGoogleDriveLatest = (videoTitle: string) => {
     const latestFolderId = '1-1cXk5CecrMqVFN0krVA3JUf-SrCJejY'
-    const searchQuery = encodeURIComponent(`${videoTitle} parent:${latestFolderId}`)
+    // On mobile, don't use parent: filter to avoid showing folder ID in the search bar
+    const searchQuery = isMobileDevice()
+      ? encodeURIComponent(videoTitle)
+      : encodeURIComponent(`${videoTitle} parent:${latestFolderId}`)
     window.open(`https://drive.google.com/drive/u/0/search?q=${searchQuery}`, '_blank')
   }
 
   // Search video in Google Drive - Archive folder
   const searchGoogleDriveArchive = (videoTitle: string) => {
     const archiveFolderId = '1DYoHgOxk3UAB6FQgWgbUhbgx9Xg74vDR'
-    const searchQuery = encodeURIComponent(`${videoTitle} parent:${archiveFolderId}`)
+    // On mobile, don't use parent: filter to avoid showing folder ID in the search bar
+    const searchQuery = isMobileDevice()
+      ? encodeURIComponent(videoTitle)
+      : encodeURIComponent(`${videoTitle} parent:${archiveFolderId}`)
     window.open(`https://drive.google.com/drive/u/0/search?q=${searchQuery}`, '_blank')
   }
 
