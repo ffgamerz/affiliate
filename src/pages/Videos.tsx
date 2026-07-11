@@ -303,6 +303,11 @@ export default function Videos() {
     setUploadInfoOpen(true)
   }
 
+  // Detect if user is on mobile device
+  const isMobile = () => {
+    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  }
+
   // Search video in Google Drive - Latest folder
   const searchGoogleDriveLatest = (videoTitle: string) => {
     const latestFolderId = '1-1cXk5CecrMqVFN0krVA3JUf-SrCJejY'
