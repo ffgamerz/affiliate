@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import { CssBaseline } from '@mui/material'
 import { AuthProvider, useAuth } from './hooks/useAuth.tsx'
@@ -52,7 +52,7 @@ function AppContent() {
   }
 
   return (
-    <Router>
+    <HashRouter>
       <Routes>
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
         <Route path="/register" element={!user ? <Register /> : <Navigate to="/" />} />
@@ -64,7 +64,7 @@ function AppContent() {
           <Route path="videos" element={<Videos />} />
         </Route>
       </Routes>
-    </Router>
+    </HashRouter>
   )
 }
 
