@@ -124,6 +124,7 @@ export default function Videos() {
   // Form states
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [createdAt, setCreatedAt] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [youtubeUploadDate, setYoutubeUploadDate] = useState('')
   const [facebookUrl, setFacebookUrl] = useState('')
@@ -195,26 +196,33 @@ export default function Videos() {
   const handleUpdateVideo = async () => {
     if (!editingVideo) return
 
+    const updateData: any = {
+      title,
+      description,
+      youtube_url: youtubeUrl || null,
+      youtube_upload_date: youtubeUploadDate || null,
+      facebook_url: facebookUrl || null,
+      facebook_upload_date: facebookUploadDate || null,
+      instagram_url: instagramUrl || null,
+      instagram_upload_date: instagramUploadDate || null,
+      shopee_url: shopeeUrl || null,
+      shopee_upload_date: shopeeUploadDate || null,
+      shopee_product_url: shopeeProductUrl || null,
+      threads_url: threadsUrl || null,
+      threads_upload_date: threadsUploadDate || null,
+      tiktok_url: tiktokUrl || null,
+      tiktok_upload_date: tiktokUploadDate || null,
+      tiktok_product_url: tiktokProductUrl || null,
+    }
+
+    // Only update created_at if it's changed
+    if (createdAt) {
+      updateData.created_at = new Date(createdAt).toISOString()
+    }
+
     const { error } = await supabase
       .from('videos')
-      .update({
-        title,
-        description,
-        youtube_url: youtubeUrl || null,
-        youtube_upload_date: youtubeUploadDate || null,
-        facebook_url: facebookUrl || null,
-        facebook_upload_date: facebookUploadDate || null,
-        instagram_url: instagramUrl || null,
-        instagram_upload_date: instagramUploadDate || null,
-        shopee_url: shopeeUrl || null,
-        shopee_upload_date: shopeeUploadDate || null,
-        shopee_product_url: shopeeProductUrl || null,
-        threads_url: threadsUrl || null,
-        threads_upload_date: threadsUploadDate || null,
-        tiktok_url: tiktokUrl || null,
-        tiktok_upload_date: tiktokUploadDate || null,
-        tiktok_product_url: tiktokProductUrl || null,
-      })
+      .update(updateData)
       .eq('id', editingVideo.id)
 
     if (!error) {
@@ -235,6 +243,7 @@ export default function Videos() {
   const resetForm = () => {
     setTitle('')
     setDescription('')
+    setCreatedAt('')
     setYoutubeUrl('')
     setYoutubeUploadDate('')
     setFacebookUrl('')
@@ -263,6 +272,7 @@ export default function Videos() {
     setEditingVideo(video)
     setTitle(video.title)
     setDescription(video.description || '')
+    setCreatedAt(video.created_at ? video.created_at.split('T')[0] : '')
     setYoutubeUrl(video.youtube_url || '')
     setYoutubeUploadDate(video.youtube_upload_date || '')
     setFacebookUrl(video.facebook_url || '')
@@ -485,6 +495,12 @@ export default function Videos() {
         <Alert severity="info" sx={{ mb: 2 }}>
           Showing videos without {filterEmptyPlatform} URL
         </Alert>
+      )}
+
+      {(searchQuery || dateFilter || filterEmptyPlatform || platformFilter) && (
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {filteredVideos.length} result{filteredVideos.length !== 1 ? 's' : ''} found
+        </Typography>
       )}
 
       {loading ? (
@@ -728,6 +744,18 @@ export default function Videos() {
             rows={isMobile ? 3 : 6}
             size={isMobile ? 'small' : 'medium'}
           />
+          {editingVideo && (
+            <TextField
+              label="Created At"
+              type="date"
+              value={createdAt}
+              onChange={(e) => setCreatedAt(e.target.value)}
+              fullWidth
+              margin="normal"
+              size={isMobile ? 'small' : 'medium'}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+          )}
 
           <Typography variant="subtitle1" sx={{ mt: 2, mb: 1, fontWeight: 600 }}>
             Platform Links
