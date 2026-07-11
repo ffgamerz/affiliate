@@ -246,6 +246,12 @@ export default function Videos() {
     setTiktokProductUrl('')
   }
 
+  const autoSetTodayDate = (setDate: (val: string) => void, currentDate: string, url: string) => {
+    if (url && !currentDate) {
+      setDate(getTodayDate())
+    }
+  }
+
   const openEditDialog = (video: Video) => {
     setEditingVideo(video)
     setTitle(video.title)
@@ -284,12 +290,6 @@ export default function Videos() {
   const openAddDialog = () => {
     setEditingVideo(null)
     resetForm()
-    setYoutubeUploadDate(getTodayDate())
-    setFacebookUploadDate(getTodayDate())
-    setInstagramUploadDate(getTodayDate())
-    setShopeeUploadDate(getTodayDate())
-    setThreadsUploadDate(getTodayDate())
-    setTiktokUploadDate(getTodayDate())
     setOpen(true)
   }
 
@@ -515,8 +515,8 @@ export default function Videos() {
                           }
                         }}
                         sx={{
-                          width: { xs: 60, sm: 90 },
-                          height: { xs: 34, sm: 50 },
+                          width: 68,
+                          height: 120,
                           objectFit: 'cover',
                           borderRadius: 1,
                           cursor: 'pointer',
@@ -742,7 +742,10 @@ export default function Videos() {
               <TextField
                 label="TikTok URL"
                 value={tiktokUrl}
-                onChange={(e) => setTiktokUrl(e.target.value)}
+                onChange={(e) => {
+                  setTiktokUrl(e.target.value)
+                  autoSetTodayDate(setTiktokUploadDate, tiktokUploadDate, e.target.value)
+                }}
                 sx={{ flex: 2 }}
                 size="small"
                 placeholder="https://..."
@@ -771,7 +774,10 @@ export default function Videos() {
               <TextField
                 label="YouTube URL"
                 value={youtubeUrl}
-                onChange={(e) => setYoutubeUrl(e.target.value)}
+                onChange={(e) => {
+                  setYoutubeUrl(e.target.value)
+                  autoSetTodayDate(setYoutubeUploadDate, youtubeUploadDate, e.target.value)
+                }}
                 sx={{ flex: 2 }}
                 size="small"
                 placeholder="https://..."
@@ -792,7 +798,10 @@ export default function Videos() {
               <TextField
                 label="Facebook URL"
                 value={facebookUrl}
-                onChange={(e) => setFacebookUrl(e.target.value)}
+                onChange={(e) => {
+                  setFacebookUrl(e.target.value)
+                  autoSetTodayDate(setFacebookUploadDate, facebookUploadDate, e.target.value)
+                }}
                 sx={{ flex: 2 }}
                 size="small"
                 placeholder="https://..."
@@ -813,7 +822,10 @@ export default function Videos() {
               <TextField
                 label="Instagram URL"
                 value={instagramUrl}
-                onChange={(e) => setInstagramUrl(e.target.value)}
+                onChange={(e) => {
+                  setInstagramUrl(e.target.value)
+                  autoSetTodayDate(setInstagramUploadDate, instagramUploadDate, e.target.value)
+                }}
                 sx={{ flex: 2 }}
                 size="small"
                 placeholder="https://..."
@@ -834,7 +846,10 @@ export default function Videos() {
               <TextField
                 label="Shopee URL"
                 value={shopeeUrl}
-                onChange={(e) => setShopeeUrl(e.target.value)}
+                onChange={(e) => {
+                  setShopeeUrl(e.target.value)
+                  autoSetTodayDate(setShopeeUploadDate, shopeeUploadDate, e.target.value)
+                }}
                 sx={{ flex: 2 }}
                 size="small"
                 placeholder="https://..."
@@ -863,7 +878,10 @@ export default function Videos() {
               <TextField
                 label="Threads URL"
                 value={threadsUrl}
-                onChange={(e) => setThreadsUrl(e.target.value)}
+                onChange={(e) => {
+                  setThreadsUrl(e.target.value)
+                  autoSetTodayDate(setThreadsUploadDate, threadsUploadDate, e.target.value)
+                }}
                 sx={{ flex: 2 }}
                 size="small"
                 placeholder="https://..."
@@ -929,7 +947,7 @@ export default function Videos() {
               {videoLoading && (
                 <Box sx={{
                   width: '100%',
-                  height: isMobile ? '50vh' : '80vh',
+                  height: isMobile ? '85vh' : '80vh',
                   maxWidth: 450,
                   mx: 'auto',
                   display: 'flex',
@@ -943,7 +961,7 @@ export default function Videos() {
               <Box sx={{
                 position: 'relative',
                 width: '100%',
-                height: isMobile ? '50vh' : '80vh',
+                height: isMobile ? '85vh' : '80vh',
                 maxWidth: 450,
                 mx: 'auto',
                 overflow: 'hidden',

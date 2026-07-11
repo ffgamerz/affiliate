@@ -293,8 +293,8 @@ export default function Dashboard() {
                           src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
                           alt={video.title}
                           sx={{
-                            width: { xs: 80, sm: 120 },
-                            height: { xs: 45, sm: 68 },
+                            width: 68,
+                            height: 120,
                             objectFit: 'cover',
                             borderRadius: 1.5,
                             flexShrink: 0,
