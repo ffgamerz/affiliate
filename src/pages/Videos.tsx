@@ -303,12 +303,17 @@ export default function Videos() {
     setUploadInfoOpen(true)
   }
 
-  // Search video in Google Drive
-  const searchGoogleDrive = (videoTitle: string) => {
-    // Encode the search query
-    const searchQuery = encodeURIComponent(videoTitle)
-    
-    // Open Google Drive global search in new tab
+  // Search video in Google Drive - Latest folder
+  const searchGoogleDriveLatest = (videoTitle: string) => {
+    const latestFolderId = '1-1cXk5CecrMqVFN0krVA3JUf-SrCJejY'
+    const searchQuery = encodeURIComponent(`${videoTitle} parent:${latestFolderId}`)
+    window.open(`https://drive.google.com/drive/u/1/search?q=${searchQuery}`, '_blank')
+  }
+
+  // Search video in Google Drive - Archive folder
+  const searchGoogleDriveArchive = (videoTitle: string) => {
+    const archiveFolderId = '1DYoHgOxk3UAB6FQgWgbUhbgx9Xg74vDR'
+    const searchQuery = encodeURIComponent(`${videoTitle} parent:${archiveFolderId}`)
     window.open(`https://drive.google.com/drive/u/1/search?q=${searchQuery}`, '_blank')
   }
 
@@ -501,17 +506,28 @@ export default function Videos() {
                         )
                       })}
                       
-                      {/* Google Drive Search Button */}
+                      {/* Google Drive Search Buttons */}
                       <Chip
                         icon={<GoogleDriveIcon />}
-                        label="Google Drive"
+                        label="Drive"
                         size="small"
-                        onClick={() => searchGoogleDrive(video.title)}
+                        onClick={() => searchGoogleDriveLatest(video.title)}
                         sx={{ 
                           cursor: 'pointer',
                           '&:hover': { opacity: 0.8 }
                         }}
-                        title="Search in Google Drive"
+                        title="Search in Google Drive (Latest)"
+                      />
+                      <Chip
+                        icon={<GoogleDriveIcon />}
+                        label="Archive"
+                        size="small"
+                        onClick={() => searchGoogleDriveArchive(video.title)}
+                        sx={{ 
+                          cursor: 'pointer',
+                          '&:hover': { opacity: 0.8 }
+                        }}
+                        title="Search in Google Drive (Archive)"
                       />
                     </Box>
                   </Box>
