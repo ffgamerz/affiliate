@@ -517,8 +517,8 @@ export default function Videos() {
             const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
             return (
               <Card key={video.id}>
-                <CardContent sx={{ py: 2, px: 2.5 }}>
-                  <Box sx={{ display: 'flex', gap: { xs: 1.5, md: 2 }, alignItems: 'flex-start' }}>
+                <CardContent sx={{ py: 2, px: { xs: 2, md: 2.5 } }}>
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                     {/* YouTube Thumbnail */}
                     {videoId && (
                       <Box
