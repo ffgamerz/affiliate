@@ -444,18 +444,17 @@ export default function Videos() {
         <TextField
           size="small"
           select
-          label="Platform"
           value={platformFilter}
           onChange={(e) => setPlatformFilter(e.target.value)}
           sx={{ minWidth: { xs: '100%', sm: 150 } }}
-          slotProps={{ 
+          slotProps={{
             select: { 
               native: true,
               displayEmpty: true,
             } 
           }}
         >
-          <option value="">All Platforms</option>
+          <option value="">Platform</option>
           {platforms.map((opt) => (
             <option key={opt.key} value={opt.key}>{opt.label}</option>
           ))}
