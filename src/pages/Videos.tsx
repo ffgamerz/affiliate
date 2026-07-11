@@ -587,12 +587,12 @@ export default function Videos() {
                         </Typography>
 
                       {/* Platform Chips */}
-                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0.5, mb: 0.5 }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, auto)', gap: 0.5, mb: 0.5 }}>
                         {platforms.map((platform) => {
                           const hasUrl = !!video[`${platform.key}_url` as keyof Video]
                           const icon = platformIcons[platform.key]
 
-                            return (
+                          return (
                             <Chip
                               key={platform.key}
                               icon={icon || undefined}
@@ -612,8 +612,10 @@ export default function Videos() {
                             />
                           )
                         })}
+                      </Box>
 
-                        {/* Google Drive Search */}
+                      {/* Google Drive Search */}
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
                         {isMobileDevice() ? (
                           <Chip
                             icon={<GoogleDriveIcon />}
