@@ -176,7 +176,7 @@ export default function Layout() {
         </AppBar>
 
         {/* Page Content */}
-        <Container maxWidth="sm" sx={{ flex: 1, py: { xs: 2, md: 3 }, px: { xs: 2, md: 3 } }}>
+        <Container sx={{ flex: 1, py: { xs: 2, md: 3 }, px: { xs: 2, md: 3 } }}>
           <Outlet />
         </Container>
 
