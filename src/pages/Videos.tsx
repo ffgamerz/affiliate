@@ -146,6 +146,11 @@ export default function Videos() {
     if (location.state && (location.state as any).filterEmptyPlatform) {
       setFilterEmptyPlatform((location.state as any).filterEmptyPlatform)
     }
+
+    // Auto-open add dialog if navigated from Dashboard
+    if (location.state && (location.state as any).openAddDialog) {
+      openAddDialog()
+    }
   }, [location])
 
   const fetchData = async () => {

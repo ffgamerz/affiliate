@@ -162,7 +162,7 @@ export default function Dashboard() {
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
           Dashboard
         </Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/videos')}>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/videos', { state: { openAddDialog: true } })}>
           Add Video
         </Button>
       </Box>
