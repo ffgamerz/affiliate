@@ -328,6 +328,12 @@ export default function Videos() {
     window.open(`https://drive.google.com/drive/u/0/search?q=${searchQuery}`, '_blank')
   }
 
+  // Search video in all Google Drive (mobile - no folder filter)
+  const searchGoogleDriveAll = (videoTitle: string) => {
+    const searchQuery = encodeURIComponent(videoTitle)
+    window.open(`https://drive.google.com/drive/u/0/search?q=${searchQuery}`, '_blank')
+  }
+
   // Handle iframe load
   const handleVideoLoad = () => {
     setVideoLoading(false)
@@ -518,28 +524,44 @@ export default function Videos() {
                       })}
                       
                       {/* Google Drive Search Buttons */}
-                      <Chip
-                        icon={<GoogleDriveIcon />}
-                        label="Drive"
-                        size="small"
-                        onClick={() => searchGoogleDriveLatest(video.title)}
-                        sx={{ 
-                          cursor: 'pointer',
-                          '&:hover': { opacity: 0.8 }
-                        }}
-                        title="Search in Google Drive (Latest)"
-                      />
-                      <Chip
-                        icon={<GoogleDriveIcon />}
-                        label="Archive"
-                        size="small"
-                        onClick={() => searchGoogleDriveArchive(video.title)}
-                        sx={{ 
-                          cursor: 'pointer',
-                          '&:hover': { opacity: 0.8 }
-                        }}
-                        title="Search in Google Drive (Archive)"
-                      />
+                      {isMobileDevice() ? (
+                        <Chip
+                          icon={<GoogleDriveIcon />}
+                          label="Drive"
+                          size="small"
+                          onClick={() => searchGoogleDriveAll(video.title)}
+                          sx={{ 
+                            cursor: 'pointer',
+                            '&:hover': { opacity: 0.8 }
+                          }}
+                          title="Search in Google Drive"
+                        />
+                      ) : (
+                        <>
+                          <Chip
+                            icon={<GoogleDriveIcon />}
+                            label="Drive"
+                            size="small"
+                            onClick={() => searchGoogleDriveLatest(video.title)}
+                            sx={{ 
+                              cursor: 'pointer',
+                              '&:hover': { opacity: 0.8 }
+                            }}
+                            title="Search in Google Drive (Latest)"
+                          />
+                          <Chip
+                            icon={<GoogleDriveIcon />}
+                            label="Archive"
+                            size="small"
+                            onClick={() => searchGoogleDriveArchive(video.title)}
+                            sx={{ 
+                              cursor: 'pointer',
+                              '&:hover': { opacity: 0.8 }
+                            }}
+                            title="Search in Google Drive (Archive)"
+                          />
+                        </>
+                      )}
                     </Box>
                   </Box>
                   
