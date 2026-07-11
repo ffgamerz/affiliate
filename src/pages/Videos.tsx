@@ -428,7 +428,7 @@ export default function Videos() {
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
           Videos
         </Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={openAddDialog} size={isMobile ? 'small' : 'medium'}>
+        <Button variant="contained" startIcon={<Add />} onClick={openAddDialog} size="medium">
           Add Video
         </Button>
       </Box>
@@ -512,12 +512,12 @@ export default function Videos() {
           {searchQuery || dateFilter ? 'No videos found matching your criteria' : 'No videos yet. Click "Add Video" to create one!'}
         </Typography>
       ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {filteredVideos.slice(0, visibleCount).map((video) => {
             const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
             return (
               <Card key={video.id}>
-                <CardContent sx={{ py: { xs: 1.5, md: 2 }, px: { xs: 1.5, md: 2.5 } }}>
+                <CardContent sx={{ py: 2, px: 2.5 }}>
                   <Box sx={{ display: 'flex', gap: { xs: 1.5, md: 2 }, alignItems: 'flex-start' }}>
                     {/* YouTube Thumbnail */}
                     {videoId && (
@@ -552,7 +552,7 @@ export default function Videos() {
                         {/* Title Row */}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                           <Typography
-                            variant={isMobile ? 'body1' : 'h6'}
+                            variant="h6"
                             sx={{
                               fontWeight: 600,
                               overflow: 'hidden',
@@ -578,7 +578,7 @@ export default function Videos() {
                           )}
                         </Box>
                         {/* Created At Date */}
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>
                           {new Date(video.created_at).toLocaleDateString('en-GB', { 
                             day: 'numeric', 
                             month: 'short', 
@@ -592,20 +592,20 @@ export default function Videos() {
                           const hasUrl = !!video[`${platform.key}_url` as keyof Video]
                           const icon = platformIcons[platform.key]
 
-                          return (
+                            return (
                             <Chip
                               key={platform.key}
                               icon={icon || undefined}
-                              label={isMobile ? platform.label.substring(0, 2) : platform.label}
+                              label={platform.label}
                               size="small"
                               onClick={() => hasUrl && copyToClipboard(video[`${platform.key}_url` as keyof Video] as string, platform.label)}
                               sx={{
                                 cursor: hasUrl ? 'pointer' : 'default',
                                 opacity: hasUrl ? 1 : 0.4,
                                 fontWeight: 500,
-                                fontSize: isMobile ? 11 : 12,
+                                fontSize: 12,
                                 '&:hover': hasUrl ? { opacity: 0.8 } : {},
-                                '& .MuiChip-icon': { fontSize: isMobile ? 14 : 16 },
+                                '& .MuiChip-icon': { fontSize: 16 },
                               }}
                               variant={hasUrl ? 'filled' : 'outlined'}
                               color={hasUrl ? 'default' : 'default'}
