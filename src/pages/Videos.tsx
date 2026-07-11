@@ -548,46 +548,47 @@ export default function Videos() {
                       />
                     )}
 
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        {/* Title Row */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                          <Typography
-                            variant="h6"
-                            sx={{
-                              fontWeight: 600,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              flex: 1,
-                            }}
-                          >
-                            {video.title}
-                          </Typography>
-                          {video.description && (
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                setSelectedDescription(video.description || '')
-                                setDescriptionOpen(true)
-                              }}
-                              sx={{ p: 0.5 }}
-                              title="View description"
-                            >
-                              <Info fontSize="small" />
-                            </IconButton>
-                          )}
-                        </Box>
-                        {/* Created At Date */}
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>
-                          {new Date(video.created_at).toLocaleDateString('en-GB', { 
-                            day: 'numeric', 
-                            month: 'short', 
-                            year: 'numeric' 
-                          })}
+                    <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                      {/* Title Row */}
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mb: 0.5 }}>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            fontWeight: 600,
+                            overflow: 'hidden',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            flex: 1,
+                          }}
+                        >
+                          {video.title}
                         </Typography>
+                        {video.description && (
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setSelectedDescription(video.description || '')
+                              setDescriptionOpen(true)
+                            }}
+                            sx={{ p: 0.5 }}
+                            title="View description"
+                          >
+                            <Info fontSize="small" />
+                          </IconButton>
+                        )}
+                      </Box>
+                      {/* Created At Date */}
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>
+                        {new Date(video.created_at).toLocaleDateString('en-GB', { 
+                          day: 'numeric', 
+                          month: 'short', 
+                          year: 'numeric' 
+                        })}
+                      </Typography>
 
                       {/* Platform Chips */}
-                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, auto)', gap: 0.5, mb: 0.5 }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, auto)' }, gap: 0.5, mb: 0.5, width: '100%' }}>
                         {platforms.map((platform) => {
                           const hasUrl = !!video[`${platform.key}_url` as keyof Video]
                           const icon = platformIcons[platform.key]
@@ -681,7 +682,7 @@ export default function Videos() {
                     </Box>
 
                     {/* Action Buttons */}
-                    <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 0.5, flexShrink: 0 }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>
                       <IconButton size="small" onClick={() => openUploadInfo(video)} title="Upload Info">
                         <Upload fontSize="small" />
                       </IconButton>
