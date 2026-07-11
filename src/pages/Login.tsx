@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import {
   Container,
   Box,
@@ -46,14 +46,19 @@ export default function Login() {
           justifyContent: 'center',
         }}
       >
-        <Paper sx={{ p: 4, width: '100%' }}>
-          <Typography variant="h4" align="center" gutterBottom>
-            Video Tracker
-          </Typography>
-          <Typography variant="body1" align="center" color="text.secondary" sx={{ mb: 3 }}>
-            Sign in to manage your videos
-          </Typography>
-          {error && <Alert severity="error">{error}</Alert>}
+        <Paper sx={{ p: { xs: 3, sm: 4 }, width: '100%' }}>
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Typography variant="h4" sx={{ color: 'primary.main', fontWeight: 800 }}>
+              BOL
+            </Typography>
+            <Typography variant="h6" sx={{ fontWeight: 600, mt: 0.5 }}>
+              Affiliate Video
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Sign in to manage your videos
+            </Typography>
+          </Box>
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
           <Box component="form" onSubmit={handleSubmit}>
             <TextField
               label="Email"
@@ -77,11 +82,36 @@ export default function Login() {
               type="submit"
               variant="contained"
               fullWidth
-              sx={{ mt: 2 }}
+              sx={{ mt: 2, py: 1.5 }}
               disabled={loading}
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+              <Button
+                size="small"
+                component={RouterLink}
+                to="/register"
+              >
+                Don't have an account? Register
+              </Button>
+              <Button
+                size="small"
+                onClick={async () => {
+                  const email = (document.querySelector('input[type="email"]') as HTMLInputElement)?.value
+                  if (email) {
+                    await supabase.auth.resetPasswordForEmail(email, {
+                      redirectTo: `${window.location.origin}/#/login`,
+                    })
+                    alert('Password reset link sent to your email!')
+                  } else {
+                    alert('Please enter your email first')
+                  }
+                }}
+              >
+                Forgot Password?
+              </Button>
+            </Box>
           </Box>
         </Paper>
       </Box>
