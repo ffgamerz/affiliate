@@ -27,6 +27,14 @@ import {
 import { Add, Edit, Delete, YouTube, Facebook, Instagram, Info, Upload } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 
+// Google Drive Icon SVG component
+const GoogleDriveIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 87.3 76.6" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M63.7 28.1l-11.9-6.8c-.1 0-.2-.1-.3-.1l-11.9-6.8c-.1 0-.2 0-.3.1L21.9 28c-.1.1-.2.1-.3.1L6.1 34.9c-.1 0-.2.1-.1.2v12.3c0 .1.1.2.2.2l15.6 9.1c.1 0 .2 0 .3-.1l11.9 6.8c.1 0 .2.1.3.1l11.9 6.8c.1 0 .2 0 .3-.1l11.9-6.8c.1 0 .2-.1.3-.1l11.9-6.8c.1 0 .2 0 .3.1l11.9 6.8c.1 0 .2.1.3.1l15.6-9.1c.1 0 .2-.1.2-.2V35c0-.1-.1-.2-.2-.2l-15.6-9.1c-.1 0-.2-.1-.3-.1z" fill="#0066CC"/>
+    <path d="M63.7 28.1L44.2 4.2c-.1-.1-.2-.1-.3 0L21.9 28c-.1.1-.2.1-.3.1-.1L6.1 34.9c-.1 0-.2.1-.1.2v12.3c0 .1.1.2.2.2l15.6 9.1c.1 0 .2 0 .3-.1l11.9 6.8c.1 0 .2.1.3.1l11.9 6.8c.1 0 .2 0 .3-.1l11.9-6.8c.1 0 .2-.1.3-.1l11.9-6.8c.1 0 .2 0 .3.1l11.9 6.8c.1 0 .2.1.3.1l15.6-9.1c.1 0 .2-.1.2-.2V35c0-.1-.1-.2-.2-.2l-15.6-9.1c-.1 0-.2-.1-.3-.1z" fill="#00AC47"/>
+  </svg>
+)
+
 interface Video {
   id: string
   title: string
@@ -295,6 +303,15 @@ export default function Videos() {
     setUploadInfoOpen(true)
   }
 
+  // Search video in Google Drive
+  const searchGoogleDrive = (videoTitle: string) => {
+    // Encode the search query
+    const searchQuery = encodeURIComponent(videoTitle)
+    
+    // Open Google Drive global search in new tab
+    window.open(`https://drive.google.com/drive/u/1/search?q=${searchQuery}`, '_blank')
+  }
+
   // Handle iframe load
   const handleVideoLoad = () => {
     setVideoLoading(false)
@@ -483,6 +500,19 @@ export default function Videos() {
                           />
                         )
                       })}
+                      
+                      {/* Google Drive Search Button */}
+                      <Chip
+                        icon={<GoogleDriveIcon />}
+                        label="Google Drive"
+                        size="small"
+                        onClick={() => searchGoogleDrive(video.title)}
+                        sx={{ 
+                          cursor: 'pointer',
+                          '&:hover': { opacity: 0.8 }
+                        }}
+                        title="Search in Google Drive"
+                      />
                     </Box>
                   </Box>
                   
