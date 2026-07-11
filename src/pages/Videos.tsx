@@ -249,6 +249,8 @@ export default function Videos() {
   const autoSetTodayDate = (setDate: (val: string) => void, currentDate: string, url: string) => {
     if (url && !currentDate) {
       setDate(getTodayDate())
+    } else if (!url && currentDate) {
+      setDate('')
     }
   }
 
@@ -452,9 +454,15 @@ export default function Videos() {
           value={platformFilter}
           onChange={(e) => setPlatformFilter(e.target.value)}
           sx={{ minWidth: { xs: '100%', sm: 150 } }}
-          slotProps={{ select: { native: true } }}
+          slotProps={{ 
+            select: { 
+              native: true,
+              displayEmpty: true,
+            } 
+          }}
         >
-          {platformFilterOptions.map((opt) => (
+          <option value="">All Platforms</option>
+          {platforms.map((opt) => (
             <option key={opt.key} value={opt.key}>{opt.label}</option>
           ))}
         </TextField>
