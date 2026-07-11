@@ -406,12 +406,6 @@ export default function Videos() {
     return () => observer.disconnect()
   }, [handleObserver])
 
-  // Platform filter options
-  const platformFilterOptions = [
-    { key: '', label: 'All Platforms' },
-    ...platforms,
-  ]
-
   return (
     <Box>
       {/* Header */}
