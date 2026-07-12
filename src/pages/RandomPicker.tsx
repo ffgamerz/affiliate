@@ -350,19 +350,10 @@ export default function RandomPicker() {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+      <Box sx={{ mb: 2 }}>
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
           Random Video Picker
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<ShuffleIcon />}
-          onClick={pickRandomVideo}
-          size="medium"
-          disabled={videos.length === 0}
-        >
-          Pick Random
-        </Button>
       </Box>
 
       {/* Filters */}
@@ -435,6 +426,18 @@ export default function RandomPicker() {
             ))}
           </TextField>
         )}
+      </Box>
+
+      <Box sx={{ mb: 2 }}>
+        <Button
+          variant="contained"
+          startIcon={<ShuffleIcon />}
+          onClick={pickRandomVideo}
+          size="medium"
+          disabled={videos.length === 0}
+        >
+          Pick Random
+        </Button>
       </Box>
 
       {/* Random Video Display - Direct on page (not popup) */}
@@ -630,25 +633,6 @@ export default function RandomPicker() {
               </Box>
             </Box>
           </CardContent>
-          
-          {/* Action buttons below video */}
-          <Box sx={{ display: 'flex', gap: 1, px: 2, pb: 2 }}>
-            <Button variant="outlined" size="small" onClick={pickRandomVideo}>
-              Pick Again
-            </Button>
-            <Button 
-              variant="contained" 
-              size="small"
-              onClick={() => {
-                if (selectedRandomVideo?.youtube_url) {
-                  openVideoPlayer(selectedRandomVideo.youtube_url)
-                }
-              }}
-              disabled={!selectedRandomVideo?.youtube_url}
-            >
-              Open Video
-            </Button>
-          </Box>
         </Card>
       )}
 
