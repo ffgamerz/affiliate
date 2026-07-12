@@ -518,9 +518,9 @@ export default function Videos() {
             return (
               <Card key={video.id}>
                 <CardContent sx={{ py: 2, px: { xs: 2, md: 2.5 } }}>
-                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
                     {/* YouTube Thumbnail */}
-                    {videoId && (
+                    {videoId ? (
                       <Box
                         component="img"
                         src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
@@ -546,6 +546,23 @@ export default function Videos() {
                           '&:hover': { opacity: 0.8, transition: 'opacity 0.2s' }
                         }}
                       />
+                    ) : (
+                      <Box
+                        sx={{
+                          width: 68,
+                          height: 120,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: 1,
+                          bgcolor: 'grey.200',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
+                          No Video
+                        </Typography>
+                      </Box>
                     )}
 
                     <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
