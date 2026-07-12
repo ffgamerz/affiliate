@@ -587,111 +587,116 @@ export default function Videos() {
                         })}
                       </Typography>
 
-                      {/* Platform Chips */}
-                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, auto)' }, gap: 0.5, mb: 0.5, width: '100%' }}>
-                        {platforms.map((platform) => {
-                          const hasUrl = !!video[`${platform.key}_url` as keyof Video]
-                          const icon = platformIcons[platform.key]
+                      {/* Content with Action Buttons */}
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          {/* Platform Chips */}
+                          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, auto)' }, gap: 0.5, mb: 0.5, width: '100%' }}>
+                            {platforms.map((platform) => {
+                              const hasUrl = !!video[`${platform.key}_url` as keyof Video]
+                              const icon = platformIcons[platform.key]
 
-                          return (
-                            <Chip
-                              key={platform.key}
-                              icon={icon || undefined}
-                              label={platform.label}
-                              size="small"
-                              onClick={() => hasUrl && copyToClipboard(video[`${platform.key}_url` as keyof Video] as string, platform.label)}
-                              sx={{
-                                cursor: hasUrl ? 'pointer' : 'default',
-                                opacity: hasUrl ? 1 : 0.4,
-                                fontWeight: 500,
-                                fontSize: 12,
-                                '&:hover': hasUrl ? { opacity: 0.8 } : {},
-                                '& .MuiChip-icon': { fontSize: 16 },
-                              }}
-                              variant={hasUrl ? 'filled' : 'outlined'}
-                              color={hasUrl ? 'default' : 'default'}
-                            />
-                          )
-                        })}
-                      </Box>
+                              return (
+                                <Chip
+                                  key={platform.key}
+                                  icon={icon || undefined}
+                                  label={platform.label}
+                                  size="small"
+                                  onClick={() => hasUrl && copyToClipboard(video[`${platform.key}_url` as keyof Video] as string, platform.label)}
+                                  sx={{
+                                    cursor: hasUrl ? 'pointer' : 'default',
+                                    opacity: hasUrl ? 1 : 0.4,
+                                    fontWeight: 500,
+                                    fontSize: 12,
+                                    '&:hover': hasUrl ? { opacity: 0.8 } : {},
+                                    '& .MuiChip-icon': { fontSize: 16 },
+                                  }}
+                                  variant={hasUrl ? 'filled' : 'outlined'}
+                                  color={hasUrl ? 'default' : 'default'}
+                                />
+                              )
+                            })}
+                          </Box>
 
-                      {/* Google Drive Search */}
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
-                        {isMobileDevice() ? (
-                          <Chip
-                            icon={<GoogleDriveIcon />}
-                            label="Drive"
-                            size="small"
-                            onClick={() => searchGoogleDriveAll(video.title)}
-                            sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
-                            title="Search in Google Drive"
-                          />
-                        ) : (
-                          <>
-                            <Chip
-                              icon={<GoogleDriveIcon />}
-                              label="Drive"
-                              size="small"
-                              onClick={() => searchGoogleDriveLatest(video.title)}
-                              sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
-                              title="Search in Google Drive (Latest)"
-                            />
-                            <Chip
-                              icon={<GoogleDriveIcon />}
-                              label="Arc"
-                              size="small"
-                              onClick={() => searchGoogleDriveArchive(video.title)}
-                              sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
-                              title="Search in Google Drive (Archive)"
-                            />
-                          </>
-                        )}
-                      </Box>
+                          {/* Google Drive Search */}
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
+                            {isMobileDevice() ? (
+                              <Chip
+                                icon={<GoogleDriveIcon />}
+                                label="Drive"
+                                size="small"
+                                onClick={() => searchGoogleDriveAll(video.title)}
+                                sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
+                                title="Search in Google Drive"
+                              />
+                            ) : (
+                              <>
+                                <Chip
+                                  icon={<GoogleDriveIcon />}
+                                  label="Drive"
+                                  size="small"
+                                  onClick={() => searchGoogleDriveLatest(video.title)}
+                                  sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
+                                  title="Search in Google Drive (Latest)"
+                                />
+                                <Chip
+                                  icon={<GoogleDriveIcon />}
+                                  label="Arc"
+                                  size="small"
+                                  onClick={() => searchGoogleDriveArchive(video.title)}
+                                  sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
+                                  title="Search in Google Drive (Archive)"
+                                />
+                              </>
+                            )}
+                          </Box>
 
-                      {/* Product Links */}
-                      {(video.tiktok_product_url || video.shopee_product_url) && (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.25, maxHeight: 30, overflow: 'hidden' }}>
-                          {video.tiktok_product_url && (
-                            <Chip
-                              icon={<TikTokIcon />}
-                              label="TikTok Shop"
-                              size="small"
-                              component="a"
-                              href={video.tiktok_product_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              clickable
-                              sx={{ bgcolor: '#000', color: 'white', '&:hover': { bgcolor: '#333' } }}
-                            />
-                          )}
-                          {video.shopee_product_url && (
-                            <Chip
-                              icon={<Shop />}
-                              label="Shopee"
-                              size="small"
-                              component="a"
-                              href={video.shopee_product_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              clickable
-                              sx={{ bgcolor: '#EE4D2D', color: 'white', '&:hover': { bgcolor: '#D43D1F' } }}
-                            />
+                          {/* Product Links */}
+                          {(video.tiktok_product_url || video.shopee_product_url) && (
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.25, maxHeight: 30, overflow: 'hidden' }}>
+                              {video.tiktok_product_url && (
+                                <Chip
+                                  icon={<TikTokIcon />}
+                                  label="TikTok Shop"
+                                  size="small"
+                                  component="a"
+                                  href={video.tiktok_product_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  clickable
+                                  sx={{ bgcolor: '#000', color: 'white', '&:hover': { bgcolor: '#333' } }}
+                                />
+                              )}
+                              {video.shopee_product_url && (
+                                <Chip
+                                  icon={<Shop />}
+                                  label="Shopee"
+                                  size="small"
+                                  component="a"
+                                  href={video.shopee_product_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  clickable
+                                  sx={{ bgcolor: '#EE4D2D', color: 'white', '&:hover': { bgcolor: '#D43D1F' } }}
+                                />
+                              )}
+                            </Box>
                           )}
                         </Box>
-                      )}
-                    </Box>
 
-                    {/* Action Buttons */}
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>
-                      <IconButton size="small" onClick={() => openUploadInfo(video)} title="Upload Info">
-                        <Upload fontSize="small" />
-                      </IconButton>
-                      <IconButton size="small" onClick={() => openEditDialog(video)} title="Edit">
-                        <Edit fontSize="small" />
-                      </IconButton>
-                      <IconButton size="small" onClick={() => handleDeleteVideo(video.id)} title="Delete">
-                        <Delete fontSize="small" />
-                      </IconButton>
+                        {/* Action Buttons */}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>
+                          <IconButton size="small" onClick={() => openUploadInfo(video)} title="Upload Info">
+                            <Upload fontSize="small" />
+                          </IconButton>
+                          <IconButton size="small" onClick={() => openEditDialog(video)} title="Edit">
+                            <Edit fontSize="small" />
+                          </IconButton>
+                          <IconButton size="small" onClick={() => handleDeleteVideo(video.id)} title="Delete">
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      </Box>
                     </Box>
                   </Box>
                 </CardContent>
