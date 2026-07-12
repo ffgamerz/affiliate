@@ -596,12 +596,8 @@ export default function RandomPicker() {
                             icon={<TikTokIcon />}
                             label="TikTok Shop"
                             size="small"
-                            component="a"
-                            href={selectedRandomVideo.tiktok_product_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            clickable
-                            sx={{ bgcolor: '#000', color: 'white', '&:hover': { bgcolor: '#333' } }}
+                            onClick={() => copyToClipboard(selectedRandomVideo.tiktok_product_url!, 'TikTok Shop')}
+                            sx={{ cursor: 'pointer', bgcolor: '#000', color: 'white', '&:hover': { bgcolor: '#333' } }}
                           />
                         )}
                         {selectedRandomVideo.shopee_product_url && (
@@ -609,12 +605,8 @@ export default function RandomPicker() {
                             icon={<Shop />}
                             label="Shopee"
                             size="small"
-                            component="a"
-                            href={selectedRandomVideo.shopee_product_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            clickable
-                            sx={{ bgcolor: '#EE4D2D', color: 'white', '&:hover': { bgcolor: '#D43D1F' } }}
+                            onClick={() => copyToClipboard(selectedRandomVideo.shopee_product_url!, 'Shopee')}
+                            sx={{ cursor: 'pointer', bgcolor: '#EE4D2D', color: 'white', '&:hover': { bgcolor: '#D43D1F' } }}
                           />
                         )}
                       </Box>
