@@ -112,11 +112,21 @@ export default function Videos() {
   const [filterEmptyPlatform, setFilterEmptyPlatform] = useState<string | null>(null)
   const [platformFilter, setPlatformFilter] = useState<string>('')
 
+  // Search input ref for auto-focus
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
   // Pagination states
   const ITEMS_PER_PAGE = 10
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
   const [loadingMore, setLoadingMore] = useState(false)
   const observerTarget = useRef<HTMLDivElement>(null)
+
+  // Auto-focus search input when navigated from search icon click
+  useEffect(() => {
+    if ((location.state as any)?.focusSearch && searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [location])
 
   // Copy to clipboard state
   const [snackbar, setSnackbar] = useState({ open: false, message: '' })
@@ -435,18 +445,19 @@ export default function Videos() {
 
       {/* Search and Filter */}
       <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
-        <TextField
-          size="small"
-          placeholder="Search videos..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          sx={{ flex: { xs: '1 1 100%', sm: 1 }, minWidth: 200 }}
-          slotProps={{
-            input: {
-              startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary', fontSize: 20 }} />,
-            }
-          }}
-        />
+                      <TextField
+                        inputRef={searchInputRef}
+                        size="small"
+                        placeholder="Search videos..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        sx={{ flex: { xs: '1 1 100%', sm: 1 }, minWidth: 200 }}
+                        slotProps={{
+                          input: {
+                            startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary', fontSize: 20 }} />,
+                          }
+                        }}
+                      />
         <TextField
           size="small"
           label="Date"

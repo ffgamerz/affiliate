@@ -169,7 +169,13 @@ export default function Layout() {
             <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 600 }}>
               {navItems.find((item) => item.path === location.pathname)?.label || 'BOL Affiliate Video'}
             </Typography>
-            <IconButton color="inherit" sx={{ mr: 1 }}>
+            <IconButton 
+              color="inherit" 
+              sx={{ mr: 1 }}
+              onClick={() => {
+                navigate('/videos', { state: { focusSearch: true } })
+              }}
+            >
               <SearchIcon />
             </IconButton>
           </Toolbar>
