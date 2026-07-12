@@ -40,6 +40,7 @@ import {
   Forum as ThreadsIcon,
   Search as SearchIcon,
   Close as CloseIcon,
+  ContentCopy as CopyIcon,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 
@@ -80,6 +81,61 @@ const platforms = [
   { key: 'threads', label: 'Threads' },
   { key: 'shopee', label: 'Shopee' },
 ]
+
+// Description section interface
+interface DescriptionSection {
+  title: string
+  content: string
+}
+
+// Parse description into sections based on emoji headers
+const parseDescription = (text: string): DescriptionSection[] => {
+  if (!text) return []
+  
+  const sections: DescriptionSection[] = []
+  const lines = text.split('\n')
+  
+  // Find all line indices that start with emoji (these are section headers)
+  const emojiHeaderPattern = /^[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u
+  const sectionStartIndices: number[] = []
+  
+  lines.forEach((line, index) => {
+    if (emojiHeaderPattern.test(line)) {
+      sectionStartIndices.push(index)
+    }
+  })
+  
+  // If no emoji headers found, return original text as single section
+  if (sectionStartIndices.length === 0) {
+    sections.push({
+      title: 'Content',
+      content: text
+    })
+    return sections
+  }
+  
+  // Extract sections - each emoji line is a title, content is until next emoji line
+  for (let i = 0; i < sectionStartIndices.length; i++) {
+    const currentStart = sectionStartIndices[i]
+    const nextStart = sectionStartIndices[i + 1]
+    
+    // Title is the emoji line
+    const title = lines[currentStart].trim()
+    
+    // Content is all lines until next emoji line (or end)
+    const contentLines = nextStart 
+      ? lines.slice(currentStart + 1, nextStart)
+      : lines.slice(currentStart + 1)
+    const content = contentLines.join('\n').trim()
+    
+    sections.push({
+      title,
+      content
+    })
+  }
+  
+  return sections
+}
 
 const platformIcons: Record<string, React.ReactElement | null> = {
   youtube: <YouTube />,
@@ -405,6 +461,18 @@ export default function Videos() {
     return matchesSearch && matchesDate && matchesEmptyPlatform && matchesPlatform
   })
 
+  const totalVideos = videos.length
+  const videosWithLinks = videos.filter((video) =>
+    platforms.some((platform) => !!video[`${platform.key}_url` as keyof Video])
+  ).length
+  const videosWithoutLinks = videos.filter((video) =>
+    !platforms.some((platform) => !!video[`${platform.key}_url` as keyof Video])
+  ).length
+  const platformCounts = platforms.reduce<Record<string, number>>((acc, platform) => {
+    acc[platform.key] = videos.filter((video) => !!video[`${platform.key}_url` as keyof Video]).length
+    return acc
+  }, {})
+
   // Infinite scroll observer
   const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
     const target = entries[0]
@@ -435,12 +503,64 @@ export default function Videos() {
     <Box>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          Videos
-        </Typography>
+        <Box>
+          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+            Videos
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Track video uploads across platforms with quick search and smart filters.
+          </Typography>
+        </Box>
         <Button variant="contained" startIcon={<Add />} onClick={openAddDialog} size="medium">
           Add Video
         </Button>
+      </Box>
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
+        <Card sx={{ bgcolor: 'background.paper' }}>
+          <CardContent>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Total videos
+            </Typography>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              {totalVideos}
+            </Typography>
+          </CardContent>
+        </Card>
+        <Card sx={{ bgcolor: 'background.paper' }}>
+          <CardContent>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Videos with links
+            </Typography>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              {videosWithLinks}
+            </Typography>
+          </CardContent>
+        </Card>
+        <Card sx={{ bgcolor: 'background.paper' }}>
+          <CardContent>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Videos missing links
+            </Typography>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              {videosWithoutLinks}
+            </Typography>
+          </CardContent>
+        </Card>
+      </Box>
+
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+        {platforms.map((platform) => (
+          <Chip
+            key={platform.key}
+            label={`${platform.label} (${platformCounts[platform.key] || 0})`}
+            clickable
+            size="small"
+            variant={platformFilter === platform.key ? 'filled' : 'outlined'}
+            color={platformFilter === platform.key ? 'primary' : 'default'}
+            onClick={() => setPlatformFilter(platformFilter === platform.key ? '' : platform.key)}
+          />
+        ))}
       </Box>
 
       {/* Search and Filter */}
@@ -990,9 +1110,39 @@ export default function Videos() {
           </Box>
         </DialogTitle>
         <DialogContent>
-          <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', mt: 2 }}>
-            {selectedDescription}
-          </Typography>
+          {parseDescription(selectedDescription).map((section, index) => (
+            <Box key={index} sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                  {section.title}
+                </Typography>
+                {section.content && (
+                  <IconButton 
+                    size="small" 
+                    onClick={() => copyToClipboard(section.content, section.title)}
+                    title="Copy content"
+                  >
+                    <CopyIcon fontSize="small" />
+                  </IconButton>
+                )}
+              </Box>
+              {section.content && (
+                <Box 
+                  sx={{ 
+                    p: 1.5, 
+                    bgcolor: 'grey.50', 
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: 'grey.200'
+                  }}
+                >
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>
+                    {section.content}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          ))}
         </DialogContent>
         {!isMobile && (
           <DialogActions>

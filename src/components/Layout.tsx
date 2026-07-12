@@ -28,6 +28,7 @@ import {
   Menu as MenuIcon,
   Search as SearchIcon,
   Shuffle as ShuffleIcon,
+  CalendarMonth as CalendarIcon,
 } from '@mui/icons-material'
 import { useAuth } from '../hooks/useAuth.tsx'
 
@@ -45,6 +46,7 @@ export default function Layout() {
     { path: '/', label: 'Dashboard', icon: <DashboardIcon /> },
     { path: '/videos', label: 'Videos', icon: <VideoIcon /> },
     { path: '/random', label: 'Random', icon: <ShuffleIcon /> },
+    { path: '/date-check', label: 'Date Check', icon: <CalendarIcon /> },
     ...(isAdmin ? [{ path: '/settings', label: 'Settings', icon: <SettingsIcon /> }] : []),
   ]
 
