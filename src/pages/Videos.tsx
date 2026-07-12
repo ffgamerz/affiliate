@@ -116,6 +116,7 @@ export default function Videos() {
   // Random picker state
   const [randomPickerOpen, setRandomPickerOpen] = useState(false)
   const [selectedRandomVideo, setSelectedRandomVideo] = useState<Video | null>(null)
+  const [randomPickerPlatform, setRandomPickerPlatform] = useState<string>('')
 
   // Search input ref for auto-focus
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -347,11 +348,21 @@ export default function Videos() {
     })
   }
 
-  // Pick random video from filtered list
+  // Pick random video from filtered list (optionally filtered by platform)
   const pickRandomVideo = () => {
-    if (filteredVideos.length === 0) return
-    const randomIndex = Math.floor(Math.random() * filteredVideos.length)
-    setSelectedRandomVideo(filteredVideos[randomIndex])
+    let videosToPick = filteredVideos
+    
+    // If platform filter is set, filter videos that have that platform URL
+    if (randomPickerPlatform) {
+      videosToPick = filteredVideos.filter(video => {
+        const url = video[`${randomPickerPlatform}_url` as keyof Video] as string | null
+        return !!url
+      })
+    }
+    
+    if (videosToPick.length === 0) return
+    const randomIndex = Math.floor(Math.random() * videosToPick.length)
+    setSelectedRandomVideo(videosToPick[randomIndex])
     setRandomPickerOpen(true)
   }
 
@@ -1197,7 +1208,7 @@ export default function Videos() {
       {/* Random Video Picker Dialog */}
       <Dialog open={randomPickerOpen} onClose={() => setRandomPickerOpen(false)} maxWidth="md" fullWidth fullScreen={isMobile}>
         <DialogTitle sx={{ pb: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
             <Typography variant="h6">🎲 Random Video</Typography>
             {isMobile && (
               <IconButton onClick={() => setRandomPickerOpen(false)} size="small">
@@ -1205,6 +1216,24 @@ export default function Videos() {
               </IconButton>
             )}
           </Box>
+          <TextField
+            size="small"
+            select
+            value={randomPickerPlatform}
+            onChange={(e) => setRandomPickerPlatform(e.target.value)}
+            sx={{ minWidth: 150 }}
+            slotProps={{
+              select: { 
+                native: true,
+                displayEmpty: true,
+              } 
+            }}
+          >
+            <option value="">All Platforms</option>
+            {platforms.map((opt) => (
+              <option key={opt.key} value={opt.key}>{opt.label}</option>
+            ))}
+          </TextField>
         </DialogTitle>
         <DialogContent sx={{ pb: 1 }}>
           {selectedRandomVideo && (
