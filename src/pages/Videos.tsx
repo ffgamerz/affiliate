@@ -88,24 +88,24 @@ interface DescriptionSection {
   content: string
 }
 
-// Parse description into sections based on emoji headers
+// Parse description into sections based on -- headers
 const parseDescription = (text: string): DescriptionSection[] => {
   if (!text) return []
   
   const sections: DescriptionSection[] = []
   const lines = text.split('\n')
   
-  // Find all line indices that start with emoji (these are section headers)
-  const emojiHeaderPattern = /^[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u
+  // Find all line indices that start with -- and end with -- (these are section headers)
   const sectionStartIndices: number[] = []
   
   lines.forEach((line, index) => {
-    if (emojiHeaderPattern.test(line)) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('--') && trimmed.endsWith('--')) {
       sectionStartIndices.push(index)
     }
   })
   
-  // If no emoji headers found, return original text as single section
+  // If no headers found, return original text as single section
   if (sectionStartIndices.length === 0) {
     sections.push({
       title: 'Content',
@@ -114,15 +114,15 @@ const parseDescription = (text: string): DescriptionSection[] => {
     return sections
   }
   
-  // Extract sections - each emoji line is a title, content is until next emoji line
+  // Extract sections - each -- line is a title, content is until next -- line
   for (let i = 0; i < sectionStartIndices.length; i++) {
     const currentStart = sectionStartIndices[i]
     const nextStart = sectionStartIndices[i + 1]
     
-    // Title is the emoji line
-    const title = lines[currentStart].trim()
+    // Title is the -- line (remove the -- prefix and suffix)
+    const title = lines[currentStart].trim().replace(/^--\s*/, '').replace(/\s*--$/, '')
     
-    // Content is all lines until next emoji line (or end)
+    // Content is all lines until next -- line (or end)
     const contentLines = nextStart 
       ? lines.slice(currentStart + 1, nextStart)
       : lines.slice(currentStart + 1)
