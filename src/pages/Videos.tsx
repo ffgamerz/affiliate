@@ -1223,7 +1223,7 @@ export default function Videos() {
                       }}
                       onError={(e) => {
                         const target = e.target as HTMLImageElement
-                        const videoId = getYouTubeVideoId(selectedRandomVideo.youtube_url) || ''
+                        const videoId = getYouTubeVideoId(selectedRandomVideo.youtube_url!) || ''
                         if (target.src.includes('mqdefault')) {
                           target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
                         } else if (target.src.includes('hqdefault')) {
