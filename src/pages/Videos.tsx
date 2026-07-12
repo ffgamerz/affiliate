@@ -120,6 +120,7 @@ export default function Videos() {
   const [randomPickerDateFilter, setRandomPickerDateFilter] = useState<string>('')
   const [randomPickerMonth, setRandomPickerMonth] = useState<string>('')
   const [randomPickerYear, setRandomPickerYear] = useState<string>('')
+  const [availableYears, setAvailableYears] = useState<string[]>([])
 
   // Search input ref for auto-focus
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -245,6 +246,14 @@ export default function Videos() {
       .eq('id', editingVideo.id)
 
     if (!error) {
+      // Update selectedRandomVideo if editing from random picker
+      if (selectedRandomVideo && selectedRandomVideo.id === editingVideo.id) {
+        setSelectedRandomVideo({
+          ...editingVideo,
+          ...updateData,
+          created_at: createdAt ? new Date(createdAt).toISOString() : editingVideo.created_at,
+        })
+      }
       setOpen(false)
       setEditingVideo(null)
       resetForm()
@@ -369,14 +378,14 @@ export default function Videos() {
         const videoDate = new Date(video.created_at)
         const now = new Date()
         const diffDays = (now.getTime() - videoDate.getTime()) / (1000 * 60 * 60 * 24)
-        return diffDays > 30
+        return diffDays > 365
       })
     } else if (randomPickerDateFilter === 'latest') {
       videosToPick = videosToPick.filter(video => {
         const videoDate = new Date(video.created_at)
         const now = new Date()
         const diffDays = (now.getTime() - videoDate.getTime()) / (1000 * 60 * 60 * 24)
-        return diffDays <= 30
+        return diffDays <= 365
       })
     } else if (randomPickerDateFilter === 'month' && randomPickerMonth) {
       videosToPick = videosToPick.filter(video => {
@@ -440,6 +449,14 @@ export default function Videos() {
   const handleVideoLoad = () => {
     setVideoLoading(false)
   }
+
+  // Extract available years from videos
+  useEffect(() => {
+    if (videos.length > 0) {
+      const years = [...new Set(videos.map(v => v.created_at.substring(0, 4)))].sort((a, b) => b.localeCompare(a))
+      setAvailableYears(years)
+    }
+  }, [videos])
 
   // Filter videos
   const filteredVideos = videos.filter((video) => {
@@ -1279,8 +1296,8 @@ export default function Videos() {
               }}
             >
               <option value="">All Dates</option>
-              <option value="old">Old (30+ days)</option>
-              <option value="latest">Latest (30 days)</option>
+              <option value="old">Old (365+ days)</option>
+              <option value="latest">Latest (365 days)</option>
               <option value="month">By Month</option>
               <option value="year">By Year</option>
             </TextField>
@@ -1298,17 +1315,22 @@ export default function Videos() {
             {randomPickerDateFilter === 'year' && (
               <TextField
                 size="small"
-                type="number"
-                label="Year"
+                select
                 value={randomPickerYear}
                 onChange={(e) => setRandomPickerYear(e.target.value)}
                 sx={{ minWidth: 100 }}
                 slotProps={{
-                  input: {
-                    inputProps: { min: 2020, max: 2030 }
-                  }
+                  select: { 
+                    native: true,
+                    displayEmpty: true,
+                  } 
                 }}
-              />
+              >
+                <option value="">Select Year</option>
+                {availableYears.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </TextField>
             )}
           </Box>
         </DialogTitle>
