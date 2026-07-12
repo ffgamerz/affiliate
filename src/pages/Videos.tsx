@@ -117,6 +117,9 @@ export default function Videos() {
   const [randomPickerOpen, setRandomPickerOpen] = useState(false)
   const [selectedRandomVideo, setSelectedRandomVideo] = useState<Video | null>(null)
   const [randomPickerPlatform, setRandomPickerPlatform] = useState<string>('')
+  const [randomPickerDateFilter, setRandomPickerDateFilter] = useState<string>('')
+  const [randomPickerMonth, setRandomPickerMonth] = useState<string>('')
+  const [randomPickerYear, setRandomPickerYear] = useState<string>('')
 
   // Search input ref for auto-focus
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -348,15 +351,42 @@ export default function Videos() {
     })
   }
 
-  // Pick random video from filtered list (optionally filtered by platform)
+  // Pick random video from filtered list (optionally filtered by platform and date)
   const pickRandomVideo = () => {
     let videosToPick = filteredVideos
     
     // If platform filter is set, filter videos that have that platform URL
     if (randomPickerPlatform) {
-      videosToPick = filteredVideos.filter(video => {
+      videosToPick = videosToPick.filter(video => {
         const url = video[`${randomPickerPlatform}_url` as keyof Video] as string | null
         return !!url
+      })
+    }
+    
+    // If date filter is set, filter by date type
+    if (randomPickerDateFilter === 'old') {
+      videosToPick = videosToPick.filter(video => {
+        const videoDate = new Date(video.created_at)
+        const now = new Date()
+        const diffDays = (now.getTime() - videoDate.getTime()) / (1000 * 60 * 60 * 24)
+        return diffDays > 30
+      })
+    } else if (randomPickerDateFilter === 'latest') {
+      videosToPick = videosToPick.filter(video => {
+        const videoDate = new Date(video.created_at)
+        const now = new Date()
+        const diffDays = (now.getTime() - videoDate.getTime()) / (1000 * 60 * 60 * 24)
+        return diffDays <= 30
+      })
+    } else if (randomPickerDateFilter === 'month' && randomPickerMonth) {
+      videosToPick = videosToPick.filter(video => {
+        const videoDate = video.created_at.substring(0, 7) // YYYY-MM
+        return videoDate === randomPickerMonth
+      })
+    } else if (randomPickerDateFilter === 'year' && randomPickerYear) {
+      videosToPick = videosToPick.filter(video => {
+        const videoDate = video.created_at.substring(0, 4) // YYYY
+        return videoDate === randomPickerYear
       })
     }
     
@@ -1216,24 +1246,71 @@ export default function Videos() {
               </IconButton>
             )}
           </Box>
-          <TextField
-            size="small"
-            select
-            value={randomPickerPlatform}
-            onChange={(e) => setRandomPickerPlatform(e.target.value)}
-            sx={{ minWidth: 150 }}
-            slotProps={{
-              select: { 
-                native: true,
-                displayEmpty: true,
-              } 
-            }}
-          >
-            <option value="">All Platforms</option>
-            {platforms.map((opt) => (
-              <option key={opt.key} value={opt.key}>{opt.label}</option>
-            ))}
-          </TextField>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <TextField
+              size="small"
+              select
+              value={randomPickerPlatform}
+              onChange={(e) => setRandomPickerPlatform(e.target.value)}
+              sx={{ minWidth: 120 }}
+              slotProps={{
+                select: { 
+                  native: true,
+                  displayEmpty: true,
+                } 
+              }}
+            >
+              <option value="">All Platforms</option>
+              {platforms.map((opt) => (
+                <option key={opt.key} value={opt.key}>{opt.label}</option>
+              ))}
+            </TextField>
+            <TextField
+              size="small"
+              select
+              value={randomPickerDateFilter}
+              onChange={(e) => setRandomPickerDateFilter(e.target.value)}
+              sx={{ minWidth: 120 }}
+              slotProps={{
+                select: { 
+                  native: true,
+                  displayEmpty: true,
+                } 
+              }}
+            >
+              <option value="">All Dates</option>
+              <option value="old">Old (30+ days)</option>
+              <option value="latest">Latest (30 days)</option>
+              <option value="month">By Month</option>
+              <option value="year">By Year</option>
+            </TextField>
+            {randomPickerDateFilter === 'month' && (
+              <TextField
+                size="small"
+                type="month"
+                label="Month"
+                value={randomPickerMonth}
+                onChange={(e) => setRandomPickerMonth(e.target.value)}
+                sx={{ minWidth: 150 }}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+            )}
+            {randomPickerDateFilter === 'year' && (
+              <TextField
+                size="small"
+                type="number"
+                label="Year"
+                value={randomPickerYear}
+                onChange={(e) => setRandomPickerYear(e.target.value)}
+                sx={{ minWidth: 100 }}
+                slotProps={{
+                  input: {
+                    inputProps: { min: 2020, max: 2030 }
+                  }
+                }}
+              />
+            )}
+          </Box>
         </DialogTitle>
         <DialogContent sx={{ pb: 1 }}>
           {selectedRandomVideo && (
