@@ -1136,10 +1136,8 @@ export default function Videos() {
                     borderColor: 'grey.200'
                   }}
                 >
-                  <Typography variant="body2" sx={{ fontSize: 13, lineHeight: 1.6 }}>
-                    {section.content.split('\n').map((line, lineIndex) => 
-                      line ? <span key={lineIndex}>{line}<br/></span> : <br key={lineIndex} />
-                    )}
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-line', fontSize: 13 }}>
+                    {section.content}
                   </Typography>
                 </Box>
               )}
