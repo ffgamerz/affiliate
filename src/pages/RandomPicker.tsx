@@ -1,5 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import {
   Box,
   Typography,
@@ -16,20 +15,11 @@ import {
   Snackbar,
   Alert,
   CircularProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   useTheme,
   useMediaQuery,
 } from '@mui/material'
 import {
-  Add,
   Edit,
-  Delete,
   YouTube,
   Facebook,
   Instagram,
@@ -38,8 +28,8 @@ import {
   MusicNote as TikTokIcon,
   Shop,
   Forum as ThreadsIcon,
-  Search as SearchIcon,
   Close as CloseIcon,
+  Shuffle as ShuffleIcon,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 
@@ -90,8 +80,7 @@ const platformIcons: Record<string, React.ReactElement | null> = {
   shopee: <Shop />,
 }
 
-export default function Videos() {
-  const location = useLocation()
+export default function RandomPicker() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [videos, setVideos] = useState<Video[]>([])
@@ -106,30 +95,14 @@ export default function Videos() {
   const [uploadInfoOpen, setUploadInfoOpen] = useState(false)
   const [selectedVideoForInfo, setSelectedVideoForInfo] = useState<Video | null>(null)
 
-  // Search and filter states
-  const [searchQuery, setSearchQuery] = useState('')
-  const [dateFilter, setDateFilter] = useState('')
-  const [filterEmptyPlatform, setFilterEmptyPlatform] = useState<string | null>(null)
-  const [platformFilter, setPlatformFilter] = useState<string>('')
-
-  // Search input ref for auto-focus
-  const searchInputRef = useRef<HTMLInputElement>(null)
-
-  // Pagination states
-  const ITEMS_PER_PAGE = 10
-  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const observerTarget = useRef<HTMLDivElement>(null)
-
-  // Auto-focus search input when navigated from search icon click
-  useEffect(() => {
-    if ((location.state as any)?.focusSearch && searchInputRef.current) {
-      searchInputRef.current.focus()
-    }
-  }, [location])
-
-  // Copy to clipboard state
-  const [snackbar, setSnackbar] = useState({ open: false, message: '' })
+  // Random picker state
+  const [randomPickerOpen, setRandomPickerOpen] = useState(false)
+  const [selectedRandomVideo, setSelectedRandomVideo] = useState<Video | null>(null)
+  const [randomPickerPlatform, setRandomPickerPlatform] = useState<string>('')
+  const [randomPickerDateFilter, setRandomPickerDateFilter] = useState<string>('')
+  const [randomPickerMonth, setRandomPickerMonth] = useState<string>('')
+  const [randomPickerYear, setRandomPickerYear] = useState<string>('')
+  const [availableYears, setAvailableYears] = useState<string[]>([])
 
   // Form states
   const [title, setTitle] = useState('')
@@ -150,19 +123,12 @@ export default function Videos() {
   const [tiktokUploadDate, setTiktokUploadDate] = useState('')
   const [tiktokProductUrl, setTiktokProductUrl] = useState('')
 
+  // Snackbar state
+  const [snackbar, setSnackbar] = useState({ open: false, message: '' })
+
   useEffect(() => {
     fetchData()
-
-    // Check if navigated from Dashboard with platform filter
-    if (location.state && (location.state as any).filterEmptyPlatform) {
-      setFilterEmptyPlatform((location.state as any).filterEmptyPlatform)
-    }
-
-    // Auto-open add dialog if navigated from Dashboard
-    if (location.state && (location.state as any).openAddDialog) {
-      openAddDialog()
-    }
-  }, [location])
+  }, [])
 
   const fetchData = async () => {
     const { data: videosData } = await supabase
@@ -174,34 +140,13 @@ export default function Videos() {
     setLoading(false)
   }
 
-  const handleAddVideo = async () => {
-    if (!title) return
-
-    const { error } = await supabase.from('videos').insert({
-      title,
-      description,
-      youtube_url: youtubeUrl || null,
-      youtube_upload_date: youtubeUploadDate || null,
-      facebook_url: facebookUrl || null,
-      facebook_upload_date: facebookUploadDate || null,
-      instagram_url: instagramUrl || null,
-      instagram_upload_date: instagramUploadDate || null,
-      shopee_url: shopeeUrl || null,
-      shopee_upload_date: shopeeUploadDate || null,
-      shopee_product_url: shopeeProductUrl || null,
-      threads_url: threadsUrl || null,
-      threads_upload_date: threadsUploadDate || null,
-      tiktok_url: tiktokUrl || null,
-      tiktok_upload_date: tiktokUploadDate || null,
-      tiktok_product_url: tiktokProductUrl || null,
-    })
-
-    if (!error) {
-      setOpen(false)
-      resetForm()
-      fetchData()
+  // Extract available years from videos
+  useEffect(() => {
+    if (videos.length > 0) {
+      const years = [...new Set(videos.map(v => v.created_at.substring(0, 4)))].sort((a, b) => b.localeCompare(a))
+      setAvailableYears(years)
     }
-  }
+  }, [videos])
 
   const handleUpdateVideo = async () => {
     if (!editingVideo) return
@@ -225,7 +170,6 @@ export default function Videos() {
       tiktok_product_url: tiktokProductUrl || null,
     }
 
-    // Only update created_at if it's changed
     if (createdAt) {
       updateData.created_at = new Date(createdAt).toISOString()
     }
@@ -236,16 +180,16 @@ export default function Videos() {
       .eq('id', editingVideo.id)
 
     if (!error) {
+      if (selectedRandomVideo && selectedRandomVideo.id === editingVideo.id) {
+        setSelectedRandomVideo({
+          ...editingVideo,
+          ...updateData,
+          created_at: createdAt ? new Date(createdAt).toISOString() : editingVideo.created_at,
+        })
+      }
       setOpen(false)
       setEditingVideo(null)
       resetForm()
-      fetchData()
-    }
-  }
-
-  const handleDeleteVideo = async (id: string) => {
-    if (confirm('Are you sure you want to delete this video?')) {
-      await supabase.from('videos').delete().eq('id', id)
       fetchData()
     }
   }
@@ -270,14 +214,6 @@ export default function Videos() {
     setTiktokProductUrl('')
   }
 
-  const autoSetTodayDate = (setDate: (val: string) => void, currentDate: string, url: string) => {
-    if (url && !currentDate) {
-      setDate(getTodayDate())
-    } else if (!url && currentDate) {
-      setDate('')
-    }
-  }
-
   const openEditDialog = (video: Video) => {
     setEditingVideo(video)
     setTitle(video.title)
@@ -300,11 +236,6 @@ export default function Videos() {
     setOpen(true)
   }
 
-  const getTodayDate = () => {
-    const today = new Date()
-    return today.toISOString().split('T')[0]
-  }
-
   const copyToClipboard = async (text: string, platform: string) => {
     try {
       await navigator.clipboard.writeText(text)
@@ -314,13 +245,6 @@ export default function Videos() {
     }
   }
 
-  const openAddDialog = () => {
-    setEditingVideo(null)
-    resetForm()
-    setOpen(true)
-  }
-
-  // Helper function to extract YouTube video ID
   const getYouTubeVideoId = (url: string): string | null => {
     if (!url) return null
     const patterns = [
@@ -334,33 +258,21 @@ export default function Videos() {
     return null
   }
 
-  // Get available platforms for a video
-  const getAvailablePlatforms = (video: Video) => {
-    return platforms.filter(p => {
-      const url = video[`${p.key}_url` as keyof Video] as string | null
-      return !!url
-    })
-  }
-
-  // Open video player
   const openVideoPlayer = (url: string) => {
     setSelectedVideoUrl(url)
     setVideoPlayerOpen(true)
     setVideoLoading(true)
   }
 
-  // Open upload info dialog
   const openUploadInfo = (video: Video) => {
     setSelectedVideoForInfo(video)
     setUploadInfoOpen(true)
   }
 
-  // Detect if the device is mobile (likely has Google Drive app)
   const isMobileDevice = () => {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
   }
 
-  // Search video in Google Drive
   const searchGoogleDriveLatest = (videoTitle: string) => {
     const latestFolderId = '1-1cXk5CecrMqVFN0krVA3JUf-SrCJejY'
     const searchQuery = isMobileDevice()
@@ -382,97 +294,87 @@ export default function Videos() {
     window.open(`https://drive.google.com/drive/u/0/search?q=${searchQuery}`, '_blank')
   }
 
-  // Handle iframe load
   const handleVideoLoad = () => {
     setVideoLoading(false)
   }
 
-  // Filter videos
-  const filteredVideos = videos.filter((video) => {
-    const matchesSearch = searchQuery === '' ||
-      video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (video.description && video.description.toLowerCase().includes(searchQuery.toLowerCase()))
-
-    const matchesDate = dateFilter === '' ||
-      video.created_at.split('T')[0] === dateFilter
-
-    const matchesEmptyPlatform = filterEmptyPlatform === null ||
-      !video[`${filterEmptyPlatform}_url` as keyof Video]
-
-    const matchesPlatform = platformFilter === '' ||
-      !!video[`${platformFilter}_url` as keyof Video]
-
-    return matchesSearch && matchesDate && matchesEmptyPlatform && matchesPlatform
-  })
-
-  // Infinite scroll observer
-  const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
-    const target = entries[0]
-    if (target.isIntersecting && !loadingMore && visibleCount < filteredVideos.length) {
-      setLoadingMore(true)
-      setTimeout(() => {
-        setVisibleCount((prev) => prev + ITEMS_PER_PAGE)
-        setLoadingMore(false)
-      }, 800)
+  // Pick random video from filtered list (optionally filtered by platform and date)
+  const pickRandomVideo = () => {
+    let videosToPick = videos
+    
+    if (randomPickerPlatform) {
+      videosToPick = videosToPick.filter(video => {
+        const url = video[`${randomPickerPlatform}_url` as keyof Video] as string | null
+        return !!url
+      })
     }
-  }, [loadingMore, visibleCount, filteredVideos.length])
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(handleObserver, {
-      root: null,
-      rootMargin: '20px',
-      threshold: 0
-    })
-
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current)
+    
+    if (randomPickerDateFilter === 'old') {
+      videosToPick = videosToPick.filter(video => {
+        const videoDate = new Date(video.created_at)
+        const now = new Date()
+        const diffDays = (now.getTime() - videoDate.getTime()) / (1000 * 60 * 60 * 24)
+        return diffDays > 365
+      })
+    } else if (randomPickerDateFilter === 'latest') {
+      videosToPick = videosToPick.filter(video => {
+        const videoDate = new Date(video.created_at)
+        const now = new Date()
+        const diffDays = (now.getTime() - videoDate.getTime()) / (1000 * 60 * 60 * 24)
+        return diffDays <= 365
+      })
+    } else if (randomPickerDateFilter === 'month' && randomPickerMonth) {
+      videosToPick = videosToPick.filter(video => {
+        const videoDate = video.created_at.substring(0, 7)
+        return videoDate === randomPickerMonth
+      })
+    } else if (randomPickerDateFilter === 'year' && randomPickerYear) {
+      videosToPick = videosToPick.filter(video => {
+        const videoDate = video.created_at.substring(0, 4)
+        return videoDate === randomPickerYear
+      })
     }
+    
+    if (videosToPick.length === 0) return
+    const randomIndex = Math.floor(Math.random() * videosToPick.length)
+    setSelectedRandomVideo(videosToPick[randomIndex])
+    setRandomPickerOpen(true)
+  }
 
-    return () => observer.disconnect()
-  }, [handleObserver])
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+        <CircularProgress />
+      </Box>
+    )
+  }
 
   return (
     <Box>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          Videos
+          Random Video Picker
         </Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={openAddDialog} size="medium">
-          Add Video
+        <Button
+          variant="contained"
+          startIcon={<ShuffleIcon />}
+          onClick={pickRandomVideo}
+          size="medium"
+          disabled={videos.length === 0}
+        >
+          Pick Random
         </Button>
       </Box>
 
-      {/* Search and Filter */}
+      {/* Filters */}
       <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
-        <TextField
-          inputRef={searchInputRef}
-          size="small"
-          placeholder="Search videos..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          sx={{ flex: { xs: '1 1 100%', sm: 1 }, minWidth: 200 }}
-          slotProps={{
-            input: {
-              startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary', fontSize: 20 }} />,
-            }
-          }}
-        />
-        <TextField
-          size="small"
-          label="Date"
-          type="date"
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          sx={{ minWidth: { xs: '100%', sm: 160 } }}
-          slotProps={{ inputLabel: { shrink: true } }}
-        />
         <TextField
           size="small"
           select
-          value={platformFilter}
-          onChange={(e) => setPlatformFilter(e.target.value)}
-          sx={{ minWidth: { xs: '100%', sm: 150 } }}
+          value={randomPickerPlatform}
+          onChange={(e) => setRandomPickerPlatform(e.target.value)}
+          sx={{ minWidth: 120 }}
           slotProps={{
             select: { 
               native: true,
@@ -480,275 +382,292 @@ export default function Videos() {
             } 
           }}
         >
-          <option value="">Platform</option>
+          <option value="">All Platforms</option>
           {platforms.map((opt) => (
             <option key={opt.key} value={opt.key}>{opt.label}</option>
           ))}
         </TextField>
-        {(searchQuery || dateFilter || filterEmptyPlatform || platformFilter) && (
-          <Button
-            variant="outlined"
+        <TextField
+          size="small"
+          select
+          value={randomPickerDateFilter}
+          onChange={(e) => setRandomPickerDateFilter(e.target.value)}
+          sx={{ minWidth: 120 }}
+          slotProps={{
+            select: { 
+              native: true,
+              displayEmpty: true,
+            } 
+          }}
+        >
+          <option value="">All Dates</option>
+          <option value="old">Old (365+ days)</option>
+          <option value="latest">Latest (365 days)</option>
+          <option value="month">By Month</option>
+          <option value="year">By Year</option>
+        </TextField>
+        {randomPickerDateFilter === 'month' && (
+          <TextField
             size="small"
-            onClick={() => {
-              setSearchQuery('')
-              setDateFilter('')
-              setFilterEmptyPlatform(null)
-              setPlatformFilter('')
+            type="month"
+            label="Month"
+            value={randomPickerMonth}
+            onChange={(e) => setRandomPickerMonth(e.target.value)}
+            sx={{ minWidth: 150 }}
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+        )}
+        {randomPickerDateFilter === 'year' && (
+          <TextField
+            size="small"
+            select
+            value={randomPickerYear}
+            onChange={(e) => setRandomPickerYear(e.target.value)}
+            sx={{ minWidth: 100 }}
+            slotProps={{
+              select: { 
+                native: true,
+                displayEmpty: true,
+              } 
             }}
-            startIcon={<CloseIcon />}
           >
-            Clear
-          </Button>
+            <option value="">Select Year</option>
+            {availableYears.map((year) => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </TextField>
         )}
       </Box>
 
-      {filterEmptyPlatform && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          Showing videos without {filterEmptyPlatform} URL
-        </Alert>
-      )}
+      {/* Random Video Picker Dialog */}
+      <Dialog open={randomPickerOpen} onClose={() => setRandomPickerOpen(false)} maxWidth="md" fullWidth fullScreen={isMobile}>
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="h6">🎲 Random Video</Typography>
+            {isMobile && (
+              <IconButton onClick={() => setRandomPickerOpen(false)} size="small">
+                <CloseIcon />
+              </IconButton>
+            )}
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ pb: 1 }}>
+          {selectedRandomVideo && (
+            <Card sx={{ mt: 2 }}>
+              <CardContent sx={{ py: 2, px: { xs: 2, md: 2.5 } }}>
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                  {selectedRandomVideo.youtube_url && getYouTubeVideoId(selectedRandomVideo.youtube_url) ? (
+                    <Box
+                      component="img"
+                      src={`https://img.youtube.com/vi/${getYouTubeVideoId(selectedRandomVideo.youtube_url) || ''}/mqdefault.jpg`}
+                      alt={selectedRandomVideo.title}
+                      onClick={() => {
+                        openVideoPlayer(selectedRandomVideo.youtube_url!)
+                        setRandomPickerOpen(false)
+                      }}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement
+                        const videoId = getYouTubeVideoId(selectedRandomVideo.youtube_url!) || ''
+                        if (target.src.includes('mqdefault')) {
+                          target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+                        } else if (target.src.includes('hqdefault')) {
+                          target.src = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
+                        } else {
+                          target.style.display = 'none'
+                        }
+                      }}
+                      sx={{
+                        width: 68,
+                        height: 120,
+                        objectFit: 'cover',
+                        borderRadius: 1,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        '&:hover': { opacity: 0.8, transition: 'opacity 0.2s' }
+                      }}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        width: 68,
+                        height: 120,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: 1,
+                        bgcolor: 'grey.200',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
+                        No Video
+                      </Typography>
+                    </Box>
+                  )}
 
-      {(searchQuery || dateFilter || filterEmptyPlatform || platformFilter) && (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {filteredVideos.length} result{filteredVideos.length !== 1 ? 's' : ''} found
-        </Typography>
-      )}
-
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
-          <CircularProgress />
-        </Box>
-      ) : filteredVideos.length === 0 ? (
-        <Typography color="text.secondary" align="center" sx={{ py: 6 }}>
-          {searchQuery || dateFilter ? 'No videos found matching your criteria' : 'No videos yet. Click "Add Video" to create one!'}
-        </Typography>
-      ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {filteredVideos.slice(0, visibleCount).map((video) => {
-            const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
-            return (
-              <Card key={video.id}>
-                <CardContent sx={{ py: 2, px: { xs: 2, md: 2.5 } }}>
-                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-                    {/* YouTube Thumbnail */}
-                    {videoId ? (
-                      <Box
-                        component="img"
-                        src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
-                        alt={video.title}
-                        onClick={() => openVideoPlayer(video.youtube_url!)}
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement
-                          if (target.src.includes('mqdefault')) {
-                            target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
-                          } else if (target.src.includes('hqdefault')) {
-                            target.src = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
-                          } else {
-                            target.style.display = 'none'
-                          }
-                        }}
+                  <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mb: 0.5 }}>
+                      <Typography
+                        variant="h6"
                         sx={{
-                          width: 68,
-                          height: 120,
-                          objectFit: 'cover',
-                          borderRadius: 1,
-                          cursor: 'pointer',
-                          flexShrink: 0,
-                          '&:hover': { opacity: 0.8, transition: 'opacity 0.2s' }
-                        }}
-                      />
-                    ) : (
-                      <Box
-                        sx={{
-                          width: 68,
-                          height: 120,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRadius: 1,
-                          bgcolor: 'grey.200',
-                          flexShrink: 0,
+                          fontWeight: 600,
+                          overflow: 'hidden',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          flex: 1,
                         }}
                       >
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
-                          No Video
-                        </Typography>
-                      </Box>
-                    )}
-
-                    <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-                      {/* Title Row */}
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mb: 0.5 }}>
-                        <Typography
-                          variant="h6"
-                          sx={{
-                            fontWeight: 600,
-                            overflow: 'hidden',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            flex: 1,
-                          }}
-                        >
-                          {video.title}
-                        </Typography>
-                        {video.description && (
-                          <IconButton
-                            size="small"
-                            onClick={() => {
-                              setSelectedDescription(video.description || '')
-                              setDescriptionOpen(true)
-                            }}
-                            sx={{ p: 0.5 }}
-                            title="View description"
-                          >
-                            <Info fontSize="small" />
-                          </IconButton>
-                        )}
-                      </Box>
-                      {/* Created At Date */}
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>
-                        {new Date(video.created_at).toLocaleDateString('en-GB', { 
-                          day: 'numeric', 
-                          month: 'short', 
-                          year: 'numeric' 
-                        })}
+                        {selectedRandomVideo.title}
                       </Typography>
+                      {selectedRandomVideo.description && (
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            setSelectedDescription(selectedRandomVideo.description || '')
+                            setDescriptionOpen(true)
+                          }}
+                          sx={{ p: 0.5 }}
+                          title="View description"
+                        >
+                          <Info fontSize="small" />
+                        </IconButton>
+                      )}
+                    </Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>
+                      {new Date(selectedRandomVideo.created_at).toLocaleDateString('en-GB', { 
+                        day: 'numeric', 
+                        month: 'short', 
+                        year: 'numeric' 
+                      })}
+                    </Typography>
 
-                      {/* Content with Action Buttons */}
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          {/* Platform Chips */}
-                          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, auto)' }, gap: 0.5, mb: 0.5, width: '100%' }}>
-                            {platforms.map((platform) => {
-                              const hasUrl = !!video[`${platform.key}_url` as keyof Video]
-                              const icon = platformIcons[platform.key]
+                    <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, auto)' }, gap: 0.5, mb: 0.5, width: '100%' }}>
+                          {platforms.map((platform) => {
+                            const hasUrl = !!selectedRandomVideo[`${platform.key}_url` as keyof Video]
+                            const icon = platformIcons[platform.key]
 
-                              return (
-                                <Chip
-                                  key={platform.key}
-                                  icon={icon || undefined}
-                                  label={platform.label}
-                                  size="small"
-                                  onClick={() => hasUrl && copyToClipboard(video[`${platform.key}_url` as keyof Video] as string, platform.label)}
-                                  sx={{
-                                    cursor: hasUrl ? 'pointer' : 'default',
-                                    opacity: hasUrl ? 1 : 0.4,
-                                    fontWeight: 500,
-                                    fontSize: 12,
-                                    '&:hover': hasUrl ? { opacity: 0.8 } : {},
-                                    '& .MuiChip-icon': { fontSize: 16 },
-                                  }}
-                                  variant={hasUrl ? 'filled' : 'outlined'}
-                                  color={hasUrl ? 'default' : 'default'}
-                                />
-                              )
-                            })}
-                          </Box>
+                            return (
+                              <Chip
+                                key={platform.key}
+                                icon={icon || undefined}
+                                label={platform.label}
+                                size="small"
+                                onClick={() => hasUrl && copyToClipboard(selectedRandomVideo[`${platform.key}_url` as keyof Video] as string, platform.label)}
+                                sx={{
+                                  cursor: hasUrl ? 'pointer' : 'default',
+                                  opacity: hasUrl ? 1 : 0.4,
+                                  fontWeight: 500,
+                                  fontSize: 12,
+                                  '&:hover': hasUrl ? { opacity: 0.8 } : {},
+                                  '& .MuiChip-icon': { fontSize: 16 },
+                                }}
+                                variant={hasUrl ? 'filled' : 'outlined'}
+                                color={hasUrl ? 'default' : 'default'}
+                              />
+                            )
+                          })}
+                        </Box>
 
-                          {/* Google Drive Search */}
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
-                            {isMobileDevice() ? (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
+                          {isMobileDevice() ? (
+                            <Chip
+                              icon={<GoogleDriveIcon />}
+                              label="Drive"
+                              size="small"
+                              onClick={() => searchGoogleDriveAll(selectedRandomVideo.title)}
+                              sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
+                              title="Search in Google Drive"
+                            />
+                          ) : (
+                            <>
                               <Chip
                                 icon={<GoogleDriveIcon />}
                                 label="Drive"
                                 size="small"
-                                onClick={() => searchGoogleDriveAll(video.title)}
+                                onClick={() => searchGoogleDriveLatest(selectedRandomVideo.title)}
                                 sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
-                                title="Search in Google Drive"
+                                title="Search in Google Drive (Latest)"
                               />
-                            ) : (
-                              <>
-                                <Chip
-                                  icon={<GoogleDriveIcon />}
-                                  label="Drive"
-                                  size="small"
-                                  onClick={() => searchGoogleDriveLatest(video.title)}
-                                  sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
-                                  title="Search in Google Drive (Latest)"
-                                />
-                                <Chip
-                                  icon={<GoogleDriveIcon />}
-                                  label="Arc"
-                                  size="small"
-                                  onClick={() => searchGoogleDriveArchive(video.title)}
-                                  sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
-                                  title="Search in Google Drive (Archive)"
-                                />
-                              </>
-                            )}
-                          </Box>
-
-                          {/* Product Links */}
-                          {(video.tiktok_product_url || video.shopee_product_url) && (
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.25, maxHeight: 30, overflow: 'hidden' }}>
-                              {video.tiktok_product_url && (
-                                <Chip
-                                  icon={<TikTokIcon />}
-                                  label="TikTok Shop"
-                                  size="small"
-                                  component="a"
-                                  href={video.tiktok_product_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  clickable
-                                  sx={{ bgcolor: '#000', color: 'white', '&:hover': { bgcolor: '#333' } }}
-                                />
-                              )}
-                              {video.shopee_product_url && (
-                                <Chip
-                                  icon={<Shop />}
-                                  label="Shopee"
-                                  size="small"
-                                  component="a"
-                                  href={video.shopee_product_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  clickable
-                                  sx={{ bgcolor: '#EE4D2D', color: 'white', '&:hover': { bgcolor: '#D43D1F' } }}
-                                />
-                              )}
-                            </Box>
+                              <Chip
+                                icon={<GoogleDriveIcon />}
+                                label="Arc"
+                                size="small"
+                                onClick={() => searchGoogleDriveArchive(selectedRandomVideo.title)}
+                                sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
+                                title="Search in Google Drive (Archive)"
+                              />
+                            </>
                           )}
                         </Box>
 
-                        {/* Action Buttons */}
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>
-                          <IconButton size="small" onClick={() => openUploadInfo(video)} title="Upload Info">
-                            <Upload fontSize="small" />
-                          </IconButton>
-                          <IconButton size="small" onClick={() => openEditDialog(video)} title="Edit">
-                            <Edit fontSize="small" />
-                          </IconButton>
-                          <IconButton size="small" onClick={() => handleDeleteVideo(video.id)} title="Delete">
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Box>
+                        {(selectedRandomVideo.tiktok_product_url || selectedRandomVideo.shopee_product_url) && (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.25, maxHeight: 30, overflow: 'hidden' }}>
+                            {selectedRandomVideo.tiktok_product_url && (
+                              <Chip
+                                icon={<TikTokIcon />}
+                                label="TikTok Shop"
+                                size="small"
+                                component="a"
+                                href={selectedRandomVideo.tiktok_product_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                clickable
+                                sx={{ bgcolor: '#000', color: 'white', '&:hover': { bgcolor: '#333' } }}
+                              />
+                            )}
+                            {selectedRandomVideo.shopee_product_url && (
+                              <Chip
+                                icon={<Shop />}
+                                label="Shopee"
+                                size="small"
+                                component="a"
+                                href={selectedRandomVideo.shopee_product_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                clickable
+                                sx={{ bgcolor: '#EE4D2D', color: 'white', '&:hover': { bgcolor: '#D43D1F' } }}
+                              />
+                            )}
+                          </Box>
+                        )}
+                      </Box>
+
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>
+                        <IconButton size="small" onClick={() => openUploadInfo(selectedRandomVideo)} title="Upload Info">
+                          <Upload fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => openEditDialog(selectedRandomVideo)} title="Edit">
+                          <Edit fontSize="small" />
+                        </IconButton>
                       </Box>
                     </Box>
                   </Box>
-                </CardContent>
-              </Card>
-            )
-          })}
-
-          {/* Infinite scroll trigger */}
-          <Box ref={observerTarget} sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            py: 2,
-            minHeight: 60
-          }}>
-            {loadingMore && <CircularProgress size={24} />}
-            {visibleCount >= filteredVideos.length && filteredVideos.length > ITEMS_PER_PAGE && (
-              <Typography color="text.secondary" variant="body2">
-                No more videos to load
-              </Typography>
-            )}
-          </Box>
-        </Box>
-      )}
+                </Box>
+              </CardContent>
+            </Card>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={pickRandomVideo}>
+            Pick Again
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={() => {
+              if (selectedRandomVideo?.youtube_url) {
+                openVideoPlayer(selectedRandomVideo.youtube_url)
+                setRandomPickerOpen(false)
+              }
+            }}
+            disabled={!selectedRandomVideo?.youtube_url}
+          >
+            Open Video
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Add/Edit Video Dialog */}
       <Dialog
@@ -806,7 +725,6 @@ export default function Videos() {
           </Typography>
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            {/* TikTok */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <TextField
                 label="Upload Date"
@@ -820,10 +738,7 @@ export default function Videos() {
               <TextField
                 label="TikTok URL"
                 value={tiktokUrl}
-                onChange={(e) => {
-                  setTiktokUrl(e.target.value)
-                  autoSetTodayDate(setTiktokUploadDate, tiktokUploadDate, e.target.value)
-                }}
+                onChange={(e) => setTiktokUrl(e.target.value)}
                 sx={{ flex: 2 }}
                 size="small"
                 placeholder="https://..."
@@ -838,7 +753,6 @@ export default function Videos() {
               placeholder="https://..."
             />
 
-            {/* YouTube */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <TextField
                 label="Upload Date"
@@ -852,17 +766,13 @@ export default function Videos() {
               <TextField
                 label="YouTube URL"
                 value={youtubeUrl}
-                onChange={(e) => {
-                  setYoutubeUrl(e.target.value)
-                  autoSetTodayDate(setYoutubeUploadDate, youtubeUploadDate, e.target.value)
-                }}
+                onChange={(e) => setYoutubeUrl(e.target.value)}
                 sx={{ flex: 2 }}
                 size="small"
                 placeholder="https://..."
               />
             </Box>
 
-            {/* Facebook */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <TextField
                 label="Upload Date"
@@ -876,17 +786,13 @@ export default function Videos() {
               <TextField
                 label="Facebook URL"
                 value={facebookUrl}
-                onChange={(e) => {
-                  setFacebookUrl(e.target.value)
-                  autoSetTodayDate(setFacebookUploadDate, facebookUploadDate, e.target.value)
-                }}
+                onChange={(e) => setFacebookUrl(e.target.value)}
                 sx={{ flex: 2 }}
                 size="small"
                 placeholder="https://..."
               />
             </Box>
 
-            {/* Instagram */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <TextField
                 label="Upload Date"
@@ -900,17 +806,13 @@ export default function Videos() {
               <TextField
                 label="Instagram URL"
                 value={instagramUrl}
-                onChange={(e) => {
-                  setInstagramUrl(e.target.value)
-                  autoSetTodayDate(setInstagramUploadDate, instagramUploadDate, e.target.value)
-                }}
+                onChange={(e) => setInstagramUrl(e.target.value)}
                 sx={{ flex: 2 }}
                 size="small"
                 placeholder="https://..."
               />
             </Box>
 
-            {/* Shopee */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <TextField
                 label="Upload Date"
@@ -924,10 +826,7 @@ export default function Videos() {
               <TextField
                 label="Shopee URL"
                 value={shopeeUrl}
-                onChange={(e) => {
-                  setShopeeUrl(e.target.value)
-                  autoSetTodayDate(setShopeeUploadDate, shopeeUploadDate, e.target.value)
-                }}
+                onChange={(e) => setShopeeUrl(e.target.value)}
                 sx={{ flex: 2 }}
                 size="small"
                 placeholder="https://..."
@@ -942,7 +841,6 @@ export default function Videos() {
               placeholder="https://..."
             />
 
-            {/* Threads */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <TextField
                 label="Upload Date"
@@ -956,10 +854,7 @@ export default function Videos() {
               <TextField
                 label="Threads URL"
                 value={threadsUrl}
-                onChange={(e) => {
-                  setThreadsUrl(e.target.value)
-                  autoSetTodayDate(setThreadsUploadDate, threadsUploadDate, e.target.value)
-                }}
+                onChange={(e) => setThreadsUrl(e.target.value)}
                 sx={{ flex: 2 }}
                 size="small"
                 placeholder="https://..."
@@ -969,7 +864,7 @@ export default function Videos() {
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           {!isMobile && <Button onClick={() => setOpen(false)}>Cancel</Button>}
-          <Button onClick={editingVideo ? handleUpdateVideo : handleAddVideo} variant="contained" fullWidth={isMobile}>
+          <Button onClick={editingVideo ? handleUpdateVideo : undefined} variant="contained" fullWidth={isMobile}>
             {editingVideo ? 'Update' : 'Add'}
           </Button>
         </DialogActions>
@@ -1064,7 +959,6 @@ export default function Videos() {
             </>
           )}
 
-          {/* Available Platforms */}
           <Box sx={{ mt: 2, px: 2, pb: 2 }}>
             <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
               Available Platforms:
@@ -1082,7 +976,10 @@ export default function Videos() {
 
                 if (!currentVideo) return null
 
-                return getAvailablePlatforms(currentVideo).map(platform => {
+                return platforms.filter(p => {
+                  const url = currentVideo[`${p.key}_url` as keyof Video] as string | null
+                  return !!url
+                }).map(platform => {
                   const url = currentVideo[`${platform.key}_url` as keyof Video] as string
                   const isYouTube = platform.key === 'youtube'
                   const icon = platformIcons[platform.key]
@@ -1118,55 +1015,23 @@ export default function Videos() {
           </Box>
         </DialogTitle>
         <DialogContent>
-          <TableContainer component={Paper} sx={{ mt: 2 }}>
-            <Table size={isMobile ? 'small' : 'medium'}>
-              <TableHead>
-                <TableRow>
-                  <TableCell><strong>Platform</strong></TableCell>
-                  <TableCell><strong>Upload Date</strong></TableCell>
-                  <TableCell><strong>URL</strong></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {selectedVideoForInfo && platforms.map((platform) => {
-                  const url = selectedVideoForInfo[`${platform.key}_url` as keyof Video] as string | null
-                  const uploadDate = selectedVideoForInfo[`${platform.key}_upload_date` as keyof Video] as string | null
-                  const isUploaded = !!url
+          <Box sx={{ mt: 2 }}>
+            {selectedVideoForInfo && platforms.map((platform) => {
+              const url = selectedVideoForInfo[`${platform.key}_url` as keyof Video] as string | null
+              const uploadDate = selectedVideoForInfo[`${platform.key}_upload_date` as keyof Video] as string | null
+              const isUploaded = !!url
 
-                  return (
-                    <TableRow key={platform.key} hover>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {platformIcons[platform.key]}
-                          {platform.label}
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        {isUploaded ? (uploadDate || '-') : (
-                          <Chip label="Not Uploaded" size="small" color="warning" variant="outlined" />
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {isUploaded ? (
-                          <Button
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            size="small"
-                            variant="text"
-                          >
-                            Open Link
-                          </Button>
-                        ) : (
-                          <Typography color="text.secondary" variant="body2">-</Typography>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
+              return (
+                <Box key={platform.key} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  {platformIcons[platform.key]}
+                  <Typography>{platform.label}</Typography>
+                  <Typography sx={{ ml: 'auto' }}>
+                    {isUploaded ? (uploadDate || '-') : 'Not Uploaded'}
+                  </Typography>
+                </Box>
+              )
+            })}
+          </Box>
         </DialogContent>
       </Dialog>
     </Box>

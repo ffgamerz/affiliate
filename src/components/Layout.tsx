@@ -27,6 +27,7 @@ import {
   Logout as LogoutIcon,
   Menu as MenuIcon,
   Search as SearchIcon,
+  Shuffle as ShuffleIcon,
 } from '@mui/icons-material'
 import { useAuth } from '../hooks/useAuth.tsx'
 
@@ -43,6 +44,7 @@ export default function Layout() {
   const navItems = [
     { path: '/', label: 'Dashboard', icon: <DashboardIcon /> },
     { path: '/videos', label: 'Videos', icon: <VideoIcon /> },
+    { path: '/random', label: 'Random', icon: <ShuffleIcon /> },
     ...(isAdmin ? [{ path: '/settings', label: 'Settings', icon: <SettingsIcon /> }] : []),
   ]
 

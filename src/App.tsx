@@ -7,6 +7,7 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Videos from './pages/Videos'
 import Settings from './pages/Settings'
+import RandomPicker from './pages/RandomPicker'
 import Layout from './components/Layout'
 
 const theme = createTheme({
@@ -103,6 +104,7 @@ function AppContent() {
         >
           <Route index element={<Dashboard />} />
           <Route path="videos" element={<Videos />} />
+          <Route path="random" element={<RandomPicker />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

@@ -207,12 +207,17 @@ export default function Dashboard() {
                       {config.label}
                     </Typography>
                   </Box>
-                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                    {stats.count}
-                    <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
-                      /{stats.total}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                      {stats.count}
+                      <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+                        /{stats.total}
+                      </Typography>
                     </Typography>
-                  </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      ({percentage}%)
+                    </Typography>
+                  </Box>
                   <Box sx={{ mt: 1, width: '100%', bgcolor: 'grey.200', borderRadius: 1, height: 6, overflow: 'hidden' }}>
                     <Box sx={{ width: `${percentage}%`, bgcolor: config.color, height: '100%', borderRadius: 1, transition: 'width 0.5s ease' }} />
                   </Box>
