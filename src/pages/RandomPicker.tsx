@@ -15,6 +15,13 @@ import {
   Snackbar,
   Alert,
   CircularProgress,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
   useTheme,
   useMediaQuery,
 } from '@mui/material'
@@ -974,23 +981,55 @@ export default function RandomPicker() {
           </Box>
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ mt: 2 }}>
-            {selectedVideoForInfo && platforms.map((platform) => {
-              const url = selectedVideoForInfo[`${platform.key}_url` as keyof Video] as string | null
-              const uploadDate = selectedVideoForInfo[`${platform.key}_upload_date` as keyof Video] as string | null
-              const isUploaded = !!url
+          <TableContainer component={Paper} sx={{ mt: 2 }}>
+            <Table size={isMobile ? 'small' : 'medium'}>
+              <TableHead>
+                <TableRow>
+                  <TableCell><strong>Platform</strong></TableCell>
+                  <TableCell><strong>Upload Date</strong></TableCell>
+                  <TableCell><strong>URL</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {selectedVideoForInfo && platforms.map((platform) => {
+                  const url = selectedVideoForInfo[`${platform.key}_url` as keyof Video] as string | null
+                  const uploadDate = selectedVideoForInfo[`${platform.key}_upload_date` as keyof Video] as string | null
+                  const isUploaded = !!url
 
-              return (
-                <Box key={platform.key} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  {platformIcons[platform.key]}
-                  <Typography>{platform.label}</Typography>
-                  <Typography sx={{ ml: 'auto' }}>
-                    {isUploaded ? (uploadDate || '-') : 'Not Uploaded'}
-                  </Typography>
-                </Box>
-              )
-            })}
-          </Box>
+                  return (
+                    <TableRow key={platform.key} hover>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {platformIcons[platform.key]}
+                          {platform.label}
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        {isUploaded ? (uploadDate || '-') : (
+                          <Chip label="Not Uploaded" size="small" color="warning" variant="outlined" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isUploaded ? (
+                          <Button
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            size="small"
+                            variant="text"
+                          >
+                            Open Link
+                          </Button>
+                        ) : (
+                          <Typography color="text.secondary" variant="body2">-</Typography>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </DialogContent>
       </Dialog>
     </Box>
