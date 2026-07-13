@@ -340,6 +340,7 @@ export default function Videos() {
     setEditingVideo(video)
     setTitle(video.title)
     setDescription(video.description || '')
+    setDescriptionFocused(false)
     setCreatedAt(video.created_at ? video.created_at.split('T')[0] : '')
     setYoutubeUrl(video.youtube_url || '')
     setYoutubeUploadDate(video.youtube_upload_date || '')
@@ -374,6 +375,7 @@ export default function Videos() {
 
   const openAddDialog = () => {
     setEditingVideo(null)
+    setDescriptionFocused(false)
     resetForm()
     setOpen(true)
   }
