@@ -191,6 +191,7 @@ export default function Videos() {
   // Form states
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [descriptionFocused, setDescriptionFocused] = useState(false)
   const [createdAt, setCreatedAt] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [youtubeUploadDate, setYoutubeUploadDate] = useState('')
@@ -981,8 +982,16 @@ export default function Videos() {
             fullWidth
             margin="normal"
             multiline
-            rows={isMobile ? 3 : 6}
+            minRows={isMobile ? 3 : 6}
             size={isMobile ? 'small' : 'medium'}
+            onFocus={() => isMobile && setDescriptionFocused(true)}
+            onBlur={() => isMobile && setDescriptionFocused(false)}
+            sx={isMobile && descriptionFocused ? {
+              '& .MuiInputBase-root': {
+                minHeight: '75vh',
+                alignItems: 'flex-start',
+              }
+            } : {}}
           />
           {editingVideo && (
             <TextField
