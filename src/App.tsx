@@ -9,6 +9,7 @@ import Videos from './pages/Videos'
 import Settings from './pages/Settings'
 import RandomPicker from './pages/RandomPicker'
 import DateMismatchChecker from './pages/DateMismatchChecker'
+import UploadCalendar from './pages/UploadCalendar'
 import Layout from './components/Layout'
 
 const theme = createTheme({
@@ -107,6 +108,7 @@ function AppContent() {
           <Route path="videos" element={<Videos />} />
           <Route path="random" element={<RandomPicker />} />
           <Route path="date-check" element={<DateMismatchChecker />} />
+          <Route path="upload-calendar" element={<UploadCalendar />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

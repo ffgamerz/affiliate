@@ -168,6 +168,7 @@ export default function Videos() {
   const [filterEmptyPlatform, setFilterEmptyPlatform] = useState<string | null>(null)
   const [platformFilter, setPlatformFilter] = useState<string>('')
   const [uploadDateFilter, setUploadDateFilter] = useState<'today' | 'yesterday' | 'range-3-9' | ''>('')
+  const [customUploadDateFilter, setCustomUploadDateFilter] = useState('')
 
   // Search input ref for auto-focus
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -182,6 +183,12 @@ export default function Videos() {
   useEffect(() => {
     if ((location.state as any)?.focusSearch && searchInputRef.current) {
       searchInputRef.current.focus()
+    }
+
+    // Handle navigation from Upload Calendar
+    if ((location.state as any)?.calendarUploadDate) {
+      setCustomUploadDateFilter((location.state as any).calendarUploadDate)
+      setUploadDateFilter('')
     }
   }, [location])
 
@@ -479,6 +486,28 @@ export default function Videos() {
     })
   }
 
+  // Check if a specific platform's upload date matches the current date filter
+  const isPlatformDateMatch = (platformKey: string, video: Video): boolean => {
+    const uploadDate = video[`${platformKey}_upload_date` as keyof Video] as string | null
+    if (!uploadDate) return false
+
+    if (uploadDateFilter === 'today') return uploadDate === todayDate
+    if (uploadDateFilter === 'yesterday') return uploadDate === yesterdayDate
+    if (uploadDateFilter === 'range-3-9') return dates3to9.includes(uploadDate)
+    if (customUploadDateFilter) return uploadDate === customUploadDateFilter
+    
+    return false
+  }
+
+  // Check if a video should be highlighted based on active upload date filters
+  const isVideoHighlighted = (video: Video): boolean => {
+    if (uploadDateFilter === 'today') return hasUploadOnDate(video, todayDate)
+    if (uploadDateFilter === 'yesterday') return hasUploadOnDate(video, yesterdayDate)
+    if (uploadDateFilter === 'range-3-9') return hasUploadOnAnyDateInRange(video, dates3to9)
+    if (customUploadDateFilter) return hasUploadOnDate(video, customUploadDateFilter)
+    return false
+  }
+
   // Filter videos
   const filteredVideos = videos.filter((video) => {
     const matchesSearch = searchQuery === '' ||
@@ -497,13 +526,17 @@ export default function Videos() {
           ? hasUploadOnAnyDateInRange(video, dates3to9)
           : true)
 
+    // Custom upload date filter - check if any platform has upload on the selected date
+    const matchesCustomUploadDate = customUploadDateFilter === '' ||
+      hasUploadOnDate(video, customUploadDateFilter)
+
     const matchesEmptyPlatform = filterEmptyPlatform === null ||
       !video[`${filterEmptyPlatform}_url` as keyof Video]
 
     const matchesPlatform = platformFilter === '' ||
       !!video[`${platformFilter}_url` as keyof Video]
 
-    return matchesSearch && matchesDate && matchesUploadDate && matchesEmptyPlatform && matchesPlatform
+    return matchesSearch && matchesDate && matchesUploadDate && matchesCustomUploadDate && matchesEmptyPlatform && matchesPlatform
   })
 
   const platformCounts = platforms.reduce<Record<string, number>>((acc, platform) => {
@@ -675,6 +708,15 @@ export default function Videos() {
         />
         <TextField
           size="small"
+          label="Upload Date"
+          type="date"
+          value={customUploadDateFilter}
+          onChange={(e) => setCustomUploadDateFilter(e.target.value)}
+          sx={{ minWidth: { xs: '100%', sm: 160 } }}
+          slotProps={{ inputLabel: { shrink: true } }}
+        />
+        <TextField
+          size="small"
           select
           value={platformFilter}
           onChange={(e) => setPlatformFilter(e.target.value)}
@@ -691,13 +733,14 @@ export default function Videos() {
             <option key={opt.key} value={opt.key}>{opt.label}</option>
           ))}
         </TextField>
-        {(searchQuery || dateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter) && (
+        {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter) && (
           <Button
             variant="outlined"
             size="small"
             onClick={() => {
               setSearchQuery('')
               setDateFilter('')
+              setCustomUploadDateFilter('')
               setFilterEmptyPlatform(null)
               setPlatformFilter('')
               setUploadDateFilter('')
@@ -715,7 +758,7 @@ export default function Videos() {
         </Alert>
       )}
 
-      {(searchQuery || dateFilter || filterEmptyPlatform || platformFilter) && (
+      {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter) && (
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {filteredVideos.length} result{filteredVideos.length !== 1 ? 's' : ''} found
         </Typography>
@@ -830,6 +873,7 @@ export default function Videos() {
                             {platforms.map((platform) => {
                               const hasUrl = !!video[`${platform.key}_url` as keyof Video]
                               const icon = platformIcons[platform.key]
+                              const isDateMatch = isPlatformDateMatch(platform.key, video)
 
                               return (
                                 <Chip
@@ -845,6 +889,10 @@ export default function Videos() {
                                     fontSize: 12,
                                     '&:hover': hasUrl ? { opacity: 0.8 } : {},
                                     '& .MuiChip-icon': { fontSize: 16 },
+                                    ...(isDateMatch && {
+                                      border: '2px solid',
+                                      borderColor: 'success.main',
+                                    }),
                                   }}
                                   variant={hasUrl ? 'filled' : 'outlined'}
                                   color={hasUrl ? 'default' : 'default'}
