@@ -984,7 +984,8 @@ export default function Videos() {
             fullWidth
             margin="normal"
             multiline
-            minRows={isMobile ? 3 : 6}
+            minRows={isMobile ? (descriptionFocused ? undefined : 3) : 6}
+            maxRows={isMobile ? (descriptionFocused ? undefined : 3) : undefined}
             size={isMobile ? 'small' : 'medium'}
             onFocus={() => isMobile && setDescriptionFocused(true)}
             onBlur={() => isMobile && setDescriptionFocused(false)}
