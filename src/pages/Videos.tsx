@@ -23,6 +23,7 @@ import {
   TableHead,
   TableRow,
   Paper,
+  Divider,
   useTheme,
   useMediaQuery,
 } from '@mui/material'
@@ -156,6 +157,7 @@ export default function Videos() {
   const [editingVideo, setEditingVideo] = useState<Video | null>(null)
   const [descriptionOpen, setDescriptionOpen] = useState(false)
   const [selectedDescription, setSelectedDescription] = useState('')
+  const [selectedDescriptionVideo, setSelectedDescriptionVideo] = useState<Video | null>(null)
   const [videoPlayerOpen, setVideoPlayerOpen] = useState(false)
   const [selectedVideoUrl, setSelectedVideoUrl] = useState('')
   const [videoLoading, setVideoLoading] = useState(false)
@@ -838,6 +840,7 @@ export default function Videos() {
                             size="small"
                             onClick={() => {
                               setSelectedDescription(video.description || '')
+                              setSelectedDescriptionVideo(video)
                               setDescriptionOpen(true)
                             }}
                             sx={{ p: 0.5 }}
@@ -1278,6 +1281,80 @@ export default function Videos() {
               )}
             </Box>
           ))}
+
+          {/* Product URLs Section */}
+          {(selectedDescriptionVideo?.shopee_product_url || selectedDescriptionVideo?.tiktok_product_url) && (
+            <>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>
+                Product Links
+              </Typography>
+              {selectedDescriptionVideo?.shopee_product_url && (
+                <Box sx={{ mb: 1.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Shop sx={{ fontSize: 18, color: '#EE4D2D' }} />
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#EE4D2D' }}>
+                        Shopee Product URL
+                      </Typography>
+                    </Box>
+                    <IconButton 
+                      size="small" 
+                      onClick={() => copyToClipboard(selectedDescriptionVideo.shopee_product_url!, 'Shopee Product')}
+                      title="Copy URL"
+                    >
+                      <CopyIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                  <Box 
+                    sx={{ 
+                      p: 1.5, 
+                      bgcolor: 'grey.50', 
+                      borderRadius: 1,
+                      border: '1px solid',
+                      borderColor: 'grey.200'
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: 13, wordBreak: 'break-all' }}>
+                      {selectedDescriptionVideo.shopee_product_url}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+              {selectedDescriptionVideo?.tiktok_product_url && (
+                <Box sx={{ mb: 1.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <TikTokIcon sx={{ fontSize: 18 }} />
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        TikTok Product URL
+                      </Typography>
+                    </Box>
+                    <IconButton 
+                      size="small" 
+                      onClick={() => copyToClipboard(selectedDescriptionVideo.tiktok_product_url!, 'TikTok Product')}
+                      title="Copy URL"
+                    >
+                      <CopyIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                  <Box 
+                    sx={{ 
+                      p: 1.5, 
+                      bgcolor: 'grey.50', 
+                      borderRadius: 1,
+                      border: '1px solid',
+                      borderColor: 'grey.200'
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: 13, wordBreak: 'break-all' }}>
+                      {selectedDescriptionVideo.tiktok_product_url}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+            </>
+          )}
         </DialogContent>
         {!isMobile && (
           <DialogActions>
