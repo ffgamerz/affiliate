@@ -8,6 +8,11 @@ import {
   CircularProgress,
   IconButton,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
   useTheme,
   useMediaQuery,
 } from '@mui/material'
@@ -21,6 +26,7 @@ import {
   Shop,
   Forum as ThreadsIcon,
   Today as TodayIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 
@@ -80,6 +86,11 @@ export default function UploadCalendar() {
     const now = new Date()
     return now.getFullYear()
   })
+
+  // Details dialog state
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
+  const [selectedDateStr, setSelectedDateStr] = useState('')
+  const [selectedDateGrouped, setSelectedDateGrouped] = useState<{ videoId: string; videoTitle: string; platforms: string[] }[]>([])
 
   useEffect(() => {
     fetchData()
@@ -177,6 +188,31 @@ export default function UploadCalendar() {
   const handleVideoClick = (dateStr: string) => {
     navigate('/videos', {
       state: { calendarUploadDate: dateStr }
+    })
+  }
+
+  const openDetailsDialog = (dateStr: string, uploads: UploadEntry[]) => {
+    setSelectedDateStr(dateStr)
+    setSelectedDateGrouped(groupEntriesByVideo(uploads))
+    setDetailsDialogOpen(true)
+  }
+
+  const handleDayCellClick = (dateStr: string, totalUploads: number, dayUploads: UploadEntry[]) => {
+    if (totalUploads === 0) return
+    if (isMobile) {
+      openDetailsDialog(dateStr, dayUploads)
+    } else {
+      handleVideoClick(dateStr)
+    }
+  }
+
+  const formatDateDisplay = (dateStr: string): string => {
+    const [year, month, day] = dateStr.split('-').map(Number)
+    const date = new Date(year, month - 1, day)
+    return date.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
     })
   }
 
@@ -280,6 +316,7 @@ export default function UploadCalendar() {
               return (
                 <Box
                   key={day}
+                  onClick={() => handleDayCellClick(dateStr, totalUploads, dayUploads)}
                   sx={{
                     minHeight: { xs: 60, md: 100 },
                     border: '1px solid',
@@ -291,6 +328,10 @@ export default function UploadCalendar() {
                     position: 'relative',
                     ...(isToday && {
                       boxShadow: `0 0 0 2px ${theme.palette.primary.main}`,
+                    }),
+                    ...(totalUploads > 0 && {
+                      cursor: 'pointer',
+                      '&:hover': { bgcolor: 'action.hover' },
                     }),
                   }}
                 >
@@ -312,10 +353,7 @@ export default function UploadCalendar() {
                       {groupedVideos.map((video) => (
                         <Box
                           key={video.videoId}
-                          onClick={() => handleVideoClick(dateStr)}
                           sx={{
-                            cursor: 'pointer',
-                            '&:hover': { bgcolor: 'action.hover' },
                             borderRadius: 0.5,
                             p: 0.2,
                           }}
@@ -383,6 +421,80 @@ export default function UploadCalendar() {
           </Box>
         </CardContent>
       </Card>
+
+      {/* Details Dialog (Mobile) */}
+      <Dialog
+        open={detailsDialogOpen}
+        onClose={() => setDetailsDialogOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
+          Uploads - {formatDateDisplay(selectedDateStr)}
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          {selectedDateGrouped.length === 0 ? (
+            <Typography color="text.secondary">No uploads on this date.</Typography>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {selectedDateGrouped.map((video) => (
+                <Box
+                  key={video.videoId}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    bgcolor: 'grey.50',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: 14,
+                      mb: 0.5,
+                    }}
+                  >
+                    {video.videoTitle}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                    {video.platforms.map((p) => (
+                      <Chip
+                        key={p}
+                        icon={platformIconMap[p] as React.ReactElement}
+                        label={platforms.find(pl => pl.key === p)?.label || p}
+                        size="small"
+                        variant="outlined"
+                        sx={{
+                          fontSize: 11,
+                          borderColor: platformColorMap[p] || 'text.secondary',
+                          color: platformColorMap[p] || 'text.secondary',
+                          '& .MuiChip-icon': { fontSize: 14 },
+                        }}
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDetailsDialogOpen(false)} color="inherit">
+            Close
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<SearchIcon />}
+            onClick={() => {
+              setDetailsDialogOpen(false)
+              handleVideoClick(selectedDateStr)
+            }}
+          >
+            Go To Videos
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Legend */}
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
