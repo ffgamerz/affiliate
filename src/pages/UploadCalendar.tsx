@@ -48,11 +48,6 @@ interface UploadEntry {
   platform: string
 }
 
-interface DayUploads {
-  date: string
-  entries: UploadEntry[]
-}
-
 const platforms = [
   { key: 'youtube', label: 'YouTube', icon: <YouTube sx={{ fontSize: 14 }} />, color: '#FF0000' },
   { key: 'tiktok', label: 'TikTok', icon: <TikTokIcon sx={{ fontSize: 14 }} />, color: '#000000' },
@@ -179,7 +174,7 @@ export default function UploadCalendar() {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
   }
 
-  const handleVideoClick = (videoTitle: string, dateStr: string) => {
+  const handleVideoClick = (dateStr: string) => {
     navigate('/videos', {
       state: { calendarUploadDate: dateStr }
     })
@@ -317,7 +312,7 @@ export default function UploadCalendar() {
                       {groupedVideos.map((video) => (
                         <Box
                           key={video.videoId}
-                          onClick={() => handleVideoClick(video.videoTitle, dateStr)}
+                          onClick={() => handleVideoClick(dateStr)}
                           sx={{
                             cursor: 'pointer',
                             '&:hover': { bgcolor: 'action.hover' },

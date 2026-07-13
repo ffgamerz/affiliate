@@ -499,15 +499,6 @@ export default function Videos() {
     return false
   }
 
-  // Check if a video should be highlighted based on active upload date filters
-  const isVideoHighlighted = (video: Video): boolean => {
-    if (uploadDateFilter === 'today') return hasUploadOnDate(video, todayDate)
-    if (uploadDateFilter === 'yesterday') return hasUploadOnDate(video, yesterdayDate)
-    if (uploadDateFilter === 'range-3-9') return hasUploadOnAnyDateInRange(video, dates3to9)
-    if (customUploadDateFilter) return hasUploadOnDate(video, customUploadDateFilter)
-    return false
-  }
-
   // Filter videos
   const filteredVideos = videos.filter((video) => {
     const matchesSearch = searchQuery === '' ||
