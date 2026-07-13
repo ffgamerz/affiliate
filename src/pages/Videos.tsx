@@ -156,7 +156,6 @@ export default function Videos() {
   const [editingVideo, setEditingVideo] = useState<Video | null>(null)
   const [descriptionOpen, setDescriptionOpen] = useState(false)
   const [selectedDescription, setSelectedDescription] = useState('')
-  const [selectedVideoForDescription, setSelectedVideoForDescription] = useState<Video | null>(null)
   const [videoPlayerOpen, setVideoPlayerOpen] = useState(false)
   const [selectedVideoUrl, setSelectedVideoUrl] = useState('')
   const [videoLoading, setVideoLoading] = useState(false)
@@ -504,13 +503,6 @@ export default function Videos() {
     return matchesSearch && matchesDate && matchesUploadDate && matchesEmptyPlatform && matchesPlatform
   })
 
-  const totalVideos = videos.length
-  const videosWithLinks = videos.filter((video) =>
-    platforms.some((platform) => !!video[`${platform.key}_url` as keyof Video])
-  ).length
-  const videosWithoutLinks = videos.filter((video) =>
-    !platforms.some((platform) => !!video[`${platform.key}_url` as keyof Video])
-  ).length
   const platformCounts = platforms.reduce<Record<string, number>>((acc, platform) => {
     acc[platform.key] = videos.filter((video) => !!video[`${platform.key}_url` as keyof Video]).length
     return acc
@@ -809,7 +801,6 @@ export default function Videos() {
                             size="small"
                             onClick={() => {
                               setSelectedDescription(video.description || '')
-                              setSelectedVideoForDescription(video)
                               setDescriptionOpen(true)
                             }}
                             sx={{ p: 0.5 }}
