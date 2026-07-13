@@ -472,6 +472,17 @@ export default function Videos() {
   // Get dates for days 3-9
   const dates3to9 = Array.from({ length: 7 }, (_, i) => getDateDaysAgo(i + 3))
 
+  // Helper to count total platform uploads across all videos for given date(s)
+  const getTotalPlatformUploads = (dateOrDates: string | string[]): number => {
+    const dates = Array.isArray(dateOrDates) ? dateOrDates : [dateOrDates]
+    return videos.reduce((total, video) => {
+      return total + platforms.reduce((count, platform) => {
+        const uploadDate = video[`${platform.key}_upload_date` as keyof Video] as string | null
+        return count + (uploadDate && dates.includes(uploadDate) ? 1 : 0)
+      }, 0)
+    }, 0)
+  }
+
   // Check if video has upload on a specific date
   const hasUploadOnDate = (video: Video, date: string): boolean => {
     return platforms.some((platform) => {
@@ -552,6 +563,11 @@ export default function Videos() {
     hasUploadOnAnyDateInRange(video, dates3to9)
   ).length
 
+  // Total platform uploads count (sum of all platform uploads across all videos)
+  const totalPlatformUploadsToday = getTotalPlatformUploads(todayDate)
+  const totalPlatformUploadsYesterday = getTotalPlatformUploads(yesterdayDate)
+  const totalPlatformUploads3to9 = getTotalPlatformUploads(dates3to9)
+
   // Infinite scroll observer
   const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
     const target = entries[0]
@@ -615,6 +631,9 @@ export default function Videos() {
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
               {videosUploadedToday}
             </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Total platform uploads: <strong>{totalPlatformUploadsToday}</strong>
+            </Typography>
           </CardContent>
         </Card>
         <Card 
@@ -636,6 +655,9 @@ export default function Videos() {
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
               {videosUploadedYesterday}
             </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Total platform uploads: <strong>{totalPlatformUploadsYesterday}</strong>
+            </Typography>
           </CardContent>
         </Card>
         <Card 
@@ -656,6 +678,9 @@ export default function Videos() {
             </Typography>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
               {videosUploaded3to9}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Total platform uploads: <strong>{totalPlatformUploads3to9}</strong>
             </Typography>
           </CardContent>
         </Card>
