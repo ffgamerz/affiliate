@@ -483,6 +483,19 @@ export default function Videos() {
     }, 0)
   }
 
+  // Helper to get platform-specific upload counts for a given date(s)
+  const getPlatformUploadsByDate = (dateOrDates: string | string[]): Record<string, number> => {
+    const dates = Array.isArray(dateOrDates) ? dateOrDates : [dateOrDates]
+    const counts: Record<string, number> = {}
+    platforms.forEach((platform) => {
+      counts[platform.key] = videos.reduce((total, video) => {
+        const uploadDate = video[`${platform.key}_upload_date` as keyof Video] as string | null
+        return total + (uploadDate && dates.includes(uploadDate) ? 1 : 0)
+      }, 0)
+    })
+    return counts
+  }
+
   // Check if video has upload on a specific date
   const hasUploadOnDate = (video: Video, date: string): boolean => {
     return platforms.some((platform) => {
@@ -634,6 +647,29 @@ export default function Videos() {
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               Total platform uploads: <strong>{totalPlatformUploadsToday}</strong>
             </Typography>
+            {(() => {
+              const breakdown = getPlatformUploadsByDate(todayDate)
+              const hasAny = Object.values(breakdown).some(c => c > 0)
+              if (!hasAny) return null
+              return (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                  {platforms.map((p) => {
+                    const count = breakdown[p.key]
+                    if (count === 0) return null
+                    return (
+                      <Chip
+                        key={p.key}
+                        icon={platformIcons[p.key] || undefined}
+                        label={`${p.label}: ${count}`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontSize: 11, fontWeight: 500, height: 24 }}
+                      />
+                    )
+                  })}
+                </Box>
+              )
+            })()}
           </CardContent>
         </Card>
         <Card 
@@ -658,6 +694,29 @@ export default function Videos() {
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               Total platform uploads: <strong>{totalPlatformUploadsYesterday}</strong>
             </Typography>
+            {(() => {
+              const breakdown = getPlatformUploadsByDate(yesterdayDate)
+              const hasAny = Object.values(breakdown).some(c => c > 0)
+              if (!hasAny) return null
+              return (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                  {platforms.map((p) => {
+                    const count = breakdown[p.key]
+                    if (count === 0) return null
+                    return (
+                      <Chip
+                        key={p.key}
+                        icon={platformIcons[p.key] || undefined}
+                        label={`${p.label}: ${count}`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontSize: 11, fontWeight: 500, height: 24 }}
+                      />
+                    )
+                  })}
+                </Box>
+              )
+            })()}
           </CardContent>
         </Card>
         <Card 
@@ -682,6 +741,29 @@ export default function Videos() {
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               Total platform uploads: <strong>{totalPlatformUploads3to9}</strong>
             </Typography>
+            {(() => {
+              const breakdown = getPlatformUploadsByDate(dates3to9)
+              const hasAny = Object.values(breakdown).some(c => c > 0)
+              if (!hasAny) return null
+              return (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                  {platforms.map((p) => {
+                    const count = breakdown[p.key]
+                    if (count === 0) return null
+                    return (
+                      <Chip
+                        key={p.key}
+                        icon={platformIcons[p.key] || undefined}
+                        label={`${p.label}: ${count}`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontSize: 11, fontWeight: 500, height: 24 }}
+                      />
+                    )
+                  })}
+                </Box>
+              )
+            })()}
           </CardContent>
         </Card>
       </Box>
