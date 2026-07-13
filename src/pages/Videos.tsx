@@ -156,6 +156,7 @@ export default function Videos() {
   const [editingVideo, setEditingVideo] = useState<Video | null>(null)
   const [descriptionOpen, setDescriptionOpen] = useState(false)
   const [selectedDescription, setSelectedDescription] = useState('')
+  const [selectedVideoForDescription, setSelectedVideoForDescription] = useState<Video | null>(null)
   const [videoPlayerOpen, setVideoPlayerOpen] = useState(false)
   const [selectedVideoUrl, setSelectedVideoUrl] = useState('')
   const [videoLoading, setVideoLoading] = useState(false)
@@ -167,6 +168,7 @@ export default function Videos() {
   const [dateFilter, setDateFilter] = useState('')
   const [filterEmptyPlatform, setFilterEmptyPlatform] = useState<string | null>(null)
   const [platformFilter, setPlatformFilter] = useState<string>('')
+  const [uploadDateFilter, setUploadDateFilter] = useState<'today' | 'yesterday' | 'range-3-9' | ''>('')
 
   // Search input ref for auto-focus
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -443,14 +445,55 @@ export default function Videos() {
     setVideoLoading(false)
   }
 
+  // Helper to get date string for N days ago
+  const getDateDaysAgo = (days: number): string => {
+    const date = new Date()
+    date.setDate(date.getDate() - days)
+    return date.toISOString().split('T')[0]
+  }
+
+  // Get today's date
+  const todayDate = getTodayDate()
+
+  // Get yesterday's date
+  const yesterdayDate = getDateDaysAgo(1)
+
+  // Get dates for days 3-9
+  const dates3to9 = Array.from({ length: 7 }, (_, i) => getDateDaysAgo(i + 3))
+
+  // Check if video has upload on a specific date
+  const hasUploadOnDate = (video: Video, date: string): boolean => {
+    return platforms.some((platform) => {
+      const uploadDate = video[`${platform.key}_upload_date` as keyof Video] as string | null
+      return uploadDate === date
+    })
+  }
+
+  // Check if video has upload on any of the dates in range
+  const hasUploadOnAnyDateInRange = (video: Video, dates: string[]): boolean => {
+    return platforms.some((platform) => {
+      const uploadDate = video[`${platform.key}_upload_date` as keyof Video] as string | null
+      return uploadDate && dates.includes(uploadDate)
+    })
+  }
+
   // Filter videos
   const filteredVideos = videos.filter((video) => {
     const matchesSearch = searchQuery === '' ||
       video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (video.description && video.description.toLowerCase().includes(searchQuery.toLowerCase()))
 
-    const matchesDate = dateFilter === '' ||
-      video.created_at.split('T')[0] === dateFilter
+    // Date filter (created_at) - from the Date input field
+    const matchesDate = dateFilter === '' || video.created_at.split('T')[0] === dateFilter
+
+    // Upload date filter (platform upload dates) - from stat cards
+    const matchesUploadDate = uploadDateFilter === '' || (uploadDateFilter === 'today'
+      ? hasUploadOnDate(video, todayDate)
+      : uploadDateFilter === 'yesterday'
+        ? hasUploadOnDate(video, yesterdayDate)
+        : uploadDateFilter === 'range-3-9'
+          ? hasUploadOnAnyDateInRange(video, dates3to9)
+          : true)
 
     const matchesEmptyPlatform = filterEmptyPlatform === null ||
       !video[`${filterEmptyPlatform}_url` as keyof Video]
@@ -458,7 +501,7 @@ export default function Videos() {
     const matchesPlatform = platformFilter === '' ||
       !!video[`${platformFilter}_url` as keyof Video]
 
-    return matchesSearch && matchesDate && matchesEmptyPlatform && matchesPlatform
+    return matchesSearch && matchesDate && matchesUploadDate && matchesEmptyPlatform && matchesPlatform
   })
 
   const totalVideos = videos.length
@@ -472,6 +515,21 @@ export default function Videos() {
     acc[platform.key] = videos.filter((video) => !!video[`${platform.key}_url` as keyof Video]).length
     return acc
   }, {})
+
+  // Count videos uploaded today (any platform)
+  const videosUploadedToday = videos.filter((video) =>
+    hasUploadOnDate(video, todayDate)
+  ).length
+
+  // Count videos uploaded yesterday
+  const videosUploadedYesterday = videos.filter((video) =>
+    hasUploadOnDate(video, yesterdayDate)
+  ).length
+
+  // Count videos uploaded days 3-9
+  const videosUploaded3to9 = videos.filter((video) =>
+    hasUploadOnAnyDateInRange(video, dates3to9)
+  ).length
 
   // Infinite scroll observer
   const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
@@ -517,33 +575,66 @@ export default function Videos() {
       </Box>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
-        <Card sx={{ bgcolor: 'background.paper' }}>
+        <Card 
+          sx={{ 
+            bgcolor: 'background.paper', 
+            cursor: 'pointer',
+            '&:hover': { opacity: 0.8 },
+            border: uploadDateFilter === 'today' ? '2px solid' : '1px solid',
+            borderColor: uploadDateFilter === 'today' ? 'primary.main' : 'divider'
+          }}
+          onClick={() => {
+            setUploadDateFilter(uploadDateFilter === 'today' ? '' : 'today')
+          }}
+        >
           <CardContent>
             <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Total videos
+              Total videos uploaded today
             </Typography>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              {totalVideos}
+              {videosUploadedToday}
             </Typography>
           </CardContent>
         </Card>
-        <Card sx={{ bgcolor: 'background.paper' }}>
+        <Card 
+          sx={{ 
+            bgcolor: 'background.paper', 
+            cursor: 'pointer',
+            '&:hover': { opacity: 0.8 },
+            border: uploadDateFilter === 'yesterday' ? '2px solid' : '1px solid',
+            borderColor: uploadDateFilter === 'yesterday' ? 'primary.main' : 'divider'
+          }}
+          onClick={() => {
+            setUploadDateFilter(uploadDateFilter === 'yesterday' ? '' : 'yesterday')
+          }}
+        >
           <CardContent>
             <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Videos with links
+              Total videos uploaded yesterday
             </Typography>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              {videosWithLinks}
+              {videosUploadedYesterday}
             </Typography>
           </CardContent>
         </Card>
-        <Card sx={{ bgcolor: 'background.paper' }}>
+        <Card 
+          sx={{ 
+            bgcolor: 'background.paper', 
+            cursor: 'pointer',
+            '&:hover': { opacity: 0.8 },
+            border: uploadDateFilter === 'range-3-9' ? '2px solid' : '1px solid',
+            borderColor: uploadDateFilter === 'range-3-9' ? 'primary.main' : 'divider'
+          }}
+          onClick={() => {
+            setUploadDateFilter(uploadDateFilter === 'range-3-9' ? '' : 'range-3-9')
+          }}
+        >
           <CardContent>
             <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Videos missing links
+              Days 3-9 uploads
             </Typography>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              {videosWithoutLinks}
+              {videosUploaded3to9}
             </Typography>
           </CardContent>
         </Card>
@@ -605,7 +696,7 @@ export default function Videos() {
             <option key={opt.key} value={opt.key}>{opt.label}</option>
           ))}
         </TextField>
-        {(searchQuery || dateFilter || filterEmptyPlatform || platformFilter) && (
+        {(searchQuery || dateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter) && (
           <Button
             variant="outlined"
             size="small"
@@ -614,6 +705,7 @@ export default function Videos() {
               setDateFilter('')
               setFilterEmptyPlatform(null)
               setPlatformFilter('')
+              setUploadDateFilter('')
             }}
             startIcon={<CloseIcon />}
           >
@@ -717,6 +809,7 @@ export default function Videos() {
                             size="small"
                             onClick={() => {
                               setSelectedDescription(video.description || '')
+                              setSelectedVideoForDescription(video)
                               setDescriptionOpen(true)
                             }}
                             sx={{ p: 0.5 }}
