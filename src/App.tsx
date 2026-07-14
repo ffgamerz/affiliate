@@ -10,41 +10,57 @@ import Settings from './pages/Settings'
 import RandomPicker from './pages/RandomPicker'
 import DateMismatchChecker from './pages/DateMismatchChecker'
 import UploadCalendar from './pages/UploadCalendar'
+import Reuploads from './pages/Reuploads'
 import Layout from './components/Layout'
 
 const theme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#E53935', // BOL Red
-      light: '#FF6F60',
-      dark: '#AB000D',
+      main: '#1976d2',
+      light: '#42a5f5',
+      dark: '#1565c0',
     },
     secondary: {
-      main: '#1E88E5', // Blue accent
+      main: '#ff9800',
     },
     background: {
-      default: '#F5F5F5',
-      paper: '#FFFFFF',
+      default: '#f5f5f5',
+      paper: '#ffffff',
     },
     text: {
-      primary: '#1A1A1A',
+      primary: '#1a1a1a',
       secondary: '#666666',
+    },
+    success: {
+      main: '#2e7d32',
+    },
+    warning: {
+      main: '#ed6c02',
     },
   },
   shape: {
-    borderRadius: 12,
+    borderRadius: 8,
   },
   typography: {
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
     h4: {
       fontWeight: 700,
+      fontSize: '1.75rem',
     },
     h5: {
       fontWeight: 600,
+      fontSize: '1.5rem',
     },
     h6: {
       fontWeight: 600,
+      fontSize: '1.25rem',
+    },
+    body2: {
+      fontSize: '0.875rem',
+    },
+    caption: {
+      fontSize: '0.75rem',
     },
   },
   components: {
@@ -52,9 +68,9 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           textTransform: 'none',
-          fontWeight: 600,
-          borderRadius: 10,
-          padding: '8px 20px',
+          fontWeight: 500,
+          borderRadius: 6,
+          padding: '10px 20px',
         },
         contained: {
           boxShadow: 'none',
@@ -67,13 +83,13 @@ const theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-          border: '1px solid rgba(0,0,0,0.04)',
-          borderRadius: 14,
-          transition: 'box-shadow 0.2s ease, transform 0.2s ease',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+          border: '1px solid #f0f0f0',
+          borderRadius: 8,
+          transition: 'all 0.2s ease',
           '&:hover': {
-            boxShadow: '0 6px 20px rgba(0,0,0,0.1)',
-            transform: 'translateY(-1px)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            transform: 'translateY(-2px)',
           },
         },
       },
@@ -82,6 +98,16 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           fontWeight: 500,
+          borderRadius: 4,
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          '& .MuiOutlinedInput-root': {
+            borderRadius: 6,
+          },
         },
       },
     },
@@ -109,6 +135,7 @@ function AppContent() {
           <Route path="random" element={<RandomPicker />} />
           <Route path="date-check" element={<DateMismatchChecker />} />
           <Route path="upload-calendar" element={<UploadCalendar />} />
+          <Route path="reuploads" element={<Reuploads />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

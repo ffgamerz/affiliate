@@ -1,20 +1,43 @@
-.counter {
-  font-size: 16px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 2px solid transparent;
-  transition: border-color 0.3s;
-  margin-bottom: 24px;
+/* Global Styles for Material Design-inspired layout */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+}
 
-  &:hover {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
+/* Smooth transitions for interactive elements */
+.MuiCard-root {
+  transition: all 0.2s ease;
+}
+
+.MuiCard-root:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure consistent chip heights */
+.MuiChip-root {
+  height: 28px;
+}
+
+/* Search input styling */
+.search-box {
+  position: relative;
+}
+
+.search-box .MuiOutlinedInput-root {
+  padding-left: 40px;
+}
+
+/* Section labels */
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  color: #666;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  display: block;
 }
 
 .hero {
@@ -158,6 +181,17 @@
   border-top: 1px solid var(--border);
   @media (max-width: 1024px) {
     height: 48px;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .container {
+    padding: 12px;
+  }
+  
+  .MuiCard-root:hover {
+    transform: none;
   }
 }
 

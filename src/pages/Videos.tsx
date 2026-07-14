@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
   Box,
@@ -42,14 +42,16 @@ import {
   Search as SearchIcon,
   Close as CloseIcon,
   ContentCopy as CopyIcon,
+  Replay as ReplayIcon,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
+import { useDebounce } from '../hooks/useDebounce'
 
 // Google Drive Icon SVG component
 const GoogleDriveIcon = () => (
   <svg width="20" height="20" viewBox="0 0 87.3 76.6" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M63.7 28.1l-11.9-6.8c-.1 0-.2-.1-.3-.1l-11.9-6.8c-.1 0-.2 0-.3.1L21.9 28c-.1.1-.2.1-.3.1L6.1 34.9c-.1 0-.2.1-.1.2v12.3c0 .1.1.2.2.2l15.6 9.1c.1 0 .2 0 .3-.1l11.9 6.8c.1 0 .2.1.3.1l11.9 6.8c.1 0 .2 0 .3-.1l11.9-6.8c.1 0 .2-.1.3-.1l11.9-6.8c.1 0 .2 0 .3.1l11.9 6.8c.1 0 .2.1.3.1l15.6-9.1c.1 0 .2-.1.2-.2V35c0-.1-.1-.2-.2-.2l-15.6-9.1c-.1 0-.2-.1-.3-.1z" fill="#0066CC"/>
-    <path d="M63.7 28.1L44.2 4.2c-.1-.1-.2-.1-.3 0L21.9 28c-.1.1-.2.1-.3.1-.1L6.1 34.9c-.1 0-.2.1-.1.2v12.3c0 .1.1.2.2.2l15.6 9.1c.1 0 .2 0 .3-.1l11.9 6.8c.1 0 .2.1.3.1l11.9 6.8c.1 0 .2 0 .3-.1l11.9-6.8c.1 0 .2-.1.3-.1l11.9-6.8c.1 0 .2 0 .3.1l11.9 6.8c.1 0 .2.1.3.1l15.6-9.1c.1 0 .2-.1.2-.2V35c0-.1-.1-.2-.2-.2l-15.6-9.1c-.1 0-.2-.1-.3-.1z" fill="#00AC47"/>
+    <path d="M63.7 28.1l-11.9-6.8c-.1 0-.2-.1-.3-.1l-11.9-6.8c-.1 0-.2 0-.3.1L21.9 28c-.1.1-.2.1-.3.1L6.1 34.9c-.1 0-.2.1-.1.2v12.3c0 .1.1.2.2.2l15.6 9.1c.1 0 .2 0 .3-.1l11.9 6.8c.1 0 .2.1.3.1l11.9 6.8c.1 0 .2 0 .3-.1l11.9-6.8c.1 0-.2-.1-.3-.1l11.9-6.8c.1 0 .2 0 .3.1l11.9 6.8c.1 0 .2.1.3.1l15.6-9.1c.1 0 .2-.1.2-.2V35c0-.1-.1-.2-.2-.2l-15.6-9.1c-.1 0-.2-.1-.3-.1z" fill="#0066CC"/>
+    <path d="M63.7 28.1L44.2 4.2c-.1-.1-.2-.1-.3 0L21.9 28c-.1.1-.2.1-.3.1-.1L6.1 34.9c-.1 0-.2.1-.1.2v12.3c0 .1.1.2.2.2l15.6 9.1c.1 0 .2 0 .3-.1l11.9 6.8c.1 0 .2.1.3.1l11.9 6.8c.1 0 .2 0 .3-.1l11.9-6.8c.1 0-.2-.1-.3-.1l11.9-6.8c.1 0 .2 0 .3.1l11.9 6.8c.1 0 .2.1.3.1l15.6-9.1c.1 0 .2-.1.2-.2V35c0-.1-.1-.2-.2-.2l-15.6-9.1c-.1 0-.2-.1-.3-.1z" fill="#00AC47"/>
   </svg>
 )
 
@@ -72,6 +74,16 @@ interface Video {
   tiktok_upload_date: string | null
   tiktok_product_url: string | null
   shopee_product_url: string | null
+}
+
+interface Reupload {
+  id: string
+  video_id: string
+  platform: string
+  url: string | null
+  upload_date: string | null
+  notes: string | null
+  created_at: string
 }
 
 const platforms = [
@@ -147,11 +159,25 @@ const platformIcons: Record<string, React.ReactElement | null> = {
   shopee: <Shop />,
 }
 
+// Helper function to get platform color
+const getPlatformColor = (platformKey: string): string => {
+  const colors: Record<string, string> = {
+    youtube: '#FF0000',
+    tiktok: '#000000',
+    facebook: '#1877F2',
+    instagram: '#E4405F',
+    threads: '#000000',
+    shopee: '#EE4D2D',
+  }
+  return colors[platformKey] || '#666666'
+}
+
 export default function Videos() {
   const location = useLocation()
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [videos, setVideos] = useState<Video[]>([])
+  const [reuploads, setReuploads] = useState<Reupload[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [editingVideo, setEditingVideo] = useState<Video | null>(null)
@@ -166,11 +192,19 @@ export default function Videos() {
 
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearchQuery = useDebounce(searchQuery, 300) // Debounce search for performance
   const [dateFilter, setDateFilter] = useState('')
   const [filterEmptyPlatform, setFilterEmptyPlatform] = useState<string | null>(null)
   const [platformFilter, setPlatformFilter] = useState<string>('')
   const [uploadDateFilter, setUploadDateFilter] = useState<'today' | 'yesterday' | 'range-3-9' | ''>('')
   const [customUploadDateFilter, setCustomUploadDateFilter] = useState('')
+
+  // Reupload popup states
+  const [reuploadDialogOpen, setReuploadDialogOpen] = useState(false)
+  const [reuploadPlatform, setReuploadPlatform] = useState('')
+  const [reuploadUrl, setReuploadUrl] = useState('')
+  const [reuploadUploadDate, setReuploadUploadDate] = useState('')
+  const [reuploadNotes, setReuploadNotes] = useState('')
 
   // Search input ref for auto-focus
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -237,12 +271,18 @@ export default function Videos() {
   }, [location])
 
   const fetchData = async () => {
-    const { data: videosData } = await supabase
-      .from('videos')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const [videosResult, reuploadsResult] = await Promise.all([
+      supabase
+        .from('videos')
+        .select('*')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('reuploads')
+        .select('*'),
+    ])
 
-    setVideos(videosData || [])
+    setVideos((videosResult.data as Video[]) || [])
+    setReuploads((reuploadsResult.data as Reupload[]) || [])
     setLoading(false)
   }
 
@@ -382,7 +422,7 @@ export default function Videos() {
     try {
       await navigator.clipboard.writeText(text)
       setSnackbar({ open: true, message: `${platform} URL copied to clipboard!` })
-    } catch (err) {
+    } catch {
       setSnackbar({ open: true, message: 'Failed to copy URL' })
     }
   }
@@ -392,6 +432,40 @@ export default function Videos() {
     setDescriptionFocused(false)
     resetForm()
     setOpen(true)
+  }
+
+  // Open reupload popup from edit dialog
+  const openReuploadDialog = (platform: string) => {
+    setReuploadPlatform(platform)
+    setReuploadUrl('') // Empty - user will paste new link
+    setReuploadUploadDate(getTodayDate())
+    setReuploadNotes('')
+    setReuploadDialogOpen(true)
+  }
+
+  // Handle save reupload
+  const handleSaveReupload = async () => {
+    if (!editingVideo) return
+
+    const { error } = await supabase.from('reuploads').insert({
+      video_id: editingVideo.id,
+      platform: reuploadPlatform,
+      url: reuploadUrl || null,
+      upload_date: reuploadUploadDate || null,
+      notes: reuploadNotes || null,
+    })
+
+    if (!error) {
+      setReuploadDialogOpen(false)
+      setOpen(false) // Close edit dialog too
+      setEditingVideo(null)
+      resetForm()
+      setSnackbar({ open: true, message: 'Reupload saved successfully!' })
+      fetchData() // Refresh to update stat counts
+    } else {
+      console.error('Reupload error:', error)
+      setSnackbar({ open: true, message: `Failed: ${error.message || 'Unknown error'}` })
+    }
   }
 
   // Helper function to extract YouTube video ID
@@ -477,26 +551,44 @@ export default function Videos() {
   // Get dates for days 3-9
   const dates3to9 = Array.from({ length: 7 }, (_, i) => getDateDaysAgo(i + 3))
 
-  // Helper to count total platform uploads across all videos for given date(s)
+  // Helper to count total platform uploads across all videos + reuploads for given date(s)
   const getTotalPlatformUploads = (dateOrDates: string | string[]): number => {
     const dates = Array.isArray(dateOrDates) ? dateOrDates : [dateOrDates]
-    return videos.reduce((total, video) => {
+    let total = 0
+    
+    // Count from videos table
+    total += videos.reduce((total, video) => {
       return total + platforms.reduce((count, platform) => {
         const uploadDate = video[`${platform.key}_upload_date` as keyof Video] as string | null
         return count + (uploadDate && dates.includes(uploadDate) ? 1 : 0)
       }, 0)
     }, 0)
+
+    // Count from reuploads table
+    total += reuploads.reduce((total, r) => {
+      return total + (r.upload_date && dates.includes(r.upload_date) ? 1 : 0)
+    }, 0)
+
+    return total
   }
 
-  // Helper to get platform-specific upload counts for a given date(s)
+  // Helper to get platform-specific upload counts for a given date(s) - includes reuploads
   const getPlatformUploadsByDate = (dateOrDates: string | string[]): Record<string, number> => {
     const dates = Array.isArray(dateOrDates) ? dateOrDates : [dateOrDates]
     const counts: Record<string, number> = {}
     platforms.forEach((platform) => {
-      counts[platform.key] = videos.reduce((total, video) => {
+      // Count from videos
+      let count = videos.reduce((total, video) => {
         const uploadDate = video[`${platform.key}_upload_date` as keyof Video] as string | null
         return total + (uploadDate && dates.includes(uploadDate) ? 1 : 0)
       }, 0)
+
+      // Count from reuploads
+      count += reuploads.reduce((total, r) => {
+        return total + (r.platform === platform.key && r.upload_date && dates.includes(r.upload_date) ? 1 : 0)
+      }, 0)
+
+      counts[platform.key] = count
     })
     return counts
   }
@@ -530,61 +622,97 @@ export default function Videos() {
     return false
   }
 
-  // Filter videos
-  const filteredVideos = videos.filter((video) => {
-    const matchesSearch = searchQuery === '' ||
-      video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (video.description && video.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  // Check if a specific video+platform has a reupload on a matching date filter
+  const isPlatformReuploadMatch = (platformKey: string, videoId: string): boolean => {
+    let targetDate: string | null = null
 
-    // Date filter (created_at) - from the Date input field
-    const matchesDate = dateFilter === '' || video.created_at.split('T')[0] === dateFilter
+    if (uploadDateFilter === 'today') targetDate = todayDate
+    else if (uploadDateFilter === 'yesterday') targetDate = yesterdayDate
+    else if (uploadDateFilter === 'range-3-9') {
+      return dates3to9.some(date => reuploads.some(r => r.video_id === videoId && r.platform === platformKey && r.upload_date === date))
+    }
+    else if (customUploadDateFilter) targetDate = customUploadDateFilter
 
-    // Upload date filter (platform upload dates) - from stat cards
-    const matchesUploadDate = uploadDateFilter === '' || (uploadDateFilter === 'today'
-      ? hasUploadOnDate(video, todayDate)
-      : uploadDateFilter === 'yesterday'
-        ? hasUploadOnDate(video, yesterdayDate)
-        : uploadDateFilter === 'range-3-9'
-          ? hasUploadOnAnyDateInRange(video, dates3to9)
-          : true)
+    if (!targetDate) return false
+    return reuploads.some(r => r.video_id === videoId && r.platform === platformKey && r.upload_date === targetDate)
+  }
 
-    // Custom upload date filter - check if any platform has upload on the selected date
-    const matchesCustomUploadDate = customUploadDateFilter === '' ||
-      hasUploadOnDate(video, customUploadDateFilter)
+  // Check if a video has any reupload on a specific date
+  const hasReuploadForVideoOnDate = (videoId: string, date: string): boolean => {
+    return reuploads.some(r => r.video_id === videoId && r.upload_date === date)
+  }
 
-    const matchesEmptyPlatform = filterEmptyPlatform === null ||
-      !video[`${filterEmptyPlatform}_url` as keyof Video]
+  // Check if a video has any reupload on any of the dates in range
+  const hasReuploadForVideoOnAnyDateInRange = (videoId: string, dates: string[]): boolean => {
+    return dates.some(date => reuploads.some(r => r.video_id === videoId && r.upload_date === date))
+  }
 
-    const matchesPlatform = platformFilter === '' ||
-      !!video[`${platformFilter}_url` as keyof Video]
+  // Memoized expensive calculations
+  const filteredVideos = useMemo(() => {
+    return videos.filter((video) => {
+      const matchesSearch = debouncedSearchQuery === '' ||
+        video.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        (video.description && video.description.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
 
-    return matchesSearch && matchesDate && matchesUploadDate && matchesCustomUploadDate && matchesEmptyPlatform && matchesPlatform
-  })
+      // Date filter (created_at) - from the Date input field
+      const matchesDate = dateFilter === '' || video.created_at.split('T')[0] === dateFilter
 
-  const platformCounts = platforms.reduce<Record<string, number>>((acc, platform) => {
-    acc[platform.key] = videos.filter((video) => !!video[`${platform.key}_url` as keyof Video]).length
-    return acc
-  }, {})
+      // Upload date filter (platform upload dates) - from stat cards
+      // Also check reuploads for this video
+      const matchesUploadDate = uploadDateFilter === '' || (uploadDateFilter === 'today'
+        ? hasUploadOnDate(video, todayDate) || hasReuploadForVideoOnDate(video.id, todayDate)
+        : uploadDateFilter === 'yesterday'
+          ? hasUploadOnDate(video, yesterdayDate) || hasReuploadForVideoOnDate(video.id, yesterdayDate)
+          : uploadDateFilter === 'range-3-9'
+            ? hasUploadOnAnyDateInRange(video, dates3to9) || hasReuploadForVideoOnAnyDateInRange(video.id, dates3to9)
+            : true)
+
+      // Custom upload date filter - check if any platform has upload on the selected date
+      const matchesCustomUploadDate = customUploadDateFilter === '' ||
+        hasUploadOnDate(video, customUploadDateFilter) || hasReuploadForVideoOnDate(video.id, customUploadDateFilter)
+
+      const matchesEmptyPlatform = filterEmptyPlatform === null ||
+        !video[`${filterEmptyPlatform}_url` as keyof Video]
+
+      const matchesPlatform = platformFilter === '' ||
+        !!video[`${platformFilter}_url` as keyof Video]
+
+      return matchesSearch && matchesDate && matchesUploadDate && matchesCustomUploadDate && matchesEmptyPlatform && matchesPlatform
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videos, debouncedSearchQuery, dateFilter, uploadDateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, todayDate, yesterdayDate, dates3to9, reuploads, platforms])
 
   // Count videos uploaded today (any platform)
-  const videosUploadedToday = videos.filter((video) =>
-    hasUploadOnDate(video, todayDate)
-  ).length
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const videosUploadedToday = useMemo(() => {
+    return videos.filter((video) =>
+      hasUploadOnDate(video, todayDate) || hasReuploadForVideoOnDate(video.id, todayDate)
+    ).length
+  }, [videos, todayDate])
 
   // Count videos uploaded yesterday
-  const videosUploadedYesterday = videos.filter((video) =>
-    hasUploadOnDate(video, yesterdayDate)
-  ).length
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const videosUploadedYesterday = useMemo(() => {
+    return videos.filter((video) =>
+      hasUploadOnDate(video, yesterdayDate) || hasReuploadForVideoOnDate(video.id, yesterdayDate)
+    ).length
+  }, [videos, yesterdayDate])
 
   // Count videos uploaded days 3-9
-  const videosUploaded3to9 = videos.filter((video) =>
-    hasUploadOnAnyDateInRange(video, dates3to9)
-  ).length
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const videosUploaded3to9 = useMemo(() => {
+    return videos.filter((video) =>
+      hasUploadOnAnyDateInRange(video, dates3to9) || hasReuploadForVideoOnAnyDateInRange(video.id, dates3to9)
+    ).length
+  }, [videos, dates3to9])
 
-  // Total platform uploads count (sum of all platform uploads across all videos)
-  const totalPlatformUploadsToday = getTotalPlatformUploads(todayDate)
-  const totalPlatformUploadsYesterday = getTotalPlatformUploads(yesterdayDate)
-  const totalPlatformUploads3to9 = getTotalPlatformUploads(dates3to9)
+  // Total platform uploads count (sum of all platform uploads across all videos + reuploads)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const totalPlatformUploadsToday = useMemo(() => getTotalPlatformUploads(todayDate), [videos, reuploads, platforms, todayDate])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const totalPlatformUploadsYesterday = useMemo(() => getTotalPlatformUploads(yesterdayDate), [videos, reuploads, platforms, yesterdayDate])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const totalPlatformUploads3to9 = useMemo(() => getTotalPlatformUploads(dates3to9), [videos, reuploads, platforms, dates3to9])
 
   // Infinite scroll observer
   const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
@@ -632,44 +760,113 @@ export default function Videos() {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
         <Card 
           sx={{ 
-            bgcolor: 'background.paper', 
+            bgcolor: 'background.paper',
             cursor: 'pointer',
-            '&:hover': { opacity: 0.8 },
-            border: uploadDateFilter === 'today' ? '2px solid' : '1px solid',
-            borderColor: uploadDateFilter === 'today' ? 'primary.main' : 'divider'
+            transition: 'all 0.2s ease',
+            border: uploadDateFilter === 'today' ? '1px solid' : '1px solid #f0f0f0',
+            borderColor: uploadDateFilter === 'today' ? 'primary.main' : '#f0f0f0',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            }
           }}
           onClick={() => {
             setUploadDateFilter(uploadDateFilter === 'today' ? '' : 'today')
           }}
         >
-          <CardContent>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+          <CardContent sx={{ p: 2.5 }}>
+            <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 500, color: 'text.secondary', textTransform: 'none', letterSpacing: 0.5, display: 'block', mb: 1 }}>
               Total videos uploaded today
             </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: 32, color: 'text.primary', mb: 0.5 }}>
               {videosUploadedToday}
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Total platform uploads: <strong>{totalPlatformUploadsToday}</strong>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+              Total platform uploads: <Typography component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>{totalPlatformUploadsToday}</Typography>
             </Typography>
             {(() => {
               const breakdown = getPlatformUploadsByDate(todayDate)
               const hasAny = Object.values(breakdown).some(c => c > 0)
               if (!hasAny) return null
               return (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
                   {platforms.map((p) => {
                     const count = breakdown[p.key]
                     if (count === 0) return null
+                    
+                    const originalCount = videos.reduce((total, video) => {
+                      const uploadDate = video[`${p.key}_upload_date` as keyof Video] as string | null
+                      return total + (uploadDate === todayDate ? 1 : 0)
+                    }, 0)
+                    
+                    const reuploadCount = reuploads.filter(r => r.platform === p.key && r.upload_date === todayDate).length
+                    
+                    const hasOriginal = originalCount > 0
+                    const hasReupload = reuploadCount > 0
+                    
+                    if (hasOriginal && hasReupload) {
+                      return (
+                        <Box key={p.key} sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                            <Box sx={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: 2, 
+                              px: 1, 
+                              py: 0.5, 
+                              bgcolor: '#f5f5f5',
+                              borderRadius: 0.5,
+                              border: '1px solid',
+                              borderColor: '#81c784'
+                            }}>
+                            <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
+                              {platformIcons[p.key]}
+                            </Box>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
+                              {originalCount}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 2, 
+                            px: 1, 
+                            py: 0.5, 
+                            bgcolor: '#f5f5f5',
+                            borderRadius: 0.5,
+                            border: '1px solid',
+                            borderColor: '#ffb74d'
+                          }}>
+                            <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
+                              {platformIcons[p.key]}
+                            </Box>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
+                              {reuploadCount}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      )
+                    }
+                    
+                    const isReupload = hasReupload && !hasOriginal
                     return (
-                      <Chip
-                        key={p.key}
-                        icon={platformIcons[p.key] || undefined}
-                        label={`${p.label}: ${count}`}
-                        size="small"
-                        variant="outlined"
-                        sx={{ fontSize: 11, fontWeight: 500, height: 24 }}
-                      />
+                      <Box key={p.key} sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 2, 
+                        px: 1, 
+                        py: 0.5, 
+                        bgcolor: '#f5f5f5',
+                        borderRadius: 0.5,
+                        border: '1px solid',
+                        borderColor: isReupload ? '#ffb74d' : '#81c784'
+                      }}>
+                        <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
+                          {platformIcons[p.key]}
+                        </Box>
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
+                          {count}
+                        </Typography>
+                      </Box>
                     )
                   })}
                 </Box>
@@ -679,44 +876,113 @@ export default function Videos() {
         </Card>
         <Card 
           sx={{ 
-            bgcolor: 'background.paper', 
+            bgcolor: 'background.paper',
             cursor: 'pointer',
-            '&:hover': { opacity: 0.8 },
-            border: uploadDateFilter === 'yesterday' ? '2px solid' : '1px solid',
-            borderColor: uploadDateFilter === 'yesterday' ? 'primary.main' : 'divider'
+            transition: 'all 0.2s ease',
+            border: uploadDateFilter === 'yesterday' ? '1px solid' : '1px solid #f0f0f0',
+            borderColor: uploadDateFilter === 'yesterday' ? 'primary.main' : '#f0f0f0',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            }
           }}
           onClick={() => {
             setUploadDateFilter(uploadDateFilter === 'yesterday' ? '' : 'yesterday')
           }}
         >
-          <CardContent>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+          <CardContent sx={{ p: 2.5 }}>
+            <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 500, color: 'text.secondary', textTransform: 'none', letterSpacing: 0.5, display: 'block', mb: 1 }}>
               Total videos uploaded yesterday
             </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: 32, color: 'text.primary', mb: 0.5 }}>
               {videosUploadedYesterday}
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Total platform uploads: <strong>{totalPlatformUploadsYesterday}</strong>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+              Total platform uploads: <Typography component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>{totalPlatformUploadsYesterday}</Typography>
             </Typography>
             {(() => {
               const breakdown = getPlatformUploadsByDate(yesterdayDate)
               const hasAny = Object.values(breakdown).some(c => c > 0)
               if (!hasAny) return null
               return (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
                   {platforms.map((p) => {
                     const count = breakdown[p.key]
                     if (count === 0) return null
+                    
+                    const originalCount = videos.reduce((total, video) => {
+                      const uploadDate = video[`${p.key}_upload_date` as keyof Video] as string | null
+                      return total + (uploadDate === yesterdayDate ? 1 : 0)
+                    }, 0)
+                    
+                    const reuploadCount = reuploads.filter(r => r.platform === p.key && r.upload_date === yesterdayDate).length
+                    
+                    const hasOriginal = originalCount > 0
+                    const hasReupload = reuploadCount > 0
+                    
+                    if (hasOriginal && hasReupload) {
+                      return (
+                        <Box key={p.key} sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                            <Box sx={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: 2, 
+                              px: 1, 
+                              py: 0.5, 
+                              bgcolor: '#f5f5f5',
+                              borderRadius: 0.5,
+                              border: '1px solid',
+                              borderColor: '#81c784'
+                            }}>
+                            <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
+                              {platformIcons[p.key]}
+                            </Box>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
+                              {originalCount}
+                            </Typography>
+                          </Box>
+                            <Box sx={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: 2, 
+                              px: 1, 
+                              py: 0.5, 
+                              bgcolor: '#f5f5f5',
+                              borderRadius: 0.5,
+                              border: '1px solid',
+                              borderColor: '#ffb74d'
+                            }}>
+                            <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
+                              {platformIcons[p.key]}
+                            </Box>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
+                              {reuploadCount}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      )
+                    }
+                    
+                    const isReupload = hasReupload && !hasOriginal
                     return (
-                      <Chip
-                        key={p.key}
-                        icon={platformIcons[p.key] || undefined}
-                        label={`${p.label}: ${count}`}
-                        size="small"
-                        variant="outlined"
-                        sx={{ fontSize: 11, fontWeight: 500, height: 24 }}
-                      />
+                      <Box key={p.key} sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 2, 
+                        px: 1, 
+                        py: 0.5, 
+                        bgcolor: '#f5f5f5',
+                        borderRadius: 0.5,
+                        border: '1px solid',
+                        borderColor: isReupload ? '#ffb74d' : '#81c784'
+                      }}>
+                        <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
+                          {platformIcons[p.key]}
+                        </Box>
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
+                          {count}
+                        </Typography>
+                      </Box>
                     )
                   })}
                 </Box>
@@ -726,44 +992,113 @@ export default function Videos() {
         </Card>
         <Card 
           sx={{ 
-            bgcolor: 'background.paper', 
+            bgcolor: 'background.paper',
             cursor: 'pointer',
-            '&:hover': { opacity: 0.8 },
-            border: uploadDateFilter === 'range-3-9' ? '2px solid' : '1px solid',
-            borderColor: uploadDateFilter === 'range-3-9' ? 'primary.main' : 'divider'
+            transition: 'all 0.2s ease',
+            border: uploadDateFilter === 'range-3-9' ? '1px solid' : '1px solid #f0f0f0',
+            borderColor: uploadDateFilter === 'range-3-9' ? 'primary.main' : '#f0f0f0',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            }
           }}
           onClick={() => {
             setUploadDateFilter(uploadDateFilter === 'range-3-9' ? '' : 'range-3-9')
           }}
         >
-          <CardContent>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+          <CardContent sx={{ p: 2.5 }}>
+            <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 500, color: 'text.secondary', textTransform: 'none', letterSpacing: 0.5, display: 'block', mb: 1 }}>
               Days 3-9 uploads
             </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: 32, color: 'text.primary', mb: 0.5 }}>
               {videosUploaded3to9}
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Total platform uploads: <strong>{totalPlatformUploads3to9}</strong>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+              Total platform uploads: <Typography component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>{totalPlatformUploads3to9}</Typography>
             </Typography>
             {(() => {
               const breakdown = getPlatformUploadsByDate(dates3to9)
               const hasAny = Object.values(breakdown).some(c => c > 0)
               if (!hasAny) return null
               return (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
                   {platforms.map((p) => {
                     const count = breakdown[p.key]
                     if (count === 0) return null
+                    
+                    const originalCount = videos.reduce((total, video) => {
+                      const uploadDate = video[`${p.key}_upload_date` as keyof Video] as string | null
+                      return total + (uploadDate && dates3to9.includes(uploadDate) ? 1 : 0)
+                    }, 0)
+                    
+                    const reuploadCount = reuploads.filter(r => r.platform === p.key && r.upload_date && dates3to9.includes(r.upload_date)).length
+                    
+                    const hasOriginal = originalCount > 0
+                    const hasReupload = reuploadCount > 0
+                    
+                    if (hasOriginal && hasReupload) {
+                      return (
+                        <Box key={p.key} sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                            <Box sx={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: 2, 
+                              px: 1, 
+                              py: 0.5, 
+                              bgcolor: '#f5f5f5',
+                              borderRadius: 0.5,
+                              border: '1px solid',
+                              borderColor: '#81c784'
+                            }}>
+                            <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
+                              {platformIcons[p.key]}
+                            </Box>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
+                              {originalCount}
+                            </Typography>
+                          </Box>
+                            <Box sx={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: 2, 
+                              px: 1, 
+                              py: 0.5, 
+                              bgcolor: '#f5f5f5',
+                              borderRadius: 0.5,
+                              border: '1px solid',
+                              borderColor: '#ffb74d'
+                            }}>
+                            <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
+                              {platformIcons[p.key]}
+                            </Box>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
+                              {reuploadCount}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      )
+                    }
+                    
+                    const isReupload = hasReupload && !hasOriginal
                     return (
-                      <Chip
-                        key={p.key}
-                        icon={platformIcons[p.key] || undefined}
-                        label={`${p.label}: ${count}`}
-                        size="small"
-                        variant="outlined"
-                        sx={{ fontSize: 11, fontWeight: 500, height: 24 }}
-                      />
+                      <Box key={p.key} sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 2, 
+                        px: 1, 
+                        py: 0.5, 
+                        bgcolor: '#f5f5f5',
+                        borderRadius: 0.5,
+                        border: '1px solid',
+                        borderColor: isReupload ? '#ffb74d' : '#81c784'
+                      }}>
+                        <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
+                          {platformIcons[p.key]}
+                        </Box>
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
+                          {count}
+                        </Typography>
+                      </Box>
                     )
                   })}
                 </Box>
@@ -773,35 +1108,45 @@ export default function Videos() {
         </Card>
       </Box>
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-        {platforms.map((platform) => (
-          <Chip
-            key={platform.key}
-            label={`${platform.label} (${platformCounts[platform.key] || 0})`}
-            clickable
+      {/* Search and Filters */}
+      <Box sx={{ 
+        bgcolor: 'background.paper',
+        p: 2,
+        borderRadius: 1,
+        mb: 2,
+        display: 'flex',
+        gap: 1.5,
+        flexWrap: 'wrap',
+        alignItems: 'center'
+      }}>
+        <Box sx={{ 
+          flex: 1, 
+          minWidth: 200,
+          position: 'relative'
+        }}>
+          <SearchIcon sx={{ 
+            position: 'absolute',
+            left: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: 'text.secondary',
+            fontSize: 20,
+            zIndex: 1
+          }} />
+          <TextField
+            inputRef={searchInputRef}
             size="small"
-            variant={platformFilter === platform.key ? 'filled' : 'outlined'}
-            color={platformFilter === platform.key ? 'primary' : 'default'}
-            onClick={() => setPlatformFilter(platformFilter === platform.key ? '' : platform.key)}
+            placeholder="Search videos..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            sx={{ 
+              width: '100%',
+              '& .MuiOutlinedInput-root': {
+                pl: 4
+              }
+            }}
           />
-        ))}
-      </Box>
-
-      {/* Search and Filter */}
-      <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
-        <TextField
-          inputRef={searchInputRef}
-          size="small"
-          placeholder="Search videos..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          sx={{ flex: { xs: '1 1 100%', sm: 1 }, minWidth: 200 }}
-          slotProps={{
-            input: {
-              startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary', fontSize: 20 }} />,
-            }
-          }}
-        />
+        </Box>
         <TextField
           size="small"
           label="Date"
@@ -903,8 +1248,8 @@ export default function Videos() {
                           }
                         }}
                         sx={{
-                          width: 68,
-                          height: 120,
+                          width: 120,
+                          height: 160,
                           objectFit: 'cover',
                           borderRadius: 1,
                           cursor: 'pointer',
@@ -915,8 +1260,8 @@ export default function Videos() {
                     ) : (
                       <Box
                         sx={{
-                          width: 68,
-                          height: 120,
+                          width: 120,
+                          height: 160,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -925,7 +1270,7 @@ export default function Videos() {
                           flexShrink: 0,
                         }}
                       >
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>
                           No Video
                         </Typography>
                       </Box>
@@ -972,14 +1317,18 @@ export default function Videos() {
                       </Typography>
 
                       {/* Content with Action Buttons */}
-                      <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                          {/* Platform Chips */}
-                          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, auto)' }, gap: 0.5, mb: 0.5, width: '100%' }}>
+                          {/* Platforms Section */}
+                          <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, textTransform: 'none', color: 'text.secondary', letterSpacing: 0.5, mb: 0.5, display: 'block' }}>
+                            Platforms
+                          </Typography>
+                          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, auto)' }, gap: 0.5, mb: 1.5, width: '100%' }}>
                             {platforms.map((platform) => {
                               const hasUrl = !!video[`${platform.key}_url` as keyof Video]
                               const icon = platformIcons[platform.key]
                               const isDateMatch = isPlatformDateMatch(platform.key, video)
+                              const isReuploadMatch = isPlatformReuploadMatch(platform.key, video.id)
 
                               return (
                                 <Chip
@@ -993,11 +1342,18 @@ export default function Videos() {
                                     opacity: hasUrl ? 1 : 0.4,
                                     fontWeight: 500,
                                     fontSize: 12,
+                                    height: 28,
                                     '&:hover': hasUrl ? { opacity: 0.8 } : {},
                                     '& .MuiChip-icon': { fontSize: 16 },
-                                    ...(isDateMatch && {
-                                      border: '2px solid',
-                                      borderColor: 'success.main',
+                                    ...(isDateMatch && !isReuploadMatch && {
+                                      border: '1px solid',
+                                      borderColor: '#81c784',
+                                    }),
+                                    ...(isReuploadMatch && {
+                                      border: '1px solid',
+                                      borderColor: '#ffb74d',
+                                      color: '#ff9800',
+                                      '& .MuiChip-icon': { color: '#ff9800', fontSize: 16 },
                                     }),
                                   }}
                                   variant={hasUrl ? 'filled' : 'outlined'}
@@ -1007,7 +1363,10 @@ export default function Videos() {
                             })}
                           </Box>
 
-                          {/* Google Drive Search */}
+                          {/* Google Drive Section */}
+                          <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, textTransform: 'none', color: 'text.secondary', letterSpacing: 0.5, mb: 0.5, display: 'block' }}>
+                            Google Drive
+                          </Typography>
                           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
                             {isMobileDevice() ? (
                               <Chip
@@ -1015,7 +1374,7 @@ export default function Videos() {
                                 label="Drive"
                                 size="small"
                                 onClick={() => searchGoogleDriveAll(video.title)}
-                                sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
+                                sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 }, height: 28 }}
                                 title="Search in Google Drive"
                               />
                             ) : (
@@ -1025,7 +1384,7 @@ export default function Videos() {
                                   label="Drive"
                                   size="small"
                                   onClick={() => searchGoogleDriveLatest(video.title)}
-                                  sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
+                                  sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 }, height: 28 }}
                                   title="Search in Google Drive (Latest)"
                                 />
                                 <Chip
@@ -1033,7 +1392,7 @@ export default function Videos() {
                                   label="Arc"
                                   size="small"
                                   onClick={() => searchGoogleDriveArchive(video.title)}
-                                  sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
+                                  sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 }, height: 28 }}
                                   title="Search in Google Drive (Archive)"
                                 />
                               </>
@@ -1049,7 +1408,7 @@ export default function Videos() {
                                   label="TikTok Shop"
                                   size="small"
                                   onClick={() => copyToClipboard(video.tiktok_product_url!, 'TikTok Shop')}
-                                  sx={{ cursor: 'pointer', bgcolor: '#000', color: 'white', '&:hover': { bgcolor: '#333' } }}
+                                  sx={{ cursor: 'pointer', bgcolor: '#000', color: 'white', '&:hover': { bgcolor: '#333' }, height: 28 }}
                                 />
                               )}
                               {video.shopee_product_url && (
@@ -1058,7 +1417,7 @@ export default function Videos() {
                                   label="Shopee"
                                   size="small"
                                   onClick={() => copyToClipboard(video.shopee_product_url!, 'Shopee')}
-                                  sx={{ cursor: 'pointer', bgcolor: '#EE4D2D', color: 'white', '&:hover': { bgcolor: '#D43D1F' } }}
+                                  sx={{ cursor: 'pointer', bgcolor: '#EE4D2D', color: 'white', '&:hover': { bgcolor: '#D43D1F' }, height: 28 }}
                                 />
                               )}
                             </Box>
@@ -1190,6 +1549,17 @@ export default function Videos() {
                 size="small"
                 placeholder="https://..."
               />
+              {editingVideo && (
+                <IconButton
+                  size="small"
+                  onClick={() => openReuploadDialog('tiktok')}
+                  title="Reupload TikTok"
+                  color="warning"
+                  sx={{ flexShrink: 0 }}
+                >
+                  <ReplayIcon fontSize="small" />
+                </IconButton>
+              )}
             </Box>
             <TextField
               label="TikTok Product URL"
@@ -1222,6 +1592,17 @@ export default function Videos() {
                 size="small"
                 placeholder="https://..."
               />
+              {editingVideo && (
+                <IconButton
+                  size="small"
+                  onClick={() => openReuploadDialog('youtube')}
+                  title="Reupload YouTube"
+                  color="warning"
+                  sx={{ flexShrink: 0 }}
+                >
+                  <ReplayIcon fontSize="small" />
+                </IconButton>
+              )}
             </Box>
 
             {/* Facebook */}
@@ -1246,6 +1627,17 @@ export default function Videos() {
                 size="small"
                 placeholder="https://..."
               />
+              {editingVideo && (
+                <IconButton
+                  size="small"
+                  onClick={() => openReuploadDialog('facebook')}
+                  title="Reupload Facebook"
+                  color="warning"
+                  sx={{ flexShrink: 0 }}
+                >
+                  <ReplayIcon fontSize="small" />
+                </IconButton>
+              )}
             </Box>
 
             {/* Instagram */}
@@ -1270,6 +1662,17 @@ export default function Videos() {
                 size="small"
                 placeholder="https://..."
               />
+              {editingVideo && (
+                <IconButton
+                  size="small"
+                  onClick={() => openReuploadDialog('instagram')}
+                  title="Reupload Instagram"
+                  color="warning"
+                  sx={{ flexShrink: 0 }}
+                >
+                  <ReplayIcon fontSize="small" />
+                </IconButton>
+              )}
             </Box>
 
             {/* Shopee */}
@@ -1294,6 +1697,17 @@ export default function Videos() {
                 size="small"
                 placeholder="https://..."
               />
+              {editingVideo && (
+                <IconButton
+                  size="small"
+                  onClick={() => openReuploadDialog('shopee')}
+                  title="Reupload Shopee"
+                  color="warning"
+                  sx={{ flexShrink: 0 }}
+                >
+                  <ReplayIcon fontSize="small" />
+                </IconButton>
+              )}
             </Box>
             <TextField
               label="Shopee Product URL"
@@ -1326,6 +1740,17 @@ export default function Videos() {
                 size="small"
                 placeholder="https://..."
               />
+              {editingVideo && (
+                <IconButton
+                  size="small"
+                  onClick={() => openReuploadDialog('threads')}
+                  title="Reupload Threads"
+                  color="warning"
+                  sx={{ flexShrink: 0 }}
+                >
+                  <ReplayIcon fontSize="small" />
+                </IconButton>
+              )}
             </Box>
           </Box>
         </DialogContent>
@@ -1333,6 +1758,73 @@ export default function Videos() {
           {!isMobile && <Button onClick={() => setOpen(false)}>Cancel</Button>}
           <Button onClick={editingVideo ? handleUpdateVideo : handleAddVideo} variant="contained" fullWidth={isMobile}>
             {editingVideo ? 'Update' : 'Add'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Reupload Popup (nested inside Edit Dialog) */}
+      <Dialog
+        open={reuploadDialogOpen}
+        onClose={() => setReuploadDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="h6">
+              Reupload - {reuploadPlatform.charAt(0).toUpperCase() + reuploadPlatform.slice(1)}
+            </Typography>
+            <IconButton onClick={() => setReuploadDialogOpen(false)} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 1 }}>
+            <TextField
+              label="Platform"
+              value={reuploadPlatform.charAt(0).toUpperCase() + reuploadPlatform.slice(1)}
+              fullWidth
+              margin="normal"
+              size="small"
+              disabled
+            />
+            <TextField
+              label="URL"
+              value={reuploadUrl}
+              onChange={(e) => setReuploadUrl(e.target.value)}
+              fullWidth
+              margin="normal"
+              size="small"
+              placeholder="https://..."
+            />
+            <TextField
+              label="Upload Date"
+              type="date"
+              value={reuploadUploadDate}
+              onChange={(e) => setReuploadUploadDate(e.target.value)}
+              fullWidth
+              margin="normal"
+              size="small"
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <TextField
+              label="Notes (optional)"
+              value={reuploadNotes}
+              onChange={(e) => setReuploadNotes(e.target.value)}
+              fullWidth
+              margin="normal"
+              size="small"
+              multiline
+              rows={3}
+              placeholder="e.g. Reupload sebab video expired"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setReuploadDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleSaveReupload} variant="contained" color="warning" startIcon={<ReplayIcon />}>
+            Save Reupload
           </Button>
         </DialogActions>
       </Dialog>
@@ -1585,14 +2077,15 @@ export default function Videos() {
         </DialogTitle>
         <DialogContent>
           <TableContainer component={Paper} sx={{ mt: 2 }}>
-            <Table size={isMobile ? 'small' : 'medium'}>
-              <TableHead>
-                <TableRow>
-                  <TableCell><strong>Platform</strong></TableCell>
-                  <TableCell><strong>Upload Date</strong></TableCell>
-                  <TableCell><strong>URL</strong></TableCell>
-                </TableRow>
-              </TableHead>
+              <Table size={isMobile ? 'small' : 'medium'}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell><strong>Platform</strong></TableCell>
+                    <TableCell><strong>Upload Date</strong></TableCell>
+                    <TableCell><strong>URL</strong></TableCell>
+                    <TableCell><strong>Reuploads</strong></TableCell>
+                  </TableRow>
+                </TableHead>
               <TableBody>
                 {selectedVideoForInfo && platforms.map((platform) => {
                   const url = selectedVideoForInfo[`${platform.key}_url` as keyof Video] as string | null
@@ -1626,6 +2119,28 @@ export default function Videos() {
                         ) : (
                           <Typography color="text.secondary" variant="body2">-</Typography>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const videoReuploads = reuploads.filter(r => r.video_id === selectedVideoForInfo.id && r.platform === platform.key)
+                          if (videoReuploads.length === 0) {
+                            return <Typography color="text.secondary" variant="body2">-</Typography>
+                          }
+                          return (
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              {videoReuploads.map((r) => (
+                                <Chip
+                                  key={r.id}
+                                  label={r.upload_date || 'No date'}
+                                  size="small"
+                                  color="warning"
+                                  variant="outlined"
+                                  sx={{ fontSize: 11, height: 20, fontWeight: 500 }}
+                                />
+                              ))}
+                            </Box>
+                          )
+                        })()}
                       </TableCell>
                     </TableRow>
                   )

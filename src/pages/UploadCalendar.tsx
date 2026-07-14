@@ -48,10 +48,26 @@ interface Video {
   tiktok_upload_date: string | null
 }
 
+interface Reupload {
+  id: string
+  video_id: string
+  platform: string
+  url: string | null
+  upload_date: string | null
+  notes: string | null
+  created_at: string
+}
+
 interface UploadEntry {
   videoId: string
   videoTitle: string
   platform: string
+  isReupload: boolean
+}
+
+interface PlatformEntry {
+  platform: string
+  isReupload: boolean
 }
 
 const platforms = [
@@ -77,6 +93,7 @@ export default function UploadCalendar() {
   const navigate = useNavigate()
 
   const [videos, setVideos] = useState<Video[]>([])
+  const [reuploads, setReuploads] = useState<Reupload[]>([])
   const [loading, setLoading] = useState(true)
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date()
@@ -90,19 +107,25 @@ export default function UploadCalendar() {
   // Details dialog state
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [selectedDateStr, setSelectedDateStr] = useState('')
-  const [selectedDateGrouped, setSelectedDateGrouped] = useState<{ videoId: string; videoTitle: string; platforms: string[] }[]>([])
+  const [selectedDateGrouped, setSelectedDateGrouped] = useState<{ videoId: string; videoTitle: string; platforms: PlatformEntry[] }[]>([])
 
   useEffect(() => {
     fetchData()
   }, [])
 
   const fetchData = async () => {
-    const { data: videosData } = await supabase
-      .from('videos')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const [videosResult, reuploadsResult] = await Promise.all([
+      supabase
+        .from('videos')
+        .select('*')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('reuploads')
+        .select('*'),
+    ])
 
-    setVideos(videosData || [])
+    setVideos((videosResult.data as Video[]) || [])
+    setReuploads((reuploadsResult.data as Reupload[]) || [])
     setLoading(false)
   }
 
@@ -110,6 +133,7 @@ export default function UploadCalendar() {
   const buildUploadMap = (): Record<string, UploadEntry[]> => {
     const map: Record<string, UploadEntry[]> = {}
 
+    // Add original uploads from videos table
     videos.forEach((video) => {
       platforms.forEach((platform) => {
         const uploadDate = video[`${platform.key}_upload_date` as keyof Video] as string | null
@@ -119,17 +143,37 @@ export default function UploadCalendar() {
           }
           // Avoid duplicate entries for same video+platform
           const exists = map[uploadDate].some(
-            (entry) => entry.videoId === video.id && entry.platform === platform.key
+            (entry) => entry.videoId === video.id && entry.platform === platform.key && !entry.isReupload
           )
           if (!exists) {
             map[uploadDate].push({
               videoId: video.id,
               videoTitle: video.title,
               platform: platform.key,
+              isReupload: false,
             })
           }
         }
       })
+    })
+
+    // Add reuploads from reuploads table
+    reuploads.forEach((reupload) => {
+      if (reupload.upload_date) {
+        if (!map[reupload.upload_date]) {
+          map[reupload.upload_date] = []
+        }
+        // Find the video title for this reupload
+        const video = videos.find(v => v.id === reupload.video_id)
+        const videoTitle = video?.title || 'Unknown Video'
+        
+        map[reupload.upload_date].push({
+          videoId: reupload.video_id,
+          videoTitle: videoTitle,
+          platform: reupload.platform,
+          isReupload: true,
+        })
+      }
     })
 
     return map
@@ -217,8 +261,8 @@ export default function UploadCalendar() {
   }
 
   // Group entries by video for display
-  const groupEntriesByVideo = (entries: UploadEntry[]): { videoId: string; videoTitle: string; platforms: string[] }[] => {
-    const grouped: Record<string, { videoId: string; videoTitle: string; platforms: string[] }> = {}
+  const groupEntriesByVideo = (entries: UploadEntry[]): { videoId: string; videoTitle: string; platforms: PlatformEntry[] }[] => {
+    const grouped: Record<string, { videoId: string; videoTitle: string; platforms: PlatformEntry[] }> = {}
     
     entries.forEach((entry) => {
       if (!grouped[entry.videoId]) {
@@ -228,8 +272,13 @@ export default function UploadCalendar() {
           platforms: [],
         }
       }
-      if (!grouped[entry.videoId].platforms.includes(entry.platform)) {
-        grouped[entry.videoId].platforms.push(entry.platform)
+      // Add platform with its reupload status
+      const exists = grouped[entry.videoId].platforms.find(p => p.platform === entry.platform)
+      if (!exists) {
+        grouped[entry.videoId].platforms.push({
+          platform: entry.platform,
+          isReupload: entry.isReupload,
+        })
       }
     })
 
@@ -311,6 +360,10 @@ export default function UploadCalendar() {
               const isToday = dateStr === todayStr
               const dayUploads = uploadMap[dateStr] || []
               const groupedVideos = groupEntriesByVideo(dayUploads)
+              
+              // Count original uploads and reuploads separately
+              const originalUploads = dayUploads.filter(u => !u.isReupload).length
+              const reuploadCount = dayUploads.filter(u => u.isReupload).length
               const totalUploads = dayUploads.length
 
               return (
@@ -374,17 +427,17 @@ export default function UploadCalendar() {
                           <Box sx={{ display: 'flex', gap: 0.2, flexWrap: 'wrap' }}>
                             {video.platforms.map((p) => (
                               <Box
-                                key={p}
+                                key={p.platform}
                                 sx={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  color: platformColorMap[p] || 'text.secondary',
+                                  color: p.isReupload ? 'warning.main' : 'success.main',
                                   fontSize: { xs: 9, md: 11 },
                                   lineHeight: 1,
                                 }}
-                                title={p}
+                                title={`${p.platform}${p.isReupload ? ' (reupload)' : ''}`}
                               >
-                                {platformIconMap[p]}
+                                {platformIconMap[p.platform]}
                               </Box>
                             ))}
                           </Box>
@@ -393,26 +446,54 @@ export default function UploadCalendar() {
                     </Box>
                   )}
 
-                  {/* Upload count badge */}
-                  {totalUploads > 0 && (
+                  {/* Upload count badges - two badges for original and reupload */}
+                  {(originalUploads > 0 || reuploadCount > 0) && (
                     <Box
                       sx={{
                         position: 'absolute',
                         bottom: { xs: 1, md: 2 },
                         right: { xs: 1, md: 2 },
-                        bgcolor: totalUploads > 0 ? 'primary.main' : 'transparent',
-                        color: 'white',
-                        borderRadius: '50%',
-                        width: { xs: 16, md: 20 },
-                        height: { xs: 16, md: 20 },
                         display: 'flex',
+                        gap: 0.3,
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: { xs: 9, md: 11 },
-                        fontWeight: 700,
                       }}
                     >
-                      {totalUploads}
+                      {originalUploads > 0 && (
+                        <Box
+                          sx={{
+                            bgcolor: 'success.main',
+                            color: 'white',
+                            borderRadius: '50%',
+                            width: { xs: 16, md: 20 },
+                            height: { xs: 16, md: 20 },
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: { xs: 9, md: 11 },
+                            fontWeight: 700,
+                          }}
+                        >
+                          {originalUploads}
+                        </Box>
+                      )}
+                      {reuploadCount > 0 && (
+                        <Box
+                          sx={{
+                            bgcolor: 'warning.main',
+                            color: 'white',
+                            borderRadius: '50%',
+                            width: { xs: 16, md: 20 },
+                            height: { xs: 16, md: 20 },
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: { xs: 9, md: 11 },
+                            fontWeight: 700,
+                          }}
+                        >
+                          {reuploadCount}
+                        </Box>
+                      )}
                     </Box>
                   )}
                 </Box>
@@ -460,16 +541,19 @@ export default function UploadCalendar() {
                   <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                     {video.platforms.map((p) => (
                       <Chip
-                        key={p}
-                        icon={platformIconMap[p] as React.ReactElement}
-                        label={platforms.find(pl => pl.key === p)?.label || p}
+                        key={p.platform}
+                        icon={platformIconMap[p.platform] as React.ReactElement}
+                        label={platforms.find(pl => pl.key === p.platform)?.label || p.platform}
                         size="small"
                         variant="outlined"
                         sx={{
                           fontSize: 11,
-                          borderColor: platformColorMap[p] || 'text.secondary',
-                          color: platformColorMap[p] || 'text.secondary',
-                          '& .MuiChip-icon': { fontSize: 14 },
+                          borderColor: p.isReupload ? 'warning.main' : 'success.main',
+                          color: p.isReupload ? 'warning.main' : 'success.main',
+                          '& .MuiChip-icon': { 
+                            color: p.isReupload ? 'warning.main' : 'success.main',
+                            fontSize: 14 
+                          },
                         }}
                       />
                     ))}
