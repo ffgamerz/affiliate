@@ -689,13 +689,15 @@ export default function RandomPicker() {
                     <IconButton size="small" onClick={() => openEditDialog(selectedRandomVideo)} title="Edit">
                       <Edit fontSize="small" />
                     </IconButton>
-                    <IconButton
+                    <Button
                       size="small"
+                      variant="outlined"
+                      startIcon={<SearchIcon />}
                       onClick={() => navigate('/videos', { state: { searchQuery: selectedRandomVideo.title, focusSearch: true } })}
-                      title="Go to Video"
+                      sx={{ fontSize: 11, whiteSpace: 'nowrap', minWidth: 0, px: 1 }}
                     >
-                      <SearchIcon fontSize="small" />
-                    </IconButton>
+                      Go to Video
+                    </Button>
                   </Box>
                 </Box>
               </Box>
