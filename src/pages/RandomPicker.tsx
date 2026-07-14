@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -33,6 +34,7 @@ import {
   Instagram,
   Info,
   Upload,
+  Search as SearchIcon,
   MusicNote as TikTokIcon,
   Shop,
   Forum as ThreadsIcon,
@@ -147,6 +149,7 @@ const parseDescription = (text: string): DescriptionSection[] => {
 export default function RandomPicker() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const navigate = useNavigate()
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
@@ -685,6 +688,13 @@ export default function RandomPicker() {
                     </IconButton>
                     <IconButton size="small" onClick={() => openEditDialog(selectedRandomVideo)} title="Edit">
                       <Edit fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => navigate('/videos', { state: { searchQuery: selectedRandomVideo.title, focusSearch: true } })}
+                      title="Go to Video"
+                    >
+                      <SearchIcon fontSize="small" />
                     </IconButton>
                   </Box>
                 </Box>

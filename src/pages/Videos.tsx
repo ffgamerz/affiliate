@@ -192,6 +192,11 @@ export default function Videos() {
       setCustomUploadDateFilter((location.state as any).calendarUploadDate)
       setUploadDateFilter('')
     }
+
+    // Handle navigation from Random Picker with search query
+    if ((location.state as any)?.searchQuery) {
+      setSearchQuery((location.state as any).searchQuery)
+    }
   }, [location])
 
   // Copy to clipboard state
