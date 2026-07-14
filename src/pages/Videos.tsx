@@ -718,27 +718,6 @@ export default function Videos() {
     return total
   }
 
-  // Helper to get platform-specific upload counts for a given date(s) - includes reuploads
-  const getPlatformUploadsByDate = (dateOrDates: string | string[]): Record<string, number> => {
-    const dates = Array.isArray(dateOrDates) ? dateOrDates : [dateOrDates]
-    const counts: Record<string, number> = {}
-    platforms.forEach((platform) => {
-      // Count from videos
-      let count = videos.reduce((total, video) => {
-        const uploadDate = video[`${platform.key}_upload_date` as keyof Video] as string | null
-        return total + (uploadDate && dates.includes(uploadDate) ? 1 : 0)
-      }, 0)
-
-      // Count from reuploads
-      count += reuploads.reduce((total, r) => {
-        return total + (r.platform === platform.key && r.upload_date && dates.includes(r.upload_date) ? 1 : 0)
-      }, 0)
-
-      counts[platform.key] = count
-    })
-    return counts
-  }
-
   // Check if video has upload on a specific date
   const hasUploadOnDate = (video: Video, date: string): boolean => {
     return platforms.some((platform) => {
