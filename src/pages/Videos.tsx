@@ -172,6 +172,152 @@ const getPlatformColor = (platformKey: string): string => {
   return colors[platformKey] || '#666666'
 }
 
+// StatCard component to reduce code duplication
+const StatCard = ({ 
+  filterKey, 
+  title, 
+  videoCount, 
+  platformUploadCount, 
+  targetDate,
+  uploadDateFilter,
+  setUploadDateFilter,
+  videos,
+  reuploads,
+  platforms
+}: {
+  filterKey: 'today' | 'yesterday' | 'range-3-9'
+  title: string
+  videoCount: number
+  platformUploadCount: number
+  targetDate: string | string[]
+  uploadDateFilter: 'today' | 'yesterday' | 'range-3-9' | ''
+  setUploadDateFilter: (val: 'today' | 'yesterday' | 'range-3-9' | '') => void
+  videos: Video[]
+  reuploads: Reupload[]
+  platforms: { key: string; label: string }[]
+}) => {
+  const dates = Array.isArray(targetDate) ? targetDate : [targetDate]
+  
+  // Get platform breakdown for the date
+  const breakdown = useMemo(() => {
+    const counts: Record<string, { original: number; reupload: number }> = {}
+    platforms.forEach((p) => {
+      const original = videos.reduce((total, video) => {
+        const uploadDate = video[`${p.key}_upload_date` as keyof Video] as string | null
+        return total + (uploadDate && dates.includes(uploadDate) ? 1 : 0)
+      }, 0)
+      const reupload = reuploads.filter(r => r.platform === p.key && r.upload_date && dates.includes(r.upload_date)).length
+      counts[p.key] = { original, reupload }
+    })
+    return counts
+  }, [videos, reuploads, platforms, targetDate])
+
+  return (
+    <Card 
+      sx={{ 
+        bgcolor: 'background.paper',
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+        border: uploadDateFilter === filterKey ? '1px solid' : '1px solid #f0f0f0',
+        borderColor: uploadDateFilter === filterKey ? 'primary.main' : '#f0f0f0',
+        '&:hover': {
+          transform: 'translateY(-2px)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+        }
+      }}
+      onClick={() => {
+        setUploadDateFilter(uploadDateFilter === filterKey ? '' : filterKey)
+      }}
+    >
+      <CardContent sx={{ p: 2.5 }}>
+        <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 500, color: 'text.secondary', textTransform: 'none', letterSpacing: 0.5, display: 'block', mb: 1 }}>
+          {title}
+        </Typography>
+        <Typography variant="h4" sx={{ fontWeight: 700, fontSize: 32, color: 'text.primary', mb: 0.5 }}>
+          {videoCount}
+        </Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+          Total platform uploads: <Typography component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>{platformUploadCount}</Typography>
+        </Typography>
+        {Object.entries(breakdown).some(([_, v]) => v.original + v.reupload > 0) && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
+            {platforms.map((p) => {
+              const { original, reupload } = breakdown[p.key]
+              const count = original + reupload
+              if (count === 0) return null
+              
+              if (original > 0 && reupload > 0) {
+                return (
+                  <Box key={p.key} sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 2, 
+                      px: 1, 
+                      py: 0.5, 
+                      bgcolor: '#f5f5f5',
+                      borderRadius: 0.5,
+                      border: '1px solid',
+                      borderColor: '#81c784'
+                    }}>
+                      <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
+                        {platformIcons[p.key]}
+                      </Box>
+                      <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
+                        {original}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 2, 
+                      px: 1, 
+                      py: 0.5, 
+                      bgcolor: '#f5f5f5',
+                      borderRadius: 0.5,
+                      border: '1px solid',
+                      borderColor: '#ffb74d'
+                    }}>
+                      <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
+                        {platformIcons[p.key]}
+                      </Box>
+                      <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
+                        {reupload}
+                      </Typography>
+                    </Box>
+                  </Box>
+                )
+              }
+              
+              const isReupload = reupload > 0 && original === 0
+              return (
+                <Box key={p.key} sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 2, 
+                  px: 1, 
+                  py: 0.5, 
+                  bgcolor: '#f5f5f5',
+                  borderRadius: 0.5,
+                  border: '1px solid',
+                  borderColor: isReupload ? '#ffb74d' : '#81c784'
+                }}>
+                  <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
+                    {platformIcons[p.key]}
+                  </Box>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
+                    {count}
+                  </Typography>
+                </Box>
+              )
+            })}
+          </Box>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function Videos() {
   const location = useLocation()
   const theme = useTheme()
@@ -758,354 +904,42 @@ export default function Videos() {
       </Box>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
-        <Card 
-          sx={{ 
-            bgcolor: 'background.paper',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            border: uploadDateFilter === 'today' ? '1px solid' : '1px solid #f0f0f0',
-            borderColor: uploadDateFilter === 'today' ? 'primary.main' : '#f0f0f0',
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            }
-          }}
-          onClick={() => {
-            setUploadDateFilter(uploadDateFilter === 'today' ? '' : 'today')
-          }}
-        >
-          <CardContent sx={{ p: 2.5 }}>
-            <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 500, color: 'text.secondary', textTransform: 'none', letterSpacing: 0.5, display: 'block', mb: 1 }}>
-              Total videos uploaded today
-            </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: 32, color: 'text.primary', mb: 0.5 }}>
-              {videosUploadedToday}
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
-              Total platform uploads: <Typography component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>{totalPlatformUploadsToday}</Typography>
-            </Typography>
-            {(() => {
-              const breakdown = getPlatformUploadsByDate(todayDate)
-              const hasAny = Object.values(breakdown).some(c => c > 0)
-              if (!hasAny) return null
-              return (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
-                  {platforms.map((p) => {
-                    const count = breakdown[p.key]
-                    if (count === 0) return null
-                    
-                    const originalCount = videos.reduce((total, video) => {
-                      const uploadDate = video[`${p.key}_upload_date` as keyof Video] as string | null
-                      return total + (uploadDate === todayDate ? 1 : 0)
-                    }, 0)
-                    
-                    const reuploadCount = reuploads.filter(r => r.platform === p.key && r.upload_date === todayDate).length
-                    
-                    const hasOriginal = originalCount > 0
-                    const hasReupload = reuploadCount > 0
-                    
-                    if (hasOriginal && hasReupload) {
-                      return (
-                        <Box key={p.key} sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                            <Box sx={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: 2, 
-                              px: 1, 
-                              py: 0.5, 
-                              bgcolor: '#f5f5f5',
-                              borderRadius: 0.5,
-                              border: '1px solid',
-                              borderColor: '#81c784'
-                            }}>
-                            <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
-                              {platformIcons[p.key]}
-                            </Box>
-                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
-                              {originalCount}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: 2, 
-                            px: 1, 
-                            py: 0.5, 
-                            bgcolor: '#f5f5f5',
-                            borderRadius: 0.5,
-                            border: '1px solid',
-                            borderColor: '#ffb74d'
-                          }}>
-                            <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
-                              {platformIcons[p.key]}
-                            </Box>
-                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
-                              {reuploadCount}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      )
-                    }
-                    
-                    const isReupload = hasReupload && !hasOriginal
-                    return (
-                      <Box key={p.key} sx={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: 2, 
-                        px: 1, 
-                        py: 0.5, 
-                        bgcolor: '#f5f5f5',
-                        borderRadius: 0.5,
-                        border: '1px solid',
-                        borderColor: isReupload ? '#ffb74d' : '#81c784'
-                      }}>
-                        <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
-                          {platformIcons[p.key]}
-                        </Box>
-                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
-                          {count}
-                        </Typography>
-                      </Box>
-                    )
-                  })}
-                </Box>
-              )
-            })()}
-          </CardContent>
-        </Card>
-        <Card 
-          sx={{ 
-            bgcolor: 'background.paper',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            border: uploadDateFilter === 'yesterday' ? '1px solid' : '1px solid #f0f0f0',
-            borderColor: uploadDateFilter === 'yesterday' ? 'primary.main' : '#f0f0f0',
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            }
-          }}
-          onClick={() => {
-            setUploadDateFilter(uploadDateFilter === 'yesterday' ? '' : 'yesterday')
-          }}
-        >
-          <CardContent sx={{ p: 2.5 }}>
-            <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 500, color: 'text.secondary', textTransform: 'none', letterSpacing: 0.5, display: 'block', mb: 1 }}>
-              Total videos uploaded yesterday
-            </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: 32, color: 'text.primary', mb: 0.5 }}>
-              {videosUploadedYesterday}
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
-              Total platform uploads: <Typography component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>{totalPlatformUploadsYesterday}</Typography>
-            </Typography>
-            {(() => {
-              const breakdown = getPlatformUploadsByDate(yesterdayDate)
-              const hasAny = Object.values(breakdown).some(c => c > 0)
-              if (!hasAny) return null
-              return (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
-                  {platforms.map((p) => {
-                    const count = breakdown[p.key]
-                    if (count === 0) return null
-                    
-                    const originalCount = videos.reduce((total, video) => {
-                      const uploadDate = video[`${p.key}_upload_date` as keyof Video] as string | null
-                      return total + (uploadDate === yesterdayDate ? 1 : 0)
-                    }, 0)
-                    
-                    const reuploadCount = reuploads.filter(r => r.platform === p.key && r.upload_date === yesterdayDate).length
-                    
-                    const hasOriginal = originalCount > 0
-                    const hasReupload = reuploadCount > 0
-                    
-                    if (hasOriginal && hasReupload) {
-                      return (
-                        <Box key={p.key} sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                            <Box sx={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: 2, 
-                              px: 1, 
-                              py: 0.5, 
-                              bgcolor: '#f5f5f5',
-                              borderRadius: 0.5,
-                              border: '1px solid',
-                              borderColor: '#81c784'
-                            }}>
-                            <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
-                              {platformIcons[p.key]}
-                            </Box>
-                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
-                              {originalCount}
-                            </Typography>
-                          </Box>
-                            <Box sx={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: 2, 
-                              px: 1, 
-                              py: 0.5, 
-                              bgcolor: '#f5f5f5',
-                              borderRadius: 0.5,
-                              border: '1px solid',
-                              borderColor: '#ffb74d'
-                            }}>
-                            <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
-                              {platformIcons[p.key]}
-                            </Box>
-                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
-                              {reuploadCount}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      )
-                    }
-                    
-                    const isReupload = hasReupload && !hasOriginal
-                    return (
-                      <Box key={p.key} sx={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: 2, 
-                        px: 1, 
-                        py: 0.5, 
-                        bgcolor: '#f5f5f5',
-                        borderRadius: 0.5,
-                        border: '1px solid',
-                        borderColor: isReupload ? '#ffb74d' : '#81c784'
-                      }}>
-                        <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
-                          {platformIcons[p.key]}
-                        </Box>
-                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
-                          {count}
-                        </Typography>
-                      </Box>
-                    )
-                  })}
-                </Box>
-              )
-            })()}
-          </CardContent>
-        </Card>
-        <Card 
-          sx={{ 
-            bgcolor: 'background.paper',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            border: uploadDateFilter === 'range-3-9' ? '1px solid' : '1px solid #f0f0f0',
-            borderColor: uploadDateFilter === 'range-3-9' ? 'primary.main' : '#f0f0f0',
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            }
-          }}
-          onClick={() => {
-            setUploadDateFilter(uploadDateFilter === 'range-3-9' ? '' : 'range-3-9')
-          }}
-        >
-          <CardContent sx={{ p: 2.5 }}>
-            <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 500, color: 'text.secondary', textTransform: 'none', letterSpacing: 0.5, display: 'block', mb: 1 }}>
-              Days 3-9 uploads
-            </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: 32, color: 'text.primary', mb: 0.5 }}>
-              {videosUploaded3to9}
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
-              Total platform uploads: <Typography component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>{totalPlatformUploads3to9}</Typography>
-            </Typography>
-            {(() => {
-              const breakdown = getPlatformUploadsByDate(dates3to9)
-              const hasAny = Object.values(breakdown).some(c => c > 0)
-              if (!hasAny) return null
-              return (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
-                  {platforms.map((p) => {
-                    const count = breakdown[p.key]
-                    if (count === 0) return null
-                    
-                    const originalCount = videos.reduce((total, video) => {
-                      const uploadDate = video[`${p.key}_upload_date` as keyof Video] as string | null
-                      return total + (uploadDate && dates3to9.includes(uploadDate) ? 1 : 0)
-                    }, 0)
-                    
-                    const reuploadCount = reuploads.filter(r => r.platform === p.key && r.upload_date && dates3to9.includes(r.upload_date)).length
-                    
-                    const hasOriginal = originalCount > 0
-                    const hasReupload = reuploadCount > 0
-                    
-                    if (hasOriginal && hasReupload) {
-                      return (
-                        <Box key={p.key} sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                            <Box sx={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: 2, 
-                              px: 1, 
-                              py: 0.5, 
-                              bgcolor: '#f5f5f5',
-                              borderRadius: 0.5,
-                              border: '1px solid',
-                              borderColor: '#81c784'
-                            }}>
-                            <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
-                              {platformIcons[p.key]}
-                            </Box>
-                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
-                              {originalCount}
-                            </Typography>
-                          </Box>
-                            <Box sx={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: 2, 
-                              px: 1, 
-                              py: 0.5, 
-                              bgcolor: '#f5f5f5',
-                              borderRadius: 0.5,
-                              border: '1px solid',
-                              borderColor: '#ffb74d'
-                            }}>
-                            <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
-                              {platformIcons[p.key]}
-                            </Box>
-                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
-                              {reuploadCount}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      )
-                    }
-                    
-                    const isReupload = hasReupload && !hasOriginal
-                    return (
-                      <Box key={p.key} sx={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: 2, 
-                        px: 1, 
-                        py: 0.5, 
-                        bgcolor: '#f5f5f5',
-                        borderRadius: 0.5,
-                        border: '1px solid',
-                        borderColor: isReupload ? '#ffb74d' : '#81c784'
-                      }}>
-                        <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
-                          {platformIcons[p.key]}
-                        </Box>
-                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
-                          {count}
-                        </Typography>
-                      </Box>
-                    )
-                  })}
-                </Box>
-              )
-            })()}
-          </CardContent>
-        </Card>
+        <StatCard
+          filterKey="today"
+          title="Total videos uploaded today"
+          videoCount={videosUploadedToday}
+          platformUploadCount={totalPlatformUploadsToday}
+          targetDate={todayDate}
+          uploadDateFilter={uploadDateFilter}
+          setUploadDateFilter={setUploadDateFilter}
+          videos={videos}
+          reuploads={reuploads}
+          platforms={platforms}
+        />
+        <StatCard
+          filterKey="yesterday"
+          title="Total videos uploaded yesterday"
+          videoCount={videosUploadedYesterday}
+          platformUploadCount={totalPlatformUploadsYesterday}
+          targetDate={yesterdayDate}
+          uploadDateFilter={uploadDateFilter}
+          setUploadDateFilter={setUploadDateFilter}
+          videos={videos}
+          reuploads={reuploads}
+          platforms={platforms}
+        />
+        <StatCard
+          filterKey="range-3-9"
+          title="Days 3-9 uploads"
+          videoCount={videosUploaded3to9}
+          platformUploadCount={totalPlatformUploads3to9}
+          targetDate={dates3to9}
+          uploadDateFilter={uploadDateFilter}
+          setUploadDateFilter={setUploadDateFilter}
+          videos={videos}
+          reuploads={reuploads}
+          platforms={platforms}
+        />
       </Box>
 
       {/* Search and Filters */}
