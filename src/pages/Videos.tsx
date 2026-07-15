@@ -150,15 +150,35 @@ export default function Videos() {
   const [tiktokUploadDate, setTiktokUploadDate] = useState(''); const [tiktokProductUrl, setTiktokProductUrl] = useState('')
 
   // Date helper functions - defined early to avoid hoisting issues
-  const getTodayDate = () => new Date().toISOString().split('T')[0]
-  const getDateDaysAgo = (days: number): string => { const d = new Date(); d.setDate(d.getDate() - days); return d.toISOString().split('T')[0] }
+  // Use Asia/Kuala_Lumpur timezone to match Malaysia local time
+  const getTodayDate = () => {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kuala_Lumpur',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    })
+    return formatter.format(new Date())
+  }
+  const getDateDaysAgo = (days: number): string => {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kuala_Lumpur',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    })
+    const d = new Date()
+    d.setDate(d.getDate() - days)
+    return formatter.format(d)
+  }
   const todayDate = getTodayDate(); const yesterdayDate = getDateDaysAgo(1); const dates3to9 = Array.from({ length: 7 }, (_, i) => getDateDaysAgo(i + 3))
 
   // Optimized fetchStats - fetch IDs for proper deduplication
   const fetchStats = useCallback(async () => {
-    const today = new Date(); const todayStr = today.toISOString().split('T')[0]
-    const yesterdayStr = new Date(today.getTime() - 86400000).toISOString().split('T')[0]
-    const d3to9 = Array.from({ length: 7 }, (_, i) => new Date(today.getTime() - (i + 3) * 86400000).toISOString().split('T')[0])
+    // Use the same timezone-aware date functions
+    const todayStr = getTodayDate()
+    const yesterdayStr = getDateDaysAgo(1)
+    const d3to9 = Array.from({ length: 7 }, (_, i) => getDateDaysAgo(i + 3))
     
     // Check cache first
     const cacheKey = `stats_${todayStr}`; const cached = localStorage.getItem(cacheKey)
@@ -467,8 +487,7 @@ export default function Videos() {
         <Box><Typography variant="h4" sx={{ fontWeight: 700 }}>Videos</Typography><Typography variant="body2" color="text.secondary">Track video uploads across platforms with quick search and smart filters.</Typography></Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button variant="outlined" startIcon={<ReplayIcon />} onClick={() => {
-            const today = new Date().toISOString().split('T')[0]
-            localStorage.removeItem(`stats_${today}`)
+            localStorage.removeItem(`stats_${getTodayDate()}`)
             fetchStats()
           }} size="medium">Refresh Stats</Button>
           <Button variant="contained" startIcon={<Add />} onClick={openAddDialog} size="medium">Add Video</Button>

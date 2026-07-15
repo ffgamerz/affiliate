@@ -186,6 +186,17 @@ export default function UploadCalendar() {
 
   const uploadMap = buildUploadMap()
 
+  // Get today's date in Asia/Kuala_Lumpur timezone for consistent "today" highlighting
+  const getTodayDate = () => {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kuala_Lumpur',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    })
+    return formatter.format(new Date())
+  }
+
   // Calendar grid calculations
   const getDaysInMonth = (year: number, month: number): number => {
     return new Date(year, month + 1, 0).getDate()
@@ -358,7 +369,7 @@ export default function UploadCalendar() {
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1
               const dateStr = getDateStr(currentYear, currentMonth, day)
-              const todayStr = getDateStr(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())
+              const todayStr = getTodayDate()
               const isToday = dateStr === todayStr
               const dayUploads = uploadMap[dateStr] || []
               const groupedVideos = groupEntriesByVideo(dayUploads)
