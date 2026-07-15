@@ -28,7 +28,6 @@ import {
   Menu as MenuIcon,
   Search as SearchIcon,
   Shuffle as ShuffleIcon,
-  CalendarMonth as CalendarIcon,
   CalendarViewMonth as CalendarViewIcon,
   Replay as ReplayIcon,
 } from '@mui/icons-material'
@@ -49,7 +48,6 @@ export default function Layout() {
     { path: '/videos', label: 'Videos', icon: <VideoIcon /> },
     { path: '/reuploads', label: 'Reuploads', icon: <ReplayIcon /> },
     { path: '/random', label: 'Random', icon: <ShuffleIcon /> },
-    { path: '/date-check', label: 'Date Check', icon: <CalendarIcon /> },
     { path: '/upload-calendar', label: 'Upload Calendar', icon: <CalendarViewIcon /> },
     ...(isAdmin ? [{ path: '/settings', label: 'Settings', icon: <SettingsIcon /> }] : []),
   ]

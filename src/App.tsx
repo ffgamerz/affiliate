@@ -8,7 +8,6 @@ import Dashboard from './pages/Dashboard'
 import Videos from './pages/Videos'
 import Settings from './pages/Settings'
 import RandomPicker from './pages/RandomPicker'
-import DateMismatchChecker from './pages/DateMismatchChecker'
 import UploadCalendar from './pages/UploadCalendar'
 import Reuploads from './pages/Reuploads'
 import Layout from './components/Layout'
@@ -133,7 +132,6 @@ function AppContent() {
           <Route index element={<Dashboard />} />
           <Route path="videos" element={<Videos />} />
           <Route path="random" element={<RandomPicker />} />
-          <Route path="date-check" element={<DateMismatchChecker />} />
           <Route path="upload-calendar" element={<UploadCalendar />} />
           <Route path="reuploads" element={<Reuploads />} />
           <Route path="settings" element={<Settings />} />

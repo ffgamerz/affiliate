@@ -62,3 +62,7 @@ CREATE INDEX IF NOT EXISTS idx_videos_shopee_upload_date ON videos(shopee_upload
 CREATE INDEX IF NOT EXISTS idx_videos_threads_upload_date ON videos(threads_upload_date);
 CREATE INDEX IF NOT EXISTS idx_reuploads_video_id ON reuploads(video_id);
 CREATE INDEX IF NOT EXISTS idx_reuploads_upload_date ON reuploads(upload_date);
+
+-- Additional indexes for stat card queries (platform + upload_date combinations)
+CREATE INDEX IF NOT EXISTS idx_reuploads_platform_date ON reuploads(platform, upload_date);
+CREATE INDEX IF NOT EXISTS idx_reuploads_video_platform_date ON reuploads(video_id, platform, upload_date);

@@ -63,11 +63,13 @@ interface UploadEntry {
   videoTitle: string
   platform: string
   isReupload: boolean
+  url: string | null
 }
 
 interface PlatformEntry {
   platform: string
   isReupload: boolean
+  url: string | null
 }
 
 const platforms = [
@@ -146,11 +148,13 @@ export default function UploadCalendar() {
             (entry) => entry.videoId === video.id && entry.platform === platform.key && !entry.isReupload
           )
           if (!exists) {
+            const url = video[`${platform.key}_url` as keyof Video] as string | null
             map[uploadDate].push({
               videoId: video.id,
               videoTitle: video.title,
               platform: platform.key,
               isReupload: false,
+              url: url,
             })
           }
         }
@@ -172,6 +176,7 @@ export default function UploadCalendar() {
           videoTitle: videoTitle,
           platform: reupload.platform,
           isReupload: true,
+          url: reupload.url,
         })
       }
     })
@@ -243,11 +248,7 @@ export default function UploadCalendar() {
 
   const handleDayCellClick = (dateStr: string, totalUploads: number, dayUploads: UploadEntry[]) => {
     if (totalUploads === 0) return
-    if (isMobile) {
-      openDetailsDialog(dateStr, dayUploads)
-    } else {
-      handleVideoClick(dateStr)
-    }
+    openDetailsDialog(dateStr, dayUploads)
   }
 
   const formatDateDisplay = (dateStr: string): string => {
@@ -272,12 +273,13 @@ export default function UploadCalendar() {
           platforms: [],
         }
       }
-      // Add platform with its reupload status
+      // Add platform with its reupload status and URL
       const exists = grouped[entry.videoId].platforms.find(p => p.platform === entry.platform)
       if (!exists) {
         grouped[entry.videoId].platforms.push({
           platform: entry.platform,
           isReupload: entry.isReupload,
+          url: entry.url,
         })
       }
     })
@@ -428,12 +430,19 @@ export default function UploadCalendar() {
                             {video.platforms.map((p) => (
                               <Box
                                 key={p.platform}
+                                onClick={() => p.url && window.open(p.url, '_blank')}
                                 sx={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   color: p.isReupload ? 'warning.main' : 'success.main',
                                   fontSize: { xs: 9, md: 11 },
                                   lineHeight: 1,
+                                  ...(p.url && {
+                                    cursor: 'pointer',
+                                    '&:hover': {
+                                      opacity: 0.7,
+                                    },
+                                  }),
                                 }}
                                 title={`${p.platform}${p.isReupload ? ' (reupload)' : ''}`}
                               >
@@ -503,7 +512,7 @@ export default function UploadCalendar() {
         </CardContent>
       </Card>
 
-      {/* Details Dialog (Mobile) */}
+      {/* Details Dialog */}
       <Dialog
         open={detailsDialogOpen}
         onClose={() => setDetailsDialogOpen(false)}
@@ -546,6 +555,8 @@ export default function UploadCalendar() {
                         label={platforms.find(pl => pl.key === p.platform)?.label || p.platform}
                         size="small"
                         variant="outlined"
+                        clickable={!!p.url}
+                        onClick={() => p.url && window.open(p.url, '_blank')}
                         sx={{
                           fontSize: 11,
                           borderColor: p.isReupload ? 'warning.main' : 'success.main',
@@ -554,6 +565,12 @@ export default function UploadCalendar() {
                             color: p.isReupload ? 'warning.main' : 'success.main',
                             fontSize: 14 
                           },
+                          ...(p.url && {
+                            cursor: 'pointer',
+                            '&:hover': {
+                              bgcolor: 'action.hover',
+                            },
+                          }),
                         }}
                       />
                     ))}

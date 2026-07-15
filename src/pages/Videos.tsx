@@ -1,1253 +1,558 @@
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  IconButton,
-  Chip,
-  Snackbar,
-  Alert,
-  CircularProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Divider,
-  useTheme,
-  useMediaQuery,
+  Box, Typography, Card, CardContent, Button, Dialog, DialogTitle, DialogContent,
+  DialogActions, TextField, IconButton, Chip, Snackbar, Alert, CircularProgress,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
+  Divider, useTheme, useMediaQuery,
 } from '@mui/material'
 import {
-  Add,
-  Edit,
-  Delete,
-  YouTube,
-  Facebook,
-  Instagram,
-  Info,
-  Upload,
-  MusicNote as TikTokIcon,
-  Shop,
-  Forum as ThreadsIcon,
-  Search as SearchIcon,
-  Close as CloseIcon,
-  ContentCopy as CopyIcon,
+  Add, Edit, Delete, YouTube, Facebook, Instagram, Info, Upload,
+  MusicNote as TikTokIcon, Shop, Forum as ThreadsIcon,
+  Search as SearchIcon, Close as CloseIcon, ContentCopy as CopyIcon,
   Replay as ReplayIcon,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 import { useDebounce } from '../hooks/useDebounce'
 
-// Google Drive Icon SVG component
 const GoogleDriveIcon = () => (
   <svg width="20" height="20" viewBox="0 0 87.3 76.6" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M63.7 28.1l-11.9-6.8c-.1 0-.2-.1-.3-.1l-11.9-6.8c-.1 0-.2 0-.3.1L21.9 28c-.1.1-.2.1-.3.1L6.1 34.9c-.1 0-.2.1-.1.2v12.3c0 .1.1.2.2.2l15.6 9.1c.1 0 .2 0 .3-.1l11.9 6.8c.1 0 .2.1.3.1l11.9 6.8c.1 0 .2 0 .3-.1l11.9-6.8c.1 0-.2-.1-.3-.1l11.9-6.8c.1 0 .2 0 .3.1l11.9 6.8c.1 0 .2.1.3.1l15.6-9.1c.1 0 .2-.1.2-.2V35c0-.1-.1-.2-.2-.2l-15.6-9.1c-.1 0-.2-.1-.3-.1z" fill="#0066CC"/>
-    <path d="M63.7 28.1L44.2 4.2c-.1-.1-.2-.1-.3 0L21.9 28c-.1.1-.2.1-.3.1-.1L6.1 34.9c-.1 0-.2.1-.1.2v12.3c0 .1.1.2.2.2l15.6 9.1c.1 0 .2 0 .3-.1l11.9 6.8c.1 0 .2.1.3.1l11.9 6.8c.1 0 .2 0 .3-.1l11.9-6.8c.1 0-.2-.1-.3-.1l11.9-6.8c.1 0 .2 0 .3.1l11.9 6.8c.1 0 .2.1.3.1l15.6-9.1c.1 0 .2-.1.2-.2V35c0-.1-.1-.2-.2-.2l-15.6-9.1c-.1 0-.2-.1-.3-.1z" fill="#00AC47"/>
+    <path d="M63.7 28.1l-11.9-6.8c-.1 0-.2-.1-.3-.1l-11.9-6.8c-.1 0-.2 0-.3.1L21.9 28c-.1.1-.2.1-.3.1L6.1 34.9c-.1 0-.2.1-.1.2v12.3c0 .1.1.2.2.2l15.6 9.1c.1 0 .2 0 .3-.1l11.9 6.8c.1 0 .2.1.3.1l11.9 6.8c.1 0 .2 0 .3-.1l11.9-6.8c.1 0-.2-.1-.3-.1l11.9-6.8c.1 0 .2 0 .3.1l15.6-9.1c.1 0 .2-.1.2-.2V35c0-.1-.1-.2-.2-.2l-15.6-9.1c-.1 0-.2-.1-.3-.1z" fill="#0066CC"/>
+    <path d="M63.7 28.1L44.2 4.2c-.1-.1-.2-.1-.3 0L21.9 28c-.1.1-.2.1-.3.1-.1L6.1 34.9c-.1 0-.2.1-.1.2v12.3c0 .1.1.2.2.2l15.6 9.1c.1 0 .2 0 .3-.1l11.9 6.8c.1 0 .2.1.3.1l11.9 6.8c.1 0 .2 0 .3-.1l11.9-6.8c.1 0-.2-.1-.3-.1l11.9-6.8c.1 0 .2 0 .3.1l15.6-9.1c.1 0 .2-.1.2-.2V35c0-.1-.1-.2-.2-.2l-15.6-9.1c-.1 0-.2-.1-.3-.1z" fill="#00AC47"/>
   </svg>
 )
 
 interface Video {
-  id: string
-  title: string
-  description: string | null
-  created_at: string
-  youtube_url: string | null
-  youtube_upload_date: string | null
-  facebook_url: string | null
-  facebook_upload_date: string | null
-  instagram_url: string | null
-  instagram_upload_date: string | null
-  shopee_url: string | null
-  shopee_upload_date: string | null
-  threads_url: string | null
-  threads_upload_date: string | null
-  tiktok_url: string | null
-  tiktok_upload_date: string | null
-  tiktok_product_url: string | null
-  shopee_product_url: string | null
+  id: string; title: string; description: string | null; created_at: string
+  youtube_url: string | null; youtube_upload_date: string | null
+  facebook_url: string | null; facebook_upload_date: string | null
+  instagram_url: string | null; instagram_upload_date: string | null
+  shopee_url: string | null; shopee_upload_date: string | null
+  threads_url: string | null; threads_upload_date: string | null
+  tiktok_url: string | null; tiktok_upload_date: string | null
+  tiktok_product_url: string | null; shopee_product_url: string | null
 }
 
 interface Reupload {
-  id: string
-  video_id: string
-  platform: string
-  url: string | null
-  upload_date: string | null
-  notes: string | null
-  created_at: string
+  id: string; video_id: string; platform: string; url: string | null
+  upload_date: string | null; notes: string | null; created_at: string
 }
 
 const platforms = [
-  { key: 'youtube', label: 'YouTube' },
-  { key: 'tiktok', label: 'TikTok' },
-  { key: 'facebook', label: 'Facebook' },
-  { key: 'instagram', label: 'Instagram' },
-  { key: 'threads', label: 'Threads' },
-  { key: 'shopee', label: 'Shopee' },
+  { key: 'youtube', label: 'YouTube' }, { key: 'tiktok', label: 'TikTok' },
+  { key: 'facebook', label: 'Facebook' }, { key: 'instagram', label: 'Instagram' },
+  { key: 'threads', label: 'Threads' }, { key: 'shopee', label: 'Shopee' },
 ]
 
-// Description section interface
-interface DescriptionSection {
-  title: string
-  content: string
-}
+interface DescriptionSection { title: string; content: string }
 
-// Parse description into sections based on -- headers
 const parseDescription = (text: string): DescriptionSection[] => {
   if (!text) return []
-  
   const sections: DescriptionSection[] = []
   const lines = text.split('\n')
-  
-  // Find all line indices that start with -- and end with -- (these are section headers)
   const sectionStartIndices: number[] = []
-  
-  lines.forEach((line, index) => {
-    const trimmed = line.trim()
-    if (trimmed.startsWith('--') && trimmed.endsWith('--')) {
-      sectionStartIndices.push(index)
-    }
-  })
-  
-  // If no headers found, return original text as single section
-  if (sectionStartIndices.length === 0) {
-    sections.push({
-      title: 'Content',
-      content: text
-    })
-    return sections
-  }
-  
-  // Extract sections - each -- line is a title, content is until next -- line
+  lines.forEach((line, index) => { const t = line.trim(); if (t.startsWith('--') && t.endsWith('--')) sectionStartIndices.push(index) })
+  if (sectionStartIndices.length === 0) { sections.push({ title: 'Content', content: text }); return sections }
   for (let i = 0; i < sectionStartIndices.length; i++) {
-    const currentStart = sectionStartIndices[i]
-    const nextStart = sectionStartIndices[i + 1]
-    
-    // Title is the -- line (remove the -- prefix and suffix)
+    const currentStart = sectionStartIndices[i]; const nextStart = sectionStartIndices[i + 1]
     const title = lines[currentStart].trim().replace(/^--\s*/, '').replace(/\s*--$/, '')
-    
-    // Content is all lines until next -- line (or end)
-    const contentLines = nextStart 
-      ? lines.slice(currentStart + 1, nextStart)
-      : lines.slice(currentStart + 1)
-    const content = contentLines.join('\n').trim()
-    
-    sections.push({
-      title,
-      content
-    })
+    const content = (nextStart ? lines.slice(currentStart + 1, nextStart) : lines.slice(currentStart + 1)).join('\n').trim()
+    sections.push({ title, content })
   }
-  
   return sections
 }
 
 const platformIcons: Record<string, React.ReactElement | null> = {
-  youtube: <YouTube />,
-  tiktok: <TikTokIcon />,
-  facebook: <Facebook />,
-  instagram: <Instagram />,
-  threads: <ThreadsIcon />,
-  shopee: <Shop />,
+  youtube: <YouTube />, tiktok: <TikTokIcon />, facebook: <Facebook />,
+  instagram: <Instagram />, threads: <ThreadsIcon />, shopee: <Shop />,
 }
 
-// Helper function to get platform color
-const getPlatformColor = (platformKey: string): string => {
-  const colors: Record<string, string> = {
-    youtube: '#FF0000',
-    tiktok: '#000000',
-    facebook: '#1877F2',
-    instagram: '#E4405F',
-    threads: '#000000',
-    shopee: '#EE4D2D',
-  }
-  return colors[platformKey] || '#666666'
+const getPlatformColor = (p: string): string => {
+  const c: Record<string, string> = { youtube: '#FF0000', tiktok: '#000000', facebook: '#1877F2', instagram: '#E4405F', threads: '#000000', shopee: '#EE4D2D' }
+  return c[p] || '#666666'
 }
 
-// StatCard component to reduce code duplication
-const StatCard = ({ 
-  filterKey, 
-  title, 
-  videoCount, 
-  platformUploadCount, 
-  targetDate,
-  uploadDateFilter,
-  setUploadDateFilter,
-  videos,
-  reuploads,
-  platforms
-}: {
-  filterKey: 'today' | 'yesterday' | 'range-3-9'
-  title: string
-  videoCount: number
-  platformUploadCount: number
-  targetDate: string | string[]
+const buildUploadDateOrFilter = (date: string): string => platforms.map(p => `${p.key}_upload_date.eq.${date}`).join(',')
+
+const StatCard = ({ filterKey, title, videoCount, platformUploadCount, uploadDateFilter, setUploadDateFilter, platformBreakdown }: {
+  filterKey: 'today' | 'yesterday' | 'range-3-9'; title: string; videoCount: number; platformUploadCount: number
   uploadDateFilter: 'today' | 'yesterday' | 'range-3-9' | ''
   setUploadDateFilter: (val: 'today' | 'yesterday' | 'range-3-9' | '') => void
-  videos: Video[]
-  reuploads: Reupload[]
-  platforms: { key: string; label: string }[]
-}) => {
-  const dates = Array.isArray(targetDate) ? targetDate : [targetDate]
-  
-  // Get platform breakdown for the date
-  const breakdown = useMemo(() => {
-    const counts: Record<string, { original: number; reupload: number }> = {}
-    platforms.forEach((p) => {
-      const original = videos.reduce((total, video) => {
-        const uploadDate = video[`${p.key}_upload_date` as keyof Video] as string | null
-        return total + (uploadDate && dates.includes(uploadDate) ? 1 : 0)
-      }, 0)
-      const reupload = reuploads.filter(r => r.platform === p.key && r.upload_date && dates.includes(r.upload_date)).length
-      counts[p.key] = { original, reupload }
-    })
-    return counts
-  }, [videos, reuploads, platforms, targetDate])
-
-  return (
-    <Card 
-      sx={{ 
-        bgcolor: 'background.paper',
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-        border: uploadDateFilter === filterKey ? '1px solid' : '1px solid #f0f0f0',
-        borderColor: uploadDateFilter === filterKey ? 'primary.main' : '#f0f0f0',
-        '&:hover': {
-          transform: 'translateY(-2px)',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-        }
-      }}
-      onClick={() => {
-        setUploadDateFilter(uploadDateFilter === filterKey ? '' : filterKey)
-      }}
-    >
-      <CardContent sx={{ p: 2.5 }}>
-        <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 500, color: 'text.secondary', textTransform: 'none', letterSpacing: 0.5, display: 'block', mb: 1 }}>
-          {title}
-        </Typography>
-        <Typography variant="h4" sx={{ fontWeight: 700, fontSize: 32, color: 'text.primary', mb: 0.5 }}>
-          {videoCount}
-        </Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
-          Total platform uploads: <Typography component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>{platformUploadCount}</Typography>
-        </Typography>
-        {Object.entries(breakdown).some(([_, v]) => v.original + v.reupload > 0) && (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
-            {platforms.map((p) => {
-              const { original, reupload } = breakdown[p.key]
-              const count = original + reupload
-              if (count === 0) return null
-              
-              if (original > 0 && reupload > 0) {
-                return (
-                  <Box key={p.key} sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                    <Box sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 2, 
-                      px: 1, 
-                      py: 0.5, 
-                      bgcolor: '#f5f5f5',
-                      borderRadius: 0.5,
-                      border: '1px solid',
-                      borderColor: '#81c784'
-                    }}>
-                      <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
-                        {platformIcons[p.key]}
-                      </Box>
-                      <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
-                        {original}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 2, 
-                      px: 1, 
-                      py: 0.5, 
-                      bgcolor: '#f5f5f5',
-                      borderRadius: 0.5,
-                      border: '1px solid',
-                      borderColor: '#ffb74d'
-                    }}>
-                      <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
-                        {platformIcons[p.key]}
-                      </Box>
-                      <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
-                        {reupload}
-                      </Typography>
-                    </Box>
-                  </Box>
-                )
-              }
-              
-              const isReupload = reupload > 0 && original === 0
-              return (
-                <Box key={p.key} sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 2, 
-                  px: 1, 
-                  py: 0.5, 
-                  bgcolor: '#f5f5f5',
-                  borderRadius: 0.5,
-                  border: '1px solid',
-                  borderColor: isReupload ? '#ffb74d' : '#81c784'
-                }}>
-                  <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>
-                    {platformIcons[p.key]}
-                  </Box>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>
-                    {count}
-                  </Typography>
+  platformBreakdown: { key: string; original: number; reupload: number }[]
+}) => (
+  <Card sx={{ bgcolor: 'background.paper', cursor: 'pointer', transition: 'all 0.2s ease', border: uploadDateFilter === filterKey ? '1px solid' : '1px solid #f0f0f0', borderColor: uploadDateFilter === filterKey ? 'primary.main' : '#f0f0f0', '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' } }}
+    onClick={() => setUploadDateFilter(uploadDateFilter === filterKey ? '' : filterKey)}>
+    <CardContent sx={{ p: 2.5 }}>
+      <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 500, color: 'text.secondary', letterSpacing: 0.5, display: 'block', mb: 1 }}>{title}</Typography>
+      <Typography variant="h4" sx={{ fontWeight: 700, fontSize: 32, color: 'text.primary', mb: 0.5 }}>{videoCount}</Typography>
+      <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>Total platform uploads: <Typography component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>{platformUploadCount}</Typography></Typography>
+      {platformBreakdown.some(p => p.original + p.reupload > 0) && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
+          {platformBreakdown.map((p) => {
+            const total = p.original + p.reupload
+            if (total === 0) return null
+            if (p.original > 0 && p.reupload > 0)
+              return (<Box key={p.key} sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, px: 1, py: 0.5, bgcolor: '#f5f5f5', borderRadius: 0.5, border: '1px solid', borderColor: '#81c784' }}>
+                  <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>{platformIcons[p.key]}</Box>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>{p.original}</Typography>
                 </Box>
-              )
-            })}
-          </Box>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, px: 1, py: 0.5, bgcolor: '#f5f5f5', borderRadius: 0.5, border: '1px solid', borderColor: '#ffb74d' }}>
+                  <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>{platformIcons[p.key]}</Box>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>{p.reupload}</Typography>
+                </Box>
+              </Box>)
+            const isReupload = p.reupload > 0 && p.original === 0
+            return (<Box key={p.key} sx={{ display: 'flex', alignItems: 'center', gap: 2, px: 1, py: 0.5, bgcolor: '#f5f5f5', borderRadius: 0.5, border: '1px solid', borderColor: isReupload ? '#ffb74d' : '#81c784' }}>
+              <Box sx={{ width: 12, height: 12, display: 'flex', alignItems: 'center', color: getPlatformColor(p.key) }}>{platformIcons[p.key]}</Box>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: 12 }}>{total}</Typography>
+            </Box>)
+          })}
+        </Box>
+      )}
+    </CardContent>
+  </Card>
+)
 
 export default function Videos() {
-  const location = useLocation()
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const [videos, setVideos] = useState<Video[]>([])
-  const [reuploads, setReuploads] = useState<Reupload[]>([])
-  const [loading, setLoading] = useState(true)
-  const [open, setOpen] = useState(false)
-  const [editingVideo, setEditingVideo] = useState<Video | null>(null)
-  const [descriptionOpen, setDescriptionOpen] = useState(false)
-  const [selectedDescription, setSelectedDescription] = useState('')
+  const location = useLocation(); const theme = useTheme(); const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const [videos, setVideos] = useState<Video[]>([]); const [reuploads, setReuploads] = useState<Reupload[]>([])
+  const [loading, setLoading] = useState(true); const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true); const [currentPage, setCurrentPage] = useState(0)
+  const [open, setOpen] = useState(false); const [editingVideo, setEditingVideo] = useState<Video | null>(null)
+  const [descriptionOpen, setDescriptionOpen] = useState(false); const [selectedDescription, setSelectedDescription] = useState('')
   const [selectedDescriptionVideo, setSelectedDescriptionVideo] = useState<Video | null>(null)
-  const [videoPlayerOpen, setVideoPlayerOpen] = useState(false)
-  const [selectedVideoUrl, setSelectedVideoUrl] = useState('')
-  const [videoLoading, setVideoLoading] = useState(false)
-  const [uploadInfoOpen, setUploadInfoOpen] = useState(false)
+  const [videoPlayerOpen, setVideoPlayerOpen] = useState(false); const [selectedVideoUrl, setSelectedVideoUrl] = useState('')
+  const [videoLoading, setVideoLoading] = useState(false); const [uploadInfoOpen, setUploadInfoOpen] = useState(false)
   const [selectedVideoForInfo, setSelectedVideoForInfo] = useState<Video | null>(null)
-
-  // Search and filter states
-  const [searchQuery, setSearchQuery] = useState('')
-  const debouncedSearchQuery = useDebounce(searchQuery, 300) // Debounce search for performance
-  const [dateFilter, setDateFilter] = useState('')
-  const [filterEmptyPlatform, setFilterEmptyPlatform] = useState<string | null>(null)
+  const ITEMS_PER_PAGE = 10
+  const [searchQuery, setSearchQuery] = useState(''); const debouncedSearchQuery = useDebounce(searchQuery, 300)
+  const [dateFilter, setDateFilter] = useState(''); const [filterEmptyPlatform, setFilterEmptyPlatform] = useState<string | null>(null)
   const [platformFilter, setPlatformFilter] = useState<string>('')
   const [uploadDateFilter, setUploadDateFilter] = useState<'today' | 'yesterday' | 'range-3-9' | ''>('')
   const [customUploadDateFilter, setCustomUploadDateFilter] = useState('')
-
-  // Reupload popup states
-  const [reuploadDialogOpen, setReuploadDialogOpen] = useState(false)
-  const [reuploadPlatform, setReuploadPlatform] = useState('')
-  const [reuploadUrl, setReuploadUrl] = useState('')
-  const [reuploadUploadDate, setReuploadUploadDate] = useState('')
-  const [reuploadNotes, setReuploadNotes] = useState('')
-
-  // Search input ref for auto-focus
-  const searchInputRef = useRef<HTMLInputElement>(null)
-
-  // Pagination states
-  const ITEMS_PER_PAGE = 10
-  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const observerTarget = useRef<HTMLDivElement>(null)
-
-  // Auto-focus search input when navigated from search icon click
-  useEffect(() => {
-    if ((location.state as any)?.focusSearch && searchInputRef.current) {
-      searchInputRef.current.focus()
-    }
-
-    // Handle navigation from Upload Calendar
-    if ((location.state as any)?.calendarUploadDate) {
-      setCustomUploadDateFilter((location.state as any).calendarUploadDate)
-      setUploadDateFilter('')
-    }
-
-    // Handle navigation from Random Picker with search query
-    if ((location.state as any)?.searchQuery) {
-      setSearchQuery((location.state as any).searchQuery)
-    }
-  }, [location])
-
-  // Copy to clipboard state
+  const dflt = () => platforms.map(p => ({ key: p.key, original: 0, reupload: 0 }))
+  const [todayStats, setTodayStats] = useState({ videoCount: 0, reuploadCount: 0, platformBreakdown: dflt() })
+  const [yesterdayStats, setYesterdayStats] = useState({ videoCount: 0, reuploadCount: 0, platformBreakdown: dflt() })
+  const [range3to9Stats, setRange3to9Stats] = useState({ videoCount: 0, reuploadCount: 0, platformBreakdown: dflt() })
+  const [reuploadDialogOpen, setReuploadDialogOpen] = useState(false); const [reuploadPlatform, setReuploadPlatform] = useState('')
+  const [reuploadUrl, setReuploadUrl] = useState(''); const [reuploadUploadDate, setReuploadUploadDate] = useState('')
+  const [reuploadNotes, setReuploadNotes] = useState(''); const searchInputRef = useRef<HTMLInputElement>(null)
   const [snackbar, setSnackbar] = useState({ open: false, message: '' })
+  const [title, setTitle] = useState(''); const [description, setDescription] = useState('')
+  const [descriptionFocused, setDescriptionFocused] = useState(false); const [createdAt, setCreatedAt] = useState('')
+  const [youtubeUrl, setYoutubeUrl] = useState(''); const [youtubeUploadDate, setYoutubeUploadDate] = useState('')
+  const [facebookUrl, setFacebookUrl] = useState(''); const [facebookUploadDate, setFacebookUploadDate] = useState('')
+  const [instagramUrl, setInstagramUrl] = useState(''); const [instagramUploadDate, setInstagramUploadDate] = useState('')
+  const [shopeeUrl, setShopeeUrl] = useState(''); const [shopeeUploadDate, setShopeeUploadDate] = useState('')
+  const [shopeeProductUrl, setShopeeProductUrl] = useState(''); const [threadsUrl, setThreadsUrl] = useState('')
+  const [threadsUploadDate, setThreadsUploadDate] = useState(''); const [tiktokUrl, setTiktokUrl] = useState('')
+  const [tiktokUploadDate, setTiktokUploadDate] = useState(''); const [tiktokProductUrl, setTiktokProductUrl] = useState('')
 
-  // Form states
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [descriptionFocused, setDescriptionFocused] = useState(false)
-  const [createdAt, setCreatedAt] = useState('')
-  const [youtubeUrl, setYoutubeUrl] = useState('')
-  const [youtubeUploadDate, setYoutubeUploadDate] = useState('')
-  const [facebookUrl, setFacebookUrl] = useState('')
-  const [facebookUploadDate, setFacebookUploadDate] = useState('')
-  const [instagramUrl, setInstagramUrl] = useState('')
-  const [instagramUploadDate, setInstagramUploadDate] = useState('')
-  const [shopeeUrl, setShopeeUrl] = useState('')
-  const [shopeeUploadDate, setShopeeUploadDate] = useState('')
-  const [shopeeProductUrl, setShopeeProductUrl] = useState('')
-  const [threadsUrl, setThreadsUrl] = useState('')
-  const [threadsUploadDate, setThreadsUploadDate] = useState('')
-  const [tiktokUrl, setTiktokUrl] = useState('')
-  const [tiktokUploadDate, setTiktokUploadDate] = useState('')
-  const [tiktokProductUrl, setTiktokProductUrl] = useState('')
+  // Date helper functions - defined early to avoid hoisting issues
+  const getTodayDate = () => new Date().toISOString().split('T')[0]
+  const getDateDaysAgo = (days: number): string => { const d = new Date(); d.setDate(d.getDate() - days); return d.toISOString().split('T')[0] }
+  const todayDate = getTodayDate(); const yesterdayDate = getDateDaysAgo(1); const dates3to9 = Array.from({ length: 7 }, (_, i) => getDateDaysAgo(i + 3))
+
+  // Optimized fetchStats - fetch IDs for proper deduplication
+  const fetchStats = useCallback(async () => {
+    const today = new Date(); const todayStr = today.toISOString().split('T')[0]
+    const yesterdayStr = new Date(today.getTime() - 86400000).toISOString().split('T')[0]
+    const d3to9 = Array.from({ length: 7 }, (_, i) => new Date(today.getTime() - (i + 3) * 86400000).toISOString().split('T')[0])
+    
+    // Check cache first
+    const cacheKey = `stats_${todayStr}`; const cached = localStorage.getItem(cacheKey)
+    const now = Date.now(); const cacheAge = cached ? JSON.parse(cached).timestamp : 0
+    if (cached && (now - cacheAge) < 5 * 60 * 1000) { // 5 min cache
+      const { todayStats: ts, yesterdayStats: ys, range3to9Stats: rs } = JSON.parse(cached)
+      setTodayStats(ts); setYesterdayStats(ys); setRange3to9Stats(rs)
+      return
+    }
+    
+    // Fetch video IDs for original uploads (to deduplicate)
+    const cOrigIds = async (date: string) => {
+      const { data } = await supabase.from('videos').select('id')
+        .or(buildUploadDateOrFilter(date))
+      return data ? data.map((v: any) => v.id) : []
+    }
+    
+    // Fetch video IDs for reuploads (to deduplicate)
+    const cReupIds = async (date: string) => {
+      const { data } = await supabase.from('reuploads').select('video_id')
+        .eq('upload_date', date)
+      return data ? data.map((r: any) => r.video_id) : []
+    }
+    
+    // Platform breakdown
+    const cBreak = async (date: string) => {
+      const r: { key: string; original: number; reupload: number }[] = []
+      for (const p of platforms) {
+        const [o, ru] = await Promise.all([
+          supabase.from('videos').select('*', { count: 'exact', head: true }).eq(`${p.key}_upload_date`, date),
+          supabase.from('reuploads').select('*', { count: 'exact', head: true }).eq('platform', p.key).eq('upload_date', date)
+        ])
+        r.push({ key: p.key, original: o.count || 0, reupload: ru.count || 0 })
+      }
+      return r
+    }
+    
+    // Range queries
+    // Range queries - use in() for each platform to get accurate count
+    const cOrigRangeIds = async (dates: string[]) => {
+      // Use in() for each platform to get all video IDs
+      const allIds: string[] = []
+      for (const p of platforms) {
+        const { data } = await supabase.from('videos').select('id')
+          .in(`${p.key}_upload_date`, dates)
+        if (data) allIds.push(...data.map((v: any) => v.id))
+      }
+      return [...new Set(allIds)]
+    }
+    
+    const cReupRangeIds = async (dates: string[]) => {
+      const { data } = await supabase.from('reuploads').select('video_id')
+        .in('upload_date', dates)
+      return data ? data.map((r: any) => r.video_id) : []
+    }
+    
+    const cBreakRange = async (dates: string[]) => {
+      const r: { key: string; original: number; reupload: number }[] = []
+      for (const p of platforms) {
+        const [o, ru] = await Promise.all([
+          supabase.from('videos').select('*', { count: 'exact', head: true }).in(`${p.key}_upload_date`, dates),
+          supabase.from('reuploads').select('*', { count: 'exact', head: true }).eq('platform', p.key).in('upload_date', dates)
+        ])
+        r.push({ key: p.key, original: o.count || 0, reupload: ru.count || 0 })
+      }
+      return r
+    }
+    
+    // Calculate unique video count
+    const getUniqueCount = (vIds: string[], rIds: string[]) => {
+      const allIds = [...vIds, ...rIds]
+      return [...new Set(allIds)].length
+    }
+    
+    // Run all queries in parallel
+    const [tVIds, tRIds, tB, yVIds, yRIds, yB, rVIds, rRIds, rB] = await Promise.all([
+      cOrigIds(todayStr), cReupIds(todayStr), cBreak(todayStr),
+      cOrigIds(yesterdayStr), cReupIds(yesterdayStr), cBreak(yesterdayStr),
+      cOrigRangeIds(d3to9), cReupRangeIds(d3to9), cBreakRange(d3to9)
+    ])
+    
+    const ts = { videoCount: getUniqueCount(tVIds, tRIds), reuploadCount: tRIds.length, platformBreakdown: tB }
+    const ys = { videoCount: getUniqueCount(yVIds, yRIds), reuploadCount: yRIds.length, platformBreakdown: yB }
+    const rs = { videoCount: getUniqueCount(rVIds, rRIds), reuploadCount: rRIds.length, platformBreakdown: rB }
+    
+    // Cache for 5 minutes
+    localStorage.setItem(cacheKey, JSON.stringify({ 
+      todayStats: ts, yesterdayStats: ys, range3to9Stats: rs, 
+      timestamp: now 
+    }))
+    
+    setTodayStats(ts); setYesterdayStats(ys); setRange3to9Stats(rs)
+  }, [])
 
   useEffect(() => {
-    fetchData()
-
-    // Check if navigated from Dashboard with platform filter
-    if (location.state && (location.state as any).filterEmptyPlatform) {
-      setFilterEmptyPlatform((location.state as any).filterEmptyPlatform)
-    }
-
-    // Auto-open add dialog if navigated from Dashboard
-    if (location.state && (location.state as any).openAddDialog) {
-      openAddDialog()
-    }
+    if ((location.state as any)?.focusSearch && searchInputRef.current) searchInputRef.current.focus()
+    if ((location.state as any)?.calendarUploadDate) { setCustomUploadDateFilter((location.state as any).calendarUploadDate); setUploadDateFilter('') }
+    if ((location.state as any)?.searchQuery) setSearchQuery((location.state as any).searchQuery)
   }, [location])
 
-  const fetchData = async () => {
-    const [videosResult, reuploadsResult] = await Promise.all([
-      supabase
-        .from('videos')
-        .select('*')
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('reuploads')
-        .select('*'),
-    ])
+  useEffect(() => { fetchData(0, true); if (location.state && (location.state as any).filterEmptyPlatform) setFilterEmptyPlatform((location.state as any).filterEmptyPlatform); if (location.state && (location.state as any).openAddDialog) openAddDialog() }, [])
 
-    setVideos((videosResult.data as Video[]) || [])
-    setReuploads((reuploadsResult.data as Reupload[]) || [])
-    setLoading(false)
-  }
+  useEffect(() => { setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true) }, [debouncedSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter])
+
+  // Build query for videos - with optional pagination
+  const buildFilteredQuery = useCallback((page: number, usePagination: boolean = true) => {
+    let q = supabase.from('videos').select('*', { count: 'exact' })
+    if (usePagination) {
+      q = q.order('created_at', { ascending: false }).range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
+    } else {
+      // No pagination - fetch all matching records (for upload date filter)
+      q = q.order('created_at', { ascending: false })
+    }
+    if (debouncedSearchQuery) q = q.or(`title.ilike.%${debouncedSearchQuery}%,description.ilike.%${debouncedSearchQuery}%`)
+    if (dateFilter) q = q.eq('created_at', `${dateFilter}T00:00:00.000Z`)
+    if (platformFilter) q = q.not(`${platformFilter}_url`, 'is', null)
+    if (filterEmptyPlatform) q = q.is(`${filterEmptyPlatform}_url`, null)
+    // Apply upload date filter (platform upload dates) - for klik kad Today/Yesterday/3-9
+    if (uploadDateFilter === 'today') q = q.or(buildUploadDateOrFilter(todayDate))
+    else if (uploadDateFilter === 'yesterday') q = q.or(buildUploadDateOrFilter(yesterdayDate))
+    else if (uploadDateFilter === 'range-3-9') {
+      // Use in() for each platform to get all matching videos
+      const rangeFilters = dates3to9.flatMap(d => buildUploadDateOrFilter(d).split(',')).join(',')
+      q = q.or(rangeFilters)
+    }
+    else if (customUploadDateFilter) q = q.or(buildUploadDateOrFilter(customUploadDateFilter))
+    return q
+  }, [debouncedSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9])
+
+  const fetchData = useCallback(async (page: number = 0, reset: boolean = false) => {
+    if (page === 0) setLoading(true); else setLoadingMore(true)
+    
+    // When uploadDateFilter is active, we need to fetch all matching videos to include reuploads
+    // This is more accurate but uses more bandwidth - only when user clicks a stat card
+    const isUploadDateFilterActive = uploadDateFilter !== '' || customUploadDateFilter !== ''
+    
+    let vR
+    if (isUploadDateFilterActive && page === 0) {
+      // For range-3-9, we need to fetch videos using in() for each platform
+      if (uploadDateFilter === 'range-3-9') {
+        // Fetch all video IDs for the date range
+        const allIds: string[] = []
+        for (const p of platforms) {
+          const { data } = await supabase.from('videos').select('id')
+            .in(`${p.key}_upload_date`, dates3to9)
+          if (data) allIds.push(...data.map((v: any) => v.id))
+        }
+        const uniqueIds = [...new Set(allIds)]
+        // Fetch full video data
+        const { data: vData } = await supabase.from('videos').select('*').in('id', uniqueIds)
+        vR = { data: vData || [] }
+      } else {
+        // Fetch all matching videos (no pagination) for accurate upload date filter
+        vR = await buildFilteredQuery(0, false)
+      }
+    } else {
+      vR = await buildFilteredQuery(page)
+    }
+    
+    const rR = await supabase.from('reuploads').select('*')
+    
+    // If upload date filter is active, we need to also fetch videos that have reuploads on that date
+    // but no platform upload_date set
+    let vData = (vR.data as Video[]) || []
+    if (isUploadDateFilterActive && page === 0) {
+      const rData = (rR.data as Reupload[]) || []
+      let targetDate: string | null = null
+      let targetDates: string[] | null = null
+      if (uploadDateFilter === 'today') targetDate = todayDate
+      else if (uploadDateFilter === 'yesterday') targetDate = yesterdayDate
+      else if (uploadDateFilter === 'range-3-9') targetDates = dates3to9
+      else if (customUploadDateFilter) targetDate = customUploadDateFilter
+      
+      if (targetDate) {
+        // Get video IDs from reuploads on target date
+        const reuploadVideoIds = [...new Set(rData.filter(r => r.upload_date === targetDate).map(r => r.video_id))]
+        // Fetch videos that have reuploads but no platform upload_date
+        if (reuploadVideoIds.length > 0) {
+          const { data: reuploadVideos } = await supabase.from('videos').select('id, title, description, created_at, youtube_url, youtube_upload_date, facebook_url, facebook_upload_date, instagram_url, instagram_upload_date, shopee_url, shopee_upload_date, shopee_product_url, threads_url, threads_upload_date, tiktok_url, tiktok_upload_date, tiktok_product_url')
+            .in('id', reuploadVideoIds)
+          if (reuploadVideos) {
+            // Merge with existing videos, avoiding duplicates
+            const existingIds = new Set(vData.map(v => v.id))
+            vData = [...vData, ...reuploadVideos.filter((v: any) => !existingIds.has(v.id))]
+          }
+        }
+      } else if (targetDates) {
+        // For range-3-9, get video IDs from reuploads on any date in range
+        const reuploadVideoIds = [...new Set(rData.filter(r => targetDates!.includes(r.upload_date || '')).map(r => r.video_id))]
+        // Fetch videos that have reuploads but no platform upload_date
+        if (reuploadVideoIds.length > 0) {
+          const { data: reuploadVideos } = await supabase.from('videos').select('id, title, description, created_at, youtube_url, youtube_upload_date, facebook_url, facebook_upload_date, instagram_url, instagram_upload_date, shopee_url, shopee_upload_date, shopee_product_url, threads_url, threads_upload_date, tiktok_url, tiktok_upload_date, tiktok_product_url')
+            .in('id', reuploadVideoIds)
+          if (reuploadVideos) {
+            // Merge with existing videos, avoiding duplicates
+            const existingIds = new Set(vData.map(v => v.id))
+            vData = [...vData, ...reuploadVideos.filter((v: any) => !existingIds.has(v.id))]
+          }
+        }
+      }
+    }
+    
+    if (isUploadDateFilterActive) {
+      // For upload date filter, use all results
+      setVideos(vData)
+      setHasMore(false) // No pagination when filtering by upload date
+    } else if (reset || page === 0) {
+      setVideos((vR.data as Video[]) || [])
+    } else {
+      setVideos(prev => [...prev, ...((vR.data as Video[]) || [])])
+      setHasMore((vR.data?.length || 0) === ITEMS_PER_PAGE)
+    }
+    
+    setReuploads((rR.data as Reupload[]) || [])
+    setLoading(false); setLoadingMore(false); fetchStats()
+  }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9])
+
+  const handleLoadMore = () => { const np = currentPage + 1; setCurrentPage(np); fetchData(np, false) }
 
   const handleAddVideo = async () => {
     if (!title) return
-
-    const { error } = await supabase.from('videos').insert({
-      title,
-      description,
-      youtube_url: youtubeUrl || null,
-      youtube_upload_date: youtubeUploadDate || null,
-      facebook_url: facebookUrl || null,
-      facebook_upload_date: facebookUploadDate || null,
-      instagram_url: instagramUrl || null,
-      instagram_upload_date: instagramUploadDate || null,
-      shopee_url: shopeeUrl || null,
-      shopee_upload_date: shopeeUploadDate || null,
-      shopee_product_url: shopeeProductUrl || null,
-      threads_url: threadsUrl || null,
-      threads_upload_date: threadsUploadDate || null,
-      tiktok_url: tiktokUrl || null,
-      tiktok_upload_date: tiktokUploadDate || null,
-      tiktok_product_url: tiktokProductUrl || null,
-    })
-
-    if (!error) {
-      setOpen(false)
-      resetForm()
-      fetchData()
-    }
+    const { error } = await supabase.from('videos').insert({ title, description, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate || null, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate || null, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate || null, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate || null, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate || null, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate || null, tiktok_product_url: tiktokProductUrl || null })
+    if (!error) { setOpen(false); resetForm(); fetchData(0, true) }
   }
 
   const handleUpdateVideo = async () => {
     if (!editingVideo) return
-
-    const updateData: any = {
-      title,
-      description,
-      youtube_url: youtubeUrl || null,
-      youtube_upload_date: youtubeUploadDate || null,
-      facebook_url: facebookUrl || null,
-      facebook_upload_date: facebookUploadDate || null,
-      instagram_url: instagramUrl || null,
-      instagram_upload_date: instagramUploadDate || null,
-      shopee_url: shopeeUrl || null,
-      shopee_upload_date: shopeeUploadDate || null,
-      shopee_product_url: shopeeProductUrl || null,
-      threads_url: threadsUrl || null,
-      threads_upload_date: threadsUploadDate || null,
-      tiktok_url: tiktokUrl || null,
-      tiktok_upload_date: tiktokUploadDate || null,
-      tiktok_product_url: tiktokProductUrl || null,
-    }
-
-    // Only update created_at if it's changed
-    if (createdAt) {
-      updateData.created_at = new Date(createdAt).toISOString()
-    }
-
-    const { error } = await supabase
-      .from('videos')
-      .update(updateData)
-      .eq('id', editingVideo.id)
-
-    if (!error) {
-      setOpen(false)
-      setEditingVideo(null)
-      resetForm()
-      fetchData()
-    }
+    const u: any = { title, description, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate || null, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate || null, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate || null, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate || null, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate || null, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate || null, tiktok_product_url: tiktokProductUrl || null }
+    if (createdAt) u.created_at = new Date(createdAt).toISOString()
+    const { error } = await supabase.from('videos').update(u).eq('id', editingVideo.id)
+    if (!error) { setOpen(false); setEditingVideo(null); resetForm(); fetchData(0, true) }
   }
 
-  const handleDeleteVideo = async (id: string) => {
-    if (confirm('Are you sure you want to delete this video?')) {
-      await supabase.from('videos').delete().eq('id', id)
-      fetchData()
-    }
-  }
+  const handleDeleteVideo = async (id: string) => { if (confirm('Are you sure you want to delete this video?')) { await supabase.from('videos').delete().eq('id', id); fetchData(0, true) } }
 
-  const resetForm = () => {
-    setTitle('')
-    setDescription('')
-    setCreatedAt('')
-    setYoutubeUrl('')
-    setYoutubeUploadDate('')
-    setFacebookUrl('')
-    setFacebookUploadDate('')
-    setInstagramUrl('')
-    setInstagramUploadDate('')
-    setShopeeUrl('')
-    setShopeeUploadDate('')
-    setShopeeProductUrl('')
-    setThreadsUrl('')
-    setThreadsUploadDate('')
-    setTiktokUrl('')
-    setTiktokUploadDate('')
-    setTiktokProductUrl('')
-  }
+  const resetForm = () => { setTitle(''); setDescription(''); setCreatedAt(''); setYoutubeUrl(''); setYoutubeUploadDate(''); setFacebookUrl(''); setFacebookUploadDate(''); setInstagramUrl(''); setInstagramUploadDate(''); setShopeeUrl(''); setShopeeUploadDate(''); setShopeeProductUrl(''); setThreadsUrl(''); setThreadsUploadDate(''); setTiktokUrl(''); setTiktokUploadDate(''); setTiktokProductUrl('') }
 
-  const autoSetTodayDate = (setDate: (val: string) => void, currentDate: string, url: string) => {
-    if (url && !currentDate) {
-      setDate(getTodayDate())
-    } else if (!url && currentDate) {
-      setDate('')
-    }
-  }
+  const autoSetTodayDate = (s: (v: string) => void, c: string, u: string) => { if (u && !c) s(getTodayDate()); else if (!u && c) s('') }
 
   const openEditDialog = (video: Video) => {
-    setEditingVideo(video)
-    setTitle(video.title)
-    setDescription(video.description || '')
-    setDescriptionFocused(false)
+    setEditingVideo(video); setTitle(video.title); setDescription(video.description || ''); setDescriptionFocused(false)
     setCreatedAt(video.created_at ? video.created_at.split('T')[0] : '')
-    setYoutubeUrl(video.youtube_url || '')
-    setYoutubeUploadDate(video.youtube_upload_date || '')
-    setFacebookUrl(video.facebook_url || '')
-    setFacebookUploadDate(video.facebook_upload_date || '')
-    setInstagramUrl(video.instagram_url || '')
-    setInstagramUploadDate(video.instagram_upload_date || '')
-    setShopeeUrl(video.shopee_url || '')
-    setShopeeUploadDate(video.shopee_upload_date || '')
-    setShopeeProductUrl(video.shopee_product_url || '')
-    setThreadsUrl(video.threads_url || '')
-    setThreadsUploadDate(video.threads_upload_date || '')
-    setTiktokUrl(video.tiktok_url || '')
-    setTiktokUploadDate(video.tiktok_upload_date || '')
-    setTiktokProductUrl(video.tiktok_product_url || '')
+    setYoutubeUrl(video.youtube_url || ''); setYoutubeUploadDate(video.youtube_upload_date || '')
+    setFacebookUrl(video.facebook_url || ''); setFacebookUploadDate(video.facebook_upload_date || '')
+    setInstagramUrl(video.instagram_url || ''); setInstagramUploadDate(video.instagram_upload_date || '')
+    setShopeeUrl(video.shopee_url || ''); setShopeeUploadDate(video.shopee_upload_date || ''); setShopeeProductUrl(video.shopee_product_url || '')
+    setThreadsUrl(video.threads_url || ''); setThreadsUploadDate(video.threads_upload_date || '')
+    setTiktokUrl(video.tiktok_url || ''); setTiktokUploadDate(video.tiktok_upload_date || ''); setTiktokProductUrl(video.tiktok_product_url || '')
     setOpen(true)
   }
 
-  const getTodayDate = () => {
-    const today = new Date()
-    return today.toISOString().split('T')[0]
-  }
+  const copyToClipboard = async (text: string, platform: string) => { try { await navigator.clipboard.writeText(text); setSnackbar({ open: true, message: `${platform} URL copied to clipboard!` }) } catch { setSnackbar({ open: true, message: 'Failed to copy URL' }) } }
+  const openAddDialog = () => { setEditingVideo(null); setDescriptionFocused(false); resetForm(); setOpen(true) }
+  const openReuploadDialog = (platform: string) => { setReuploadPlatform(platform); setReuploadUrl(''); setReuploadUploadDate(todayDate); setReuploadNotes(''); setReuploadDialogOpen(true) }
 
-  const copyToClipboard = async (text: string, platform: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setSnackbar({ open: true, message: `${platform} URL copied to clipboard!` })
-    } catch {
-      setSnackbar({ open: true, message: 'Failed to copy URL' })
-    }
-  }
-
-  const openAddDialog = () => {
-    setEditingVideo(null)
-    setDescriptionFocused(false)
-    resetForm()
-    setOpen(true)
-  }
-
-  // Open reupload popup from edit dialog
-  const openReuploadDialog = (platform: string) => {
-    setReuploadPlatform(platform)
-    setReuploadUrl('') // Empty - user will paste new link
-    setReuploadUploadDate(getTodayDate())
-    setReuploadNotes('')
-    setReuploadDialogOpen(true)
-  }
-
-  // Handle save reupload
   const handleSaveReupload = async () => {
     if (!editingVideo) return
-
-    const { error } = await supabase.from('reuploads').insert({
-      video_id: editingVideo.id,
-      platform: reuploadPlatform,
-      url: reuploadUrl || null,
-      upload_date: reuploadUploadDate || null,
-      notes: reuploadNotes || null,
-    })
-
-    if (!error) {
-      setReuploadDialogOpen(false)
-      setOpen(false) // Close edit dialog too
-      setEditingVideo(null)
-      resetForm()
-      setSnackbar({ open: true, message: 'Reupload saved successfully!' })
-      fetchData() // Refresh to update stat counts
-    } else {
-      console.error('Reupload error:', error)
-      setSnackbar({ open: true, message: `Failed: ${error.message || 'Unknown error'}` })
-    }
+    const { error } = await supabase.from('reuploads').insert({ video_id: editingVideo.id, platform: reuploadPlatform, url: reuploadUrl || null, upload_date: reuploadUploadDate || null, notes: reuploadNotes || null })
+    if (!error) { setReuploadDialogOpen(false); setOpen(false); setEditingVideo(null); resetForm(); setSnackbar({ open: true, message: 'Reupload saved successfully!' }); fetchData(0, true) } else { console.error('Reupload error:', error); setSnackbar({ open: true, message: `Failed: ${error.message || 'Unknown error'}` }) }
   }
 
-  // Helper function to extract YouTube video ID
   const getYouTubeVideoId = (url: string): string | null => {
     if (!url) return null
-    const patterns = [
-      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([^&\n?#]+)/,
-      /youtube\.com\/watch\?.*v=([^&\n?#]+)/
-    ]
-    for (const pattern of patterns) {
-      const match = url.match(pattern)
-      if (match) return match[1]
-    }
+    const patterns = [/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([^&\n?#]+)/, /youtube\.com\/watch\?.*v=([^&\n?#]+)/]
+    for (const p of patterns) { const m = url.match(p); if (m) return m[1] }
     return null
   }
+  const getAvailablePlatforms = (video: Video) => platforms.filter(p => !!(video[`${p.key}_url` as keyof Video] as string | null))
+  const openVideoPlayer = (url: string) => { setSelectedVideoUrl(url); setVideoPlayerOpen(true); setVideoLoading(true) }
+  const openUploadInfo = (video: Video) => { setSelectedVideoForInfo(video); setUploadInfoOpen(true) }
+  const isMobileDevice = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  const searchGoogleDriveLatest = (t: string) => { const f = '1-1cXk5CecrMqVFN0krVA3JUf-SrCJejY'; window.open(`https://drive.google.com/drive/u/0/search?q=${isMobileDevice() ? encodeURIComponent(t) : encodeURIComponent(`${t} parent:${f}`)}`, '_blank') }
+  const searchGoogleDriveArchive = (t: string) => { const f = '1DYoHgOxk3UAB6FQgWgbUhbgx9Xg74vDR'; window.open(`https://drive.google.com/drive/u/0/search?q=${isMobileDevice() ? encodeURIComponent(t) : encodeURIComponent(`${t} parent:${f}`)}`, '_blank') }
+  const searchGoogleDriveAll = (t: string) => window.open(`https://drive.google.com/drive/u/0/search?q=${encodeURIComponent(t)}`, '_blank')
+  const handleVideoLoad = () => setVideoLoading(false)
 
-  // Get available platforms for a video
-  const getAvailablePlatforms = (video: Video) => {
-    return platforms.filter(p => {
-      const url = video[`${p.key}_url` as keyof Video] as string | null
-      return !!url
-    })
-  }
-
-  // Open video player
-  const openVideoPlayer = (url: string) => {
-    setSelectedVideoUrl(url)
-    setVideoPlayerOpen(true)
-    setVideoLoading(true)
-  }
-
-  // Open upload info dialog
-  const openUploadInfo = (video: Video) => {
-    setSelectedVideoForInfo(video)
-    setUploadInfoOpen(true)
-  }
-
-  // Detect if the device is mobile (likely has Google Drive app)
-  const isMobileDevice = () => {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-  }
-
-  // Search video in Google Drive
-  const searchGoogleDriveLatest = (videoTitle: string) => {
-    const latestFolderId = '1-1cXk5CecrMqVFN0krVA3JUf-SrCJejY'
-    const searchQuery = isMobileDevice()
-      ? encodeURIComponent(videoTitle)
-      : encodeURIComponent(`${videoTitle} parent:${latestFolderId}`)
-    window.open(`https://drive.google.com/drive/u/0/search?q=${searchQuery}`, '_blank')
-  }
-
-  const searchGoogleDriveArchive = (videoTitle: string) => {
-    const archiveFolderId = '1DYoHgOxk3UAB6FQgWgbUhbgx9Xg74vDR'
-    const searchQuery = isMobileDevice()
-      ? encodeURIComponent(videoTitle)
-      : encodeURIComponent(`${videoTitle} parent:${archiveFolderId}`)
-    window.open(`https://drive.google.com/drive/u/0/search?q=${searchQuery}`, '_blank')
-  }
-
-  const searchGoogleDriveAll = (videoTitle: string) => {
-    const searchQuery = encodeURIComponent(videoTitle)
-    window.open(`https://drive.google.com/drive/u/0/search?q=${searchQuery}`, '_blank')
-  }
-
-  // Handle iframe load
-  const handleVideoLoad = () => {
-    setVideoLoading(false)
-  }
-
-  // Helper to get date string for N days ago
-  const getDateDaysAgo = (days: number): string => {
-    const date = new Date()
-    date.setDate(date.getDate() - days)
-    return date.toISOString().split('T')[0]
-  }
-
-  // Get today's date
-  const todayDate = getTodayDate()
-
-  // Get yesterday's date
-  const yesterdayDate = getDateDaysAgo(1)
-
-  // Get dates for days 3-9
-  const dates3to9 = Array.from({ length: 7 }, (_, i) => getDateDaysAgo(i + 3))
-
-  // Helper to count total platform uploads across all videos + reuploads for given date(s)
-  const getTotalPlatformUploads = (dateOrDates: string | string[]): number => {
-    const dates = Array.isArray(dateOrDates) ? dateOrDates : [dateOrDates]
-    let total = 0
-    
-    // Count from videos table
-    total += videos.reduce((total, video) => {
-      return total + platforms.reduce((count, platform) => {
-        const uploadDate = video[`${platform.key}_upload_date` as keyof Video] as string | null
-        return count + (uploadDate && dates.includes(uploadDate) ? 1 : 0)
-      }, 0)
-    }, 0)
-
-    // Count from reuploads table
-    total += reuploads.reduce((total, r) => {
-      return total + (r.upload_date && dates.includes(r.upload_date) ? 1 : 0)
-    }, 0)
-
-    return total
-  }
-
-  // Check if video has upload on a specific date
-  const hasUploadOnDate = (video: Video, date: string): boolean => {
-    return platforms.some((platform) => {
-      const uploadDate = video[`${platform.key}_upload_date` as keyof Video] as string | null
-      return uploadDate === date
-    })
-  }
-
-  // Check if video has upload on any of the dates in range
-  const hasUploadOnAnyDateInRange = (video: Video, dates: string[]): boolean => {
-    return platforms.some((platform) => {
-      const uploadDate = video[`${platform.key}_upload_date` as keyof Video] as string | null
-      return uploadDate && dates.includes(uploadDate)
-    })
-  }
-
-  // Check if a specific platform's upload date matches the current date filter
-  const isPlatformDateMatch = (platformKey: string, video: Video): boolean => {
-    const uploadDate = video[`${platformKey}_upload_date` as keyof Video] as string | null
-    if (!uploadDate) return false
-
-    if (uploadDateFilter === 'today') return uploadDate === todayDate
-    if (uploadDateFilter === 'yesterday') return uploadDate === yesterdayDate
-    if (uploadDateFilter === 'range-3-9') return dates3to9.includes(uploadDate)
-    if (customUploadDateFilter) return uploadDate === customUploadDateFilter
-    
+  const isPlatformDateMatch = (pk: string, v: Video): boolean => {
+    const ud = v[`${pk}_upload_date` as keyof Video] as string | null; if (!ud) return false
+    if (uploadDateFilter === 'today') return ud === todayDate; if (uploadDateFilter === 'yesterday') return ud === yesterdayDate
+    if (uploadDateFilter === 'range-3-9') return dates3to9.includes(ud); if (customUploadDateFilter) return ud === customUploadDateFilter
     return false
   }
 
-  // Check if a specific video+platform has a reupload on a matching date filter
-  const isPlatformReuploadMatch = (platformKey: string, videoId: string): boolean => {
-    let targetDate: string | null = null
-
-    if (uploadDateFilter === 'today') targetDate = todayDate
-    else if (uploadDateFilter === 'yesterday') targetDate = yesterdayDate
-    else if (uploadDateFilter === 'range-3-9') {
-      return dates3to9.some(date => reuploads.some(r => r.video_id === videoId && r.platform === platformKey && r.upload_date === date))
-    }
-    else if (customUploadDateFilter) targetDate = customUploadDateFilter
-
-    if (!targetDate) return false
-    return reuploads.some(r => r.video_id === videoId && r.platform === platformKey && r.upload_date === targetDate)
+  const isPlatformReuploadMatch = (pk: string, vid: string): boolean => {
+    let td: string | null = null
+    if (uploadDateFilter === 'today') td = todayDate; else if (uploadDateFilter === 'yesterday') td = yesterdayDate
+    else if (uploadDateFilter === 'range-3-9') return dates3to9.some(d => reuploads.some(r => r.video_id === vid && r.platform === pk && r.upload_date === d))
+    else if (customUploadDateFilter) td = customUploadDateFilter
+    if (!td) return false; return reuploads.some(r => r.video_id === vid && r.platform === pk && r.upload_date === td)
   }
 
-  // Check if a video has any reupload on a specific date
-  const hasReuploadForVideoOnDate = (videoId: string, date: string): boolean => {
-    return reuploads.some(r => r.video_id === videoId && r.upload_date === date)
-  }
+  const hasReuploadForVideoOnDate = (vid: string, d: string) => reuploads.some(r => r.video_id === vid && r.upload_date === d)
+  const hasReuploadForVideoOnAnyDateInRange = (vid: string, ds: string[]) => ds.some(d => reuploads.some(r => r.video_id === vid && r.upload_date === d))
+  const hasUploadOnDate = (v: Video, d: string) => platforms.some(p => (v[`${p.key}_upload_date` as keyof Video] as string | null) === d)
+  const hasUploadOnAnyDateInRange = (v: Video, ds: string[]) => platforms.some(p => { const ud = v[`${p.key}_upload_date` as keyof Video] as string | null; return ud && ds.includes(ud) })
 
-  // Check if a video has any reupload on any of the dates in range
-  const hasReuploadForVideoOnAnyDateInRange = (videoId: string, dates: string[]): boolean => {
-    return dates.some(date => reuploads.some(r => r.video_id === videoId && r.upload_date === date))
-  }
-
-  // Memoized expensive calculations
-  const filteredVideos = useMemo(() => {
-    return videos.filter((video) => {
-      const matchesSearch = debouncedSearchQuery === '' ||
-        video.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        (video.description && video.description.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
-
-      // Date filter (created_at) - from the Date input field
-      const matchesDate = dateFilter === '' || video.created_at.split('T')[0] === dateFilter
-
-      // Upload date filter (platform upload dates) - from stat cards
-      // Also check reuploads for this video
-      const matchesUploadDate = uploadDateFilter === '' || (uploadDateFilter === 'today'
-        ? hasUploadOnDate(video, todayDate) || hasReuploadForVideoOnDate(video.id, todayDate)
-        : uploadDateFilter === 'yesterday'
-          ? hasUploadOnDate(video, yesterdayDate) || hasReuploadForVideoOnDate(video.id, yesterdayDate)
-          : uploadDateFilter === 'range-3-9'
-            ? hasUploadOnAnyDateInRange(video, dates3to9) || hasReuploadForVideoOnAnyDateInRange(video.id, dates3to9)
-            : true)
-
-      // Custom upload date filter - check if any platform has upload on the selected date
-      const matchesCustomUploadDate = customUploadDateFilter === '' ||
-        hasUploadOnDate(video, customUploadDateFilter) || hasReuploadForVideoOnDate(video.id, customUploadDateFilter)
-
-      const matchesEmptyPlatform = filterEmptyPlatform === null ||
-        !video[`${filterEmptyPlatform}_url` as keyof Video]
-
-      const matchesPlatform = platformFilter === '' ||
-        !!video[`${platformFilter}_url` as keyof Video]
-
-      return matchesSearch && matchesDate && matchesUploadDate && matchesCustomUploadDate && matchesEmptyPlatform && matchesPlatform
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videos, debouncedSearchQuery, dateFilter, uploadDateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, todayDate, yesterdayDate, dates3to9, reuploads, platforms])
-
-  // Count videos uploaded today (any platform)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const videosUploadedToday = useMemo(() => {
-    return videos.filter((video) =>
-      hasUploadOnDate(video, todayDate) || hasReuploadForVideoOnDate(video.id, todayDate)
-    ).length
-  }, [videos, todayDate])
-
-  // Count videos uploaded yesterday
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const videosUploadedYesterday = useMemo(() => {
-    return videos.filter((video) =>
-      hasUploadOnDate(video, yesterdayDate) || hasReuploadForVideoOnDate(video.id, yesterdayDate)
-    ).length
-  }, [videos, yesterdayDate])
-
-  // Count videos uploaded days 3-9
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const videosUploaded3to9 = useMemo(() => {
-    return videos.filter((video) =>
-      hasUploadOnAnyDateInRange(video, dates3to9) || hasReuploadForVideoOnAnyDateInRange(video.id, dates3to9)
-    ).length
-  }, [videos, dates3to9])
-
-  // Total platform uploads count (sum of all platform uploads across all videos + reuploads)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const totalPlatformUploadsToday = useMemo(() => getTotalPlatformUploads(todayDate), [videos, reuploads, platforms, todayDate])
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const totalPlatformUploadsYesterday = useMemo(() => getTotalPlatformUploads(yesterdayDate), [videos, reuploads, platforms, yesterdayDate])
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const totalPlatformUploads3to9 = useMemo(() => getTotalPlatformUploads(dates3to9), [videos, reuploads, platforms, dates3to9])
-
-  // Infinite scroll observer
-  const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
-    const target = entries[0]
-    if (target.isIntersecting && !loadingMore && visibleCount < filteredVideos.length) {
-      setLoadingMore(true)
-      setTimeout(() => {
-        setVisibleCount((prev) => prev + ITEMS_PER_PAGE)
-        setLoadingMore(false)
-      }, 800)
-    }
-  }, [loadingMore, visibleCount, filteredVideos.length])
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(handleObserver, {
-      root: null,
-      rootMargin: '20px',
-      threshold: 0
-    })
-
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current)
-    }
-
-    return () => observer.disconnect()
-  }, [handleObserver])
+  const filteredVideos = useMemo(() => videos.filter(v => {
+    const m = uploadDateFilter === '' || (uploadDateFilter === 'today' ? hasUploadOnDate(v, todayDate) || hasReuploadForVideoOnDate(v.id, todayDate) : uploadDateFilter === 'yesterday' ? hasUploadOnDate(v, yesterdayDate) || hasReuploadForVideoOnDate(v.id, yesterdayDate) : uploadDateFilter === 'range-3-9' ? hasUploadOnAnyDateInRange(v, dates3to9) || hasReuploadForVideoOnAnyDateInRange(v.id, dates3to9) : true)
+    const mc = customUploadDateFilter === '' || hasUploadOnDate(v, customUploadDateFilter) || hasReuploadForVideoOnDate(v.id, customUploadDateFilter)
+    return m && mc
+  }), [videos, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, reuploads])
 
   return (
     <Box>
-      {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 700 }}>
-            Videos
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Track video uploads across platforms with quick search and smart filters.
-          </Typography>
+        <Box><Typography variant="h4" sx={{ fontWeight: 700 }}>Videos</Typography><Typography variant="body2" color="text.secondary">Track video uploads across platforms with quick search and smart filters.</Typography></Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button variant="outlined" startIcon={<ReplayIcon />} onClick={() => {
+            const today = new Date().toISOString().split('T')[0]
+            localStorage.removeItem(`stats_${today}`)
+            fetchStats()
+          }} size="medium">Refresh Stats</Button>
+          <Button variant="contained" startIcon={<Add />} onClick={openAddDialog} size="medium">Add Video</Button>
         </Box>
-        <Button variant="contained" startIcon={<Add />} onClick={openAddDialog} size="medium">
-          Add Video
-        </Button>
       </Box>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
-        <StatCard
-          filterKey="today"
-          title="Total videos uploaded today"
-          videoCount={videosUploadedToday}
-          platformUploadCount={totalPlatformUploadsToday}
-          targetDate={todayDate}
-          uploadDateFilter={uploadDateFilter}
-          setUploadDateFilter={setUploadDateFilter}
-          videos={videos}
-          reuploads={reuploads}
-          platforms={platforms}
-        />
-        <StatCard
-          filterKey="yesterday"
-          title="Total videos uploaded yesterday"
-          videoCount={videosUploadedYesterday}
-          platformUploadCount={totalPlatformUploadsYesterday}
-          targetDate={yesterdayDate}
-          uploadDateFilter={uploadDateFilter}
-          setUploadDateFilter={setUploadDateFilter}
-          videos={videos}
-          reuploads={reuploads}
-          platforms={platforms}
-        />
-        <StatCard
-          filterKey="range-3-9"
-          title="Days 3-9 uploads"
-          videoCount={videosUploaded3to9}
-          platformUploadCount={totalPlatformUploads3to9}
-          targetDate={dates3to9}
-          uploadDateFilter={uploadDateFilter}
-          setUploadDateFilter={setUploadDateFilter}
-          videos={videos}
-          reuploads={reuploads}
-          platforms={platforms}
-        />
+        <StatCard filterKey="today" title="Total videos uploaded today" videoCount={todayStats.videoCount} platformUploadCount={todayStats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} setUploadDateFilter={setUploadDateFilter} platformBreakdown={todayStats.platformBreakdown} />
+        <StatCard filterKey="yesterday" title="Total videos uploaded yesterday" videoCount={yesterdayStats.videoCount} platformUploadCount={yesterdayStats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} setUploadDateFilter={setUploadDateFilter} platformBreakdown={yesterdayStats.platformBreakdown} />
+        <StatCard filterKey="range-3-9" title="Days 3-9 uploads" videoCount={range3to9Stats.videoCount} platformUploadCount={range3to9Stats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} setUploadDateFilter={setUploadDateFilter} platformBreakdown={range3to9Stats.platformBreakdown} />
       </Box>
 
-      {/* Search and Filters */}
-      <Box sx={{ 
-        bgcolor: 'background.paper',
-        p: 2,
-        borderRadius: 1,
-        mb: 2,
-        display: 'flex',
-        gap: 1.5,
-        flexWrap: 'wrap',
-        alignItems: 'center'
-      }}>
-        <Box sx={{ 
-          flex: 1, 
-          minWidth: 200,
-          position: 'relative'
-        }}>
-          <SearchIcon sx={{ 
-            position: 'absolute',
-            left: 12,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'text.secondary',
-            fontSize: 20,
-            zIndex: 1
-          }} />
-          <TextField
-            inputRef={searchInputRef}
-            size="small"
-            placeholder="Search videos..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            sx={{ 
-              width: '100%',
-              '& .MuiOutlinedInput-root': {
-                pl: 4
-              }
-            }}
-          />
+      <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1, mb: 2, display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Box sx={{ flex: 1, minWidth: 200, position: 'relative' }}>
+          <SearchIcon sx={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'text.secondary', fontSize: 20, zIndex: 1 }} />
+          <TextField inputRef={searchInputRef} size="small" placeholder="Search videos..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} sx={{ width: '100%', '& .MuiOutlinedInput-root': { pl: 4 } }} />
         </Box>
-        <TextField
-          size="small"
-          label="Date"
-          type="date"
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          sx={{ minWidth: { xs: '100%', sm: 160 } }}
-          slotProps={{ inputLabel: { shrink: true } }}
-        />
-        <TextField
-          size="small"
-          label="Upload Date"
-          type="date"
-          value={customUploadDateFilter}
-          onChange={(e) => setCustomUploadDateFilter(e.target.value)}
-          sx={{ minWidth: { xs: '100%', sm: 160 } }}
-          slotProps={{ inputLabel: { shrink: true } }}
-        />
-        <TextField
-          size="small"
-          select
-          value={platformFilter}
-          onChange={(e) => setPlatformFilter(e.target.value)}
-          sx={{ minWidth: { xs: '100%', sm: 150 } }}
-          slotProps={{
-            select: { 
-              native: true,
-              displayEmpty: true,
-            } 
-          }}
-        >
+        <TextField size="small" label="Date" type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} sx={{ minWidth: { xs: '100%', sm: 160 } }} slotProps={{ inputLabel: { shrink: true } }} />
+        <TextField size="small" label="Upload Date" type="date" value={customUploadDateFilter} onChange={(e) => setCustomUploadDateFilter(e.target.value)} sx={{ minWidth: { xs: '100%', sm: 160 } }} slotProps={{ inputLabel: { shrink: true } }} />
+        <TextField size="small" select value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value)} sx={{ minWidth: { xs: '100%', sm: 150 } }} slotProps={{ select: { native: true, displayEmpty: true } }}>
           <option value="">Platform</option>
-          {platforms.map((opt) => (
-            <option key={opt.key} value={opt.key}>{opt.label}</option>
-          ))}
+          {platforms.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
         </TextField>
         {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter) && (
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => {
-              setSearchQuery('')
-              setDateFilter('')
-              setCustomUploadDateFilter('')
-              setFilterEmptyPlatform(null)
-              setPlatformFilter('')
-              setUploadDateFilter('')
-            }}
-            startIcon={<CloseIcon />}
-          >
-            Clear
-          </Button>
+          <Button variant="outlined" size="small" onClick={() => { setSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter(''); setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter('') }} startIcon={<CloseIcon />}>Clear</Button>
         )}
       </Box>
 
-      {filterEmptyPlatform && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          Showing videos without {filterEmptyPlatform} URL
-        </Alert>
-      )}
-
-      {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter) && (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {filteredVideos.length} result{filteredVideos.length !== 1 ? 's' : ''} found
-        </Typography>
-      )}
+      {filterEmptyPlatform && <Alert severity="info" sx={{ mb: 2 }}>Showing videos without {filterEmptyPlatform} URL</Alert>}
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
-          <CircularProgress />
-        </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}><CircularProgress /></Box>
       ) : filteredVideos.length === 0 ? (
-        <Typography color="text.secondary" align="center" sx={{ py: 6 }}>
-          {searchQuery || dateFilter ? 'No videos found matching your criteria' : 'No videos yet. Click "Add Video" to create one!'}
-        </Typography>
+        <Typography color="text.secondary" align="center" sx={{ py: 6 }}>{searchQuery || dateFilter ? 'No videos found matching your criteria' : 'No videos yet. Click "Add Video" to create one!'}</Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {filteredVideos.slice(0, visibleCount).map((video) => {
+          {filteredVideos.map((video) => {
             const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
             return (
               <Card key={video.id}>
                 <CardContent sx={{ py: 2, px: { xs: 2, md: 2.5 } }}>
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-                    {/* YouTube Thumbnail */}
                     {videoId ? (
-                      <Box
-                        component="img"
-                        src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
-                        alt={video.title}
-                        onClick={() => openVideoPlayer(video.youtube_url!)}
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement
-                          if (target.src.includes('mqdefault')) {
-                            target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
-                          } else if (target.src.includes('hqdefault')) {
-                            target.src = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
-                          } else {
-                            target.style.display = 'none'
-                          }
-                        }}
-                        sx={{
-                          width: 120,
-                          height: 160,
-                          objectFit: 'cover',
-                          borderRadius: 1,
-                          cursor: 'pointer',
-                          flexShrink: 0,
-                          '&:hover': { opacity: 0.8, transition: 'opacity 0.2s' }
-                        }}
-                      />
+                      <Box component="img" src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`} alt={video.title} onClick={() => openVideoPlayer(video.youtube_url!)}
+                        onError={(e) => { const t = e.target as HTMLImageElement; if (t.src.includes('mqdefault')) t.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`; else if (t.src.includes('hqdefault')) t.src = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`; else t.style.display = 'none' }}
+                        sx={{ width: 120, height: 160, objectFit: 'cover', borderRadius: 1, cursor: 'pointer', flexShrink: 0, '&:hover': { opacity: 0.8 } }} />
                     ) : (
-                      <Box
-                        sx={{
-                          width: 120,
-                          height: 160,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRadius: 1,
-                          bgcolor: 'grey.200',
-                          flexShrink: 0,
-                        }}
-                      >
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>
-                          No Video
-                        </Typography>
+                      <Box sx={{ width: 120, height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1, bgcolor: 'grey.200', flexShrink: 0 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>No Video</Typography>
                       </Box>
                     )}
-
                     <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-                      {/* Title Row */}
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mb: 0.5 }}>
-                        <Typography
-                          variant="h6"
-                          sx={{
-                            fontWeight: 600,
-                            overflow: 'hidden',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            flex: 1,
-                          }}
-                        >
-                          {video.title}
-                        </Typography>
-                        {video.description && (
-                          <IconButton
-                            size="small"
-                            onClick={() => {
-                              setSelectedDescription(video.description || '')
-                              setSelectedDescriptionVideo(video)
-                              setDescriptionOpen(true)
-                            }}
-                            sx={{ p: 0.5 }}
-                            title="View description"
-                          >
-                            <Info fontSize="small" />
-                          </IconButton>
-                        )}
+                        <Typography variant="h6" sx={{ fontWeight: 600, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', flex: 1 }}>{video.title}</Typography>
+                        {video.description && (<IconButton size="small" onClick={() => { setSelectedDescription(video.description || ''); setSelectedDescriptionVideo(video); setDescriptionOpen(true) }} sx={{ p: 0.5 }} title="View description"><Info fontSize="small" /></IconButton>)}
                       </Box>
-                      {/* Created At Date */}
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>
-                        {new Date(video.created_at).toLocaleDateString('en-GB', { 
-                          day: 'numeric', 
-                          month: 'short', 
-                          year: 'numeric' 
-                        })}
-                      </Typography>
-
-                      {/* Content with Action Buttons */}
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>{new Date(video.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</Typography>
                       <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                          {/* Platforms Section */}
-                          <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, textTransform: 'none', color: 'text.secondary', letterSpacing: 0.5, mb: 0.5, display: 'block' }}>
-                            Platforms
-                          </Typography>
+                          <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', letterSpacing: 0.5, mb: 0.5, display: 'block' }}>Platforms</Typography>
                           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, auto)' }, gap: 0.5, mb: 1.5, width: '100%' }}>
-                            {platforms.map((platform) => {
-                              const hasUrl = !!video[`${platform.key}_url` as keyof Video]
-                              const icon = platformIcons[platform.key]
-                              const isDateMatch = isPlatformDateMatch(platform.key, video)
-                              const isReuploadMatch = isPlatformReuploadMatch(platform.key, video.id)
-
-                              return (
-                                <Chip
-                                  key={platform.key}
-                                  icon={icon || undefined}
-                                  label={platform.label}
-                                  size="small"
-                                  onClick={() => hasUrl && copyToClipboard(video[`${platform.key}_url` as keyof Video] as string, platform.label)}
-                                  sx={{
-                                    cursor: hasUrl ? 'pointer' : 'default',
-                                    opacity: hasUrl ? 1 : 0.4,
-                                    fontWeight: 500,
-                                    fontSize: 12,
-                                    height: 28,
-                                    '&:hover': hasUrl ? { opacity: 0.8 } : {},
-                                    '& .MuiChip-icon': { fontSize: 16 },
-                                    ...(isDateMatch && !isReuploadMatch && {
-                                      border: '1px solid',
-                                      borderColor: '#81c784',
-                                    }),
-                                    ...(isReuploadMatch && {
-                                      border: '1px solid',
-                                      borderColor: '#ffb74d',
-                                      color: '#ff9800',
-                                      '& .MuiChip-icon': { color: '#ff9800', fontSize: 16 },
-                                    }),
-                                  }}
-                                  variant={hasUrl ? 'filled' : 'outlined'}
-                                  color={hasUrl ? 'default' : 'default'}
-                                />
-                              )
+                            {platforms.map((p) => {
+                              const has = !!video[`${p.key}_url` as keyof Video]; const ic = platformIcons[p.key]; const dm = isPlatformDateMatch(p.key, video); const rm = isPlatformReuploadMatch(p.key, video.id)
+                              return (<Chip key={p.key} icon={ic || undefined} label={p.label} size="small" onClick={() => has && copyToClipboard(video[`${p.key}_url` as keyof Video] as string, p.label)}
+                                sx={{ cursor: has ? 'pointer' : 'default', opacity: has ? 1 : 0.4, fontWeight: 500, fontSize: 12, height: 28, '&:hover': has ? { opacity: 0.8 } : {}, '& .MuiChip-icon': { fontSize: 16 }, ...(dm && !rm && { border: '1px solid', borderColor: '#81c784' }), ...(rm && { border: '1px solid', borderColor: '#ffb74d', color: '#ff9800', '& .MuiChip-icon': { color: '#ff9800', fontSize: 16 } }) }}
+                                variant={has ? 'filled' : 'outlined'} color={has ? 'default' : 'default'} />)
                             })}
                           </Box>
-
-                          {/* Google Drive Section */}
-                          <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, textTransform: 'none', color: 'text.secondary', letterSpacing: 0.5, mb: 0.5, display: 'block' }}>
-                            Google Drive
-                          </Typography>
+                          <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', letterSpacing: 0.5, mb: 0.5, display: 'block' }}>Google Drive</Typography>
                           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
-                            {isMobileDevice() ? (
-                              <Chip
-                                icon={<GoogleDriveIcon />}
-                                label="Drive"
-                                size="small"
-                                onClick={() => searchGoogleDriveAll(video.title)}
-                                sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 }, height: 28 }}
-                                title="Search in Google Drive"
-                              />
-                            ) : (
-                              <>
-                                <Chip
-                                  icon={<GoogleDriveIcon />}
-                                  label="Drive"
-                                  size="small"
-                                  onClick={() => searchGoogleDriveLatest(video.title)}
-                                  sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 }, height: 28 }}
-                                  title="Search in Google Drive (Latest)"
-                                />
-                                <Chip
-                                  icon={<GoogleDriveIcon />}
-                                  label="Arc"
-                                  size="small"
-                                  onClick={() => searchGoogleDriveArchive(video.title)}
-                                  sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 }, height: 28 }}
-                                  title="Search in Google Drive (Archive)"
-                                />
-                              </>
-                            )}
+                            {isMobileDevice() ? (<Chip icon={<GoogleDriveIcon />} label="Drive" size="small" onClick={() => searchGoogleDriveAll(video.title)} sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 }, height: 28 }} title="Search in Google Drive" />)
+                              : (<><Chip icon={<GoogleDriveIcon />} label="Drive" size="small" onClick={() => searchGoogleDriveLatest(video.title)} sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 }, height: 28 }} title="Latest" /><Chip icon={<GoogleDriveIcon />} label="Arc" size="small" onClick={() => searchGoogleDriveArchive(video.title)} sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 }, height: 28 }} title="Archive" /></>)}
                           </Box>
-
-                          {/* Product Links */}
                           {(video.tiktok_product_url || video.shopee_product_url) && (
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.25, maxHeight: 30, overflow: 'hidden' }}>
-                              {video.tiktok_product_url && (
-                                <Chip
-                                  icon={<TikTokIcon />}
-                                  label="TikTok Shop"
-                                  size="small"
-                                  onClick={() => copyToClipboard(video.tiktok_product_url!, 'TikTok Shop')}
-                                  sx={{ cursor: 'pointer', bgcolor: '#000', color: 'white', '&:hover': { bgcolor: '#333' }, height: 28 }}
-                                />
-                              )}
-                              {video.shopee_product_url && (
-                                <Chip
-                                  icon={<Shop />}
-                                  label="Shopee"
-                                  size="small"
-                                  onClick={() => copyToClipboard(video.shopee_product_url!, 'Shopee')}
-                                  sx={{ cursor: 'pointer', bgcolor: '#EE4D2D', color: 'white', '&:hover': { bgcolor: '#D43D1F' }, height: 28 }}
-                                />
-                              )}
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.25 }}>
+                              {video.tiktok_product_url && <Chip icon={<TikTokIcon />} label="TikTok Shop" size="small" onClick={() => copyToClipboard(video.tiktok_product_url!, 'TikTok Shop')} sx={{ cursor: 'pointer', bgcolor: '#000', color: 'white', '&:hover': { bgcolor: '#333' }, height: 28 }} />}
+                              {video.shopee_product_url && <Chip icon={<Shop />} label="Shopee" size="small" onClick={() => copyToClipboard(video.shopee_product_url!, 'Shopee')} sx={{ cursor: 'pointer', bgcolor: '#EE4D2D', color: 'white', '&:hover': { bgcolor: '#D43D1F' }, height: 28 }} />}
                             </Box>
                           )}
                         </Box>
-
-                        {/* Action Buttons */}
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>
-                          <IconButton size="small" onClick={() => openUploadInfo(video)} title="Upload Info">
-                            <Upload fontSize="small" />
-                          </IconButton>
-                          <IconButton size="small" onClick={() => openEditDialog(video)} title="Edit">
-                            <Edit fontSize="small" />
-                          </IconButton>
-                          <IconButton size="small" onClick={() => handleDeleteVideo(video.id)} title="Delete">
-                            <Delete fontSize="small" />
-                          </IconButton>
+                          <IconButton size="small" onClick={() => openUploadInfo(video)} title="Upload Info"><Upload fontSize="small" /></IconButton>
+                          <IconButton size="small" onClick={() => openEditDialog(video)} title="Edit"><Edit fontSize="small" /></IconButton>
+                          <IconButton size="small" onClick={() => handleDeleteVideo(video.id)} title="Delete"><Delete fontSize="small" /></IconButton>
                         </Box>
                       </Box>
                     </Box>
@@ -1256,485 +561,89 @@ export default function Videos() {
               </Card>
             )
           })}
-
-          {/* Infinite scroll trigger */}
-          <Box ref={observerTarget} sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            py: 2,
-            minHeight: 60
-          }}>
-            {loadingMore && <CircularProgress size={24} />}
-            {visibleCount >= filteredVideos.length && filteredVideos.length > ITEMS_PER_PAGE && (
-              <Typography color="text.secondary" variant="body2">
-                No more videos to load
-              </Typography>
-            )}
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+            {loadingMore ? (<CircularProgress size={28} />) : hasMore ? (<Button variant="outlined" onClick={handleLoadMore} startIcon={<ReplayIcon />} size="medium">Load More</Button>) : videos.length >= ITEMS_PER_PAGE ? (<Typography color="text.secondary" variant="body2">All videos loaded</Typography>) : null}
           </Box>
         </Box>
       )}
 
-      {/* Add/Edit Video Dialog */}
-      <Dialog
-        open={open}
-        onClose={() => setOpen(false)}
-        maxWidth="md"
-        fullWidth
-        fullScreen={isMobile}
-      >
-        <DialogTitle sx={{ pb: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography variant="h6">{editingVideo ? 'Edit Video' : 'Add Video'}</Typography>
-            {isMobile && (
-              <IconButton onClick={() => setOpen(false)} size="small">
-                <CloseIcon />
-              </IconButton>
-            )}
-          </Box>
-        </DialogTitle>
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth fullScreen={isMobile}>
+        <DialogTitle sx={{ pb: 1 }}><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="h6">{editingVideo ? 'Edit Video' : 'Add Video'}</Typography>
+          {isMobile && <IconButton onClick={() => setOpen(false)} size="small"><CloseIcon /></IconButton>}</Box></DialogTitle>
         <DialogContent sx={{ pb: 1 }}>
-          <TextField
-            label="Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            fullWidth
-            margin="normal"
-            required
-            size={isMobile ? 'small' : 'medium'}
-          />
-          <TextField
-            label="Description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            fullWidth
-            margin="normal"
-            multiline
-            minRows={isMobile ? (descriptionFocused ? undefined : 3) : 6}
-            maxRows={isMobile ? (descriptionFocused ? undefined : 3) : undefined}
-            size={isMobile ? 'small' : 'medium'}
-            onFocus={() => isMobile && setDescriptionFocused(true)}
-            onBlur={() => isMobile && setDescriptionFocused(false)}
-            sx={isMobile && descriptionFocused ? {
-              '& .MuiInputBase-root': {
-                minHeight: '75vh',
-                alignItems: 'flex-start',
-              }
-            } : {}}
-          />
-          {editingVideo && (
-            <TextField
-              label="Created At"
-              type="date"
-              value={createdAt}
-              onChange={(e) => setCreatedAt(e.target.value)}
-              fullWidth
-              margin="normal"
-              size={isMobile ? 'small' : 'medium'}
-              slotProps={{ inputLabel: { shrink: true } }}
-            />
-          )}
-
-          <Typography variant="subtitle1" sx={{ mt: 2, mb: 1, fontWeight: 600 }}>
-            Platform Links
-          </Typography>
-
+          <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} fullWidth margin="normal" required size={isMobile ? 'small' : 'medium'} />
+          <TextField label="Description" value={description} onChange={(e) => setDescription(e.target.value)} fullWidth margin="normal" multiline
+            minRows={isMobile ? (descriptionFocused ? undefined : 3) : 6} maxRows={isMobile ? (descriptionFocused ? undefined : 3) : undefined}
+            size={isMobile ? 'small' : 'medium'} onFocus={() => isMobile && setDescriptionFocused(true)} onBlur={() => isMobile && setDescriptionFocused(false)}
+            sx={isMobile && descriptionFocused ? { '& .MuiInputBase-root': { minHeight: '75vh', alignItems: 'flex-start' } } : {}} />
+          {editingVideo && <TextField label="Created At" type="date" value={createdAt} onChange={(e) => setCreatedAt(e.target.value)} fullWidth margin="normal" size={isMobile ? 'small' : 'medium'} slotProps={{ inputLabel: { shrink: true } }} />}
+          <Typography variant="subtitle1" sx={{ mt: 2, mb: 1, fontWeight: 600 }}>Platform Links</Typography>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            {/* TikTok */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <TextField
-                label="Upload Date"
-                type="date"
-                value={tiktokUploadDate}
-                onChange={(e) => setTiktokUploadDate(e.target.value)}
-                sx={{ flex: 1 }}
-                size="small"
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-              <TextField
-                label="TikTok URL"
-                value={tiktokUrl}
-                onChange={(e) => {
-                  setTiktokUrl(e.target.value)
-                  autoSetTodayDate(setTiktokUploadDate, tiktokUploadDate, e.target.value)
-                }}
-                sx={{ flex: 2 }}
-                size="small"
-                placeholder="https://..."
-              />
-              {editingVideo && (
-                <IconButton
-                  size="small"
-                  onClick={() => openReuploadDialog('tiktok')}
-                  title="Reupload TikTok"
-                  color="warning"
-                  sx={{ flexShrink: 0 }}
-                >
-                  <ReplayIcon fontSize="small" />
-                </IconButton>
-              )}
-            </Box>
-            <TextField
-              label="TikTok Product URL"
-              value={tiktokProductUrl}
-              onChange={(e) => setTiktokProductUrl(e.target.value)}
-              fullWidth
-              size="small"
-              placeholder="https://..."
-            />
-
-            {/* YouTube */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <TextField
-                label="Upload Date"
-                type="date"
-                value={youtubeUploadDate}
-                onChange={(e) => setYoutubeUploadDate(e.target.value)}
-                sx={{ flex: 1 }}
-                size="small"
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-              <TextField
-                label="YouTube URL"
-                value={youtubeUrl}
-                onChange={(e) => {
-                  setYoutubeUrl(e.target.value)
-                  autoSetTodayDate(setYoutubeUploadDate, youtubeUploadDate, e.target.value)
-                }}
-                sx={{ flex: 2 }}
-                size="small"
-                placeholder="https://..."
-              />
-              {editingVideo && (
-                <IconButton
-                  size="small"
-                  onClick={() => openReuploadDialog('youtube')}
-                  title="Reupload YouTube"
-                  color="warning"
-                  sx={{ flexShrink: 0 }}
-                >
-                  <ReplayIcon fontSize="small" />
-                </IconButton>
-              )}
-            </Box>
-
-            {/* Facebook */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <TextField
-                label="Upload Date"
-                type="date"
-                value={facebookUploadDate}
-                onChange={(e) => setFacebookUploadDate(e.target.value)}
-                sx={{ flex: 1 }}
-                size="small"
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-              <TextField
-                label="Facebook URL"
-                value={facebookUrl}
-                onChange={(e) => {
-                  setFacebookUrl(e.target.value)
-                  autoSetTodayDate(setFacebookUploadDate, facebookUploadDate, e.target.value)
-                }}
-                sx={{ flex: 2 }}
-                size="small"
-                placeholder="https://..."
-              />
-              {editingVideo && (
-                <IconButton
-                  size="small"
-                  onClick={() => openReuploadDialog('facebook')}
-                  title="Reupload Facebook"
-                  color="warning"
-                  sx={{ flexShrink: 0 }}
-                >
-                  <ReplayIcon fontSize="small" />
-                </IconButton>
-              )}
-            </Box>
-
-            {/* Instagram */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <TextField
-                label="Upload Date"
-                type="date"
-                value={instagramUploadDate}
-                onChange={(e) => setInstagramUploadDate(e.target.value)}
-                sx={{ flex: 1 }}
-                size="small"
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-              <TextField
-                label="Instagram URL"
-                value={instagramUrl}
-                onChange={(e) => {
-                  setInstagramUrl(e.target.value)
-                  autoSetTodayDate(setInstagramUploadDate, instagramUploadDate, e.target.value)
-                }}
-                sx={{ flex: 2 }}
-                size="small"
-                placeholder="https://..."
-              />
-              {editingVideo && (
-                <IconButton
-                  size="small"
-                  onClick={() => openReuploadDialog('instagram')}
-                  title="Reupload Instagram"
-                  color="warning"
-                  sx={{ flexShrink: 0 }}
-                >
-                  <ReplayIcon fontSize="small" />
-                </IconButton>
-              )}
-            </Box>
-
-            {/* Shopee */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <TextField
-                label="Upload Date"
-                type="date"
-                value={shopeeUploadDate}
-                onChange={(e) => setShopeeUploadDate(e.target.value)}
-                sx={{ flex: 1 }}
-                size="small"
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-              <TextField
-                label="Shopee URL"
-                value={shopeeUrl}
-                onChange={(e) => {
-                  setShopeeUrl(e.target.value)
-                  autoSetTodayDate(setShopeeUploadDate, shopeeUploadDate, e.target.value)
-                }}
-                sx={{ flex: 2 }}
-                size="small"
-                placeholder="https://..."
-              />
-              {editingVideo && (
-                <IconButton
-                  size="small"
-                  onClick={() => openReuploadDialog('shopee')}
-                  title="Reupload Shopee"
-                  color="warning"
-                  sx={{ flexShrink: 0 }}
-                >
-                  <ReplayIcon fontSize="small" />
-                </IconButton>
-              )}
-            </Box>
-            <TextField
-              label="Shopee Product URL"
-              value={shopeeProductUrl}
-              onChange={(e) => setShopeeProductUrl(e.target.value)}
-              fullWidth
-              size="small"
-              placeholder="https://..."
-            />
-
-            {/* Threads */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <TextField
-                label="Upload Date"
-                type="date"
-                value={threadsUploadDate}
-                onChange={(e) => setThreadsUploadDate(e.target.value)}
-                sx={{ flex: 1 }}
-                size="small"
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-              <TextField
-                label="Threads URL"
-                value={threadsUrl}
-                onChange={(e) => {
-                  setThreadsUrl(e.target.value)
-                  autoSetTodayDate(setThreadsUploadDate, threadsUploadDate, e.target.value)
-                }}
-                sx={{ flex: 2 }}
-                size="small"
-                placeholder="https://..."
-              />
-              {editingVideo && (
-                <IconButton
-                  size="small"
-                  onClick={() => openReuploadDialog('threads')}
-                  title="Reupload Threads"
-                  color="warning"
-                  sx={{ flexShrink: 0 }}
-                >
-                  <ReplayIcon fontSize="small" />
-                </IconButton>
-              )}
-            </Box>
+            {(['tiktok', 'youtube', 'facebook', 'instagram', 'shopee', 'threads'] as const).map((p) => {
+              const urlVal = p === 'tiktok' ? tiktokUrl : p === 'youtube' ? youtubeUrl : p === 'facebook' ? facebookUrl : p === 'instagram' ? instagramUrl : p === 'shopee' ? shopeeUrl : threadsUrl
+              const dateVal = p === 'tiktok' ? tiktokUploadDate : p === 'youtube' ? youtubeUploadDate : p === 'facebook' ? facebookUploadDate : p === 'instagram' ? instagramUploadDate : p === 'shopee' ? shopeeUploadDate : threadsUploadDate
+              const setUrl = p === 'tiktok' ? setTiktokUrl : p === 'youtube' ? setYoutubeUrl : p === 'facebook' ? setFacebookUrl : p === 'instagram' ? setInstagramUrl : p === 'shopee' ? setShopeeUrl : setThreadsUrl
+              const setDate = p === 'tiktok' ? setTiktokUploadDate : p === 'youtube' ? setYoutubeUploadDate : p === 'facebook' ? setFacebookUploadDate : p === 'instagram' ? setInstagramUploadDate : p === 'shopee' ? setShopeeUploadDate : setThreadsUploadDate
+              return (<Box key={p} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <TextField label="Upload Date" type="date" value={dateVal} onChange={(e) => setDate(e.target.value)} sx={{ flex: 1 }} size="small" slotProps={{ inputLabel: { shrink: true } }} />
+                <TextField label={`${p.charAt(0).toUpperCase() + p.slice(1)} URL`} value={urlVal} onChange={(e) => { setUrl(e.target.value); autoSetTodayDate(setDate, dateVal, e.target.value) }} sx={{ flex: 2 }} size="small" placeholder="https://..." />
+                {editingVideo && <IconButton size="small" onClick={() => openReuploadDialog(p)} title={`Reupload ${p}`} color="warning" sx={{ flexShrink: 0 }}><ReplayIcon fontSize="small" /></IconButton>}
+              </Box>)
+            })}
           </Box>
+          <Divider sx={{ my: 2 }} />
+          <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 600 }}>Product Links</Typography>
+          <TextField label="TikTok Product URL" value={tiktokProductUrl} onChange={(e) => setTiktokProductUrl(e.target.value)} fullWidth size="small" placeholder="https://..." sx={{ mb: 1.5 }} />
+          <TextField label="Shopee Product URL" value={shopeeProductUrl} onChange={(e) => setShopeeProductUrl(e.target.value)} fullWidth size="small" placeholder="https://..." />
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           {!isMobile && <Button onClick={() => setOpen(false)}>Cancel</Button>}
-          <Button onClick={editingVideo ? handleUpdateVideo : handleAddVideo} variant="contained" fullWidth={isMobile}>
-            {editingVideo ? 'Update' : 'Add'}
-          </Button>
+          <Button onClick={editingVideo ? handleUpdateVideo : handleAddVideo} variant="contained" fullWidth={isMobile}>{editingVideo ? 'Update' : 'Add'}</Button>
         </DialogActions>
       </Dialog>
 
-      {/* Reupload Popup (nested inside Edit Dialog) */}
-      <Dialog
-        open={reuploadDialogOpen}
-        onClose={() => setReuploadDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography variant="h6">
-              Reupload - {reuploadPlatform.charAt(0).toUpperCase() + reuploadPlatform.slice(1)}
-            </Typography>
-            <IconButton onClick={() => setReuploadDialogOpen(false)} size="small">
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 1 }}>
-            <TextField
-              label="Platform"
-              value={reuploadPlatform.charAt(0).toUpperCase() + reuploadPlatform.slice(1)}
-              fullWidth
-              margin="normal"
-              size="small"
-              disabled
-            />
-            <TextField
-              label="URL"
-              value={reuploadUrl}
-              onChange={(e) => setReuploadUrl(e.target.value)}
-              fullWidth
-              margin="normal"
-              size="small"
-              placeholder="https://..."
-            />
-            <TextField
-              label="Upload Date"
-              type="date"
-              value={reuploadUploadDate}
-              onChange={(e) => setReuploadUploadDate(e.target.value)}
-              fullWidth
-              margin="normal"
-              size="small"
-              slotProps={{ inputLabel: { shrink: true } }}
-            />
-            <TextField
-              label="Notes (optional)"
-              value={reuploadNotes}
-              onChange={(e) => setReuploadNotes(e.target.value)}
-              fullWidth
-              margin="normal"
-              size="small"
-              multiline
-              rows={3}
-              placeholder="e.g. Reupload sebab video expired"
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setReuploadDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleSaveReupload} variant="contained" color="warning" startIcon={<ReplayIcon />}>
-            Save Reupload
-          </Button>
-        </DialogActions>
+      <Dialog open={reuploadDialogOpen} onClose={() => setReuploadDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="h6">Reupload - {reuploadPlatform.charAt(0).toUpperCase() + reuploadPlatform.slice(1)}</Typography>
+          <IconButton onClick={() => setReuploadDialogOpen(false)} size="small"><CloseIcon /></IconButton></Box></DialogTitle>
+        <DialogContent><Box sx={{ mt: 1 }}>
+          <TextField label="Platform" value={reuploadPlatform.charAt(0).toUpperCase() + reuploadPlatform.slice(1)} fullWidth margin="normal" size="small" disabled />
+          <TextField label="URL" value={reuploadUrl} onChange={(e) => setReuploadUrl(e.target.value)} fullWidth margin="normal" size="small" placeholder="https://..." />
+          <TextField label="Upload Date" type="date" value={reuploadUploadDate} onChange={(e) => setReuploadUploadDate(e.target.value)} fullWidth margin="normal" size="small" slotProps={{ inputLabel: { shrink: true } }} />
+          <TextField label="Notes (optional)" value={reuploadNotes} onChange={(e) => setReuploadNotes(e.target.value)} fullWidth margin="normal" size="small" multiline rows={3} placeholder="e.g. Reupload sebab video expired" />
+        </Box></DialogContent>
+        <DialogActions sx={{ p: 2 }}><Button onClick={() => setReuploadDialogOpen(false)}>Cancel</Button><Button onClick={handleSaveReupload} variant="contained" color="warning" startIcon={<ReplayIcon />}>Save Reupload</Button></DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={3000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity="success" onClose={() => setSnackbar({ ...snackbar, open: false })}>
-          {snackbar.message}
-        </Alert>
+      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar({ ...snackbar, open: false })} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert severity="success" onClose={() => setSnackbar({ ...snackbar, open: false })}>{snackbar.message}</Alert>
       </Snackbar>
 
-      {/* Description Dialog */}
       <Dialog open={descriptionOpen} onClose={() => setDescriptionOpen(false)} maxWidth="md" fullWidth fullScreen={isMobile}>
-        <DialogTitle>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>Description</span>
-            <IconButton onClick={() => setDescriptionOpen(false)} size="small">
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
+        <DialogTitle><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span>Description</span><IconButton onClick={() => setDescriptionOpen(false)} size="small"><CloseIcon /></IconButton></Box></DialogTitle>
         <DialogContent>
-          {parseDescription(selectedDescription).map((section, index) => (
-            <Box key={index} sx={{ mb: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                  {section.title}
-                </Typography>
-                {section.content && (
-                  <IconButton 
-                    size="small" 
-                    onClick={() => copyToClipboard(section.content, section.title)}
-                    title="Copy content"
-                  >
-                    <CopyIcon fontSize="small" />
-                  </IconButton>
-                )}
-              </Box>
-              {section.content && (
-                <Box 
-                  sx={{ 
-                    p: 1.5, 
-                    bgcolor: 'grey.50', 
-                    borderRadius: 1,
-                    border: '1px solid',
-                    borderColor: 'grey.200'
-                  }}
-                >
-                  <Typography variant="body2" sx={{ whiteSpace: 'pre-line', fontSize: 13 }}>
-                    {section.content}
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          ))}
-
-          {/* Product URLs Section */}
+          {parseDescription(selectedDescription).map((s, i) => (<Box key={i} sx={{ mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'primary.main' }}>{s.title}</Typography>
+              {s.content && <IconButton size="small" onClick={() => copyToClipboard(s.content, s.title)} title="Copy content"><CopyIcon fontSize="small" /></IconButton>}</Box>
+            {s.content && <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'grey.200' }}><Typography variant="body2" sx={{ whiteSpace: 'pre-line', fontSize: 13 }}>{s.content}</Typography></Box>}
+          </Box>))}
           {(selectedDescriptionVideo?.shopee_product_url || selectedDescriptionVideo?.tiktok_product_url) && (
-            <>
-              <Divider sx={{ my: 2 }} />
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>
-                Product Links
-              </Typography>
+            <><Divider sx={{ my: 2 }} /><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>Product Links</Typography>
               {selectedDescriptionVideo?.shopee_product_url && (
                 <Box sx={{ mb: 1.5 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       <Shop sx={{ fontSize: 18, color: '#EE4D2D' }} />
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#EE4D2D' }}>
-                        Shopee Product URL
-                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#EE4D2D' }}>Shopee Product URL</Typography>
                     </Box>
-                    <IconButton 
-                      size="small" 
-                      onClick={() => copyToClipboard(selectedDescriptionVideo.shopee_product_url!, 'Shopee Product')}
-                      title="Copy URL"
-                    >
+                    <IconButton size="small" onClick={() => copyToClipboard(selectedDescriptionVideo.shopee_product_url!, 'Shopee Product')} title="Copy URL">
                       <CopyIcon fontSize="small" />
                     </IconButton>
                   </Box>
-                  <Box 
-                    sx={{ 
-                      p: 1.5, 
-                      bgcolor: 'grey.50', 
-                      borderRadius: 1,
-                      border: '1px solid',
-                      borderColor: 'grey.200'
-                    }}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: 13, wordBreak: 'break-all' }}>
-                      {selectedDescriptionVideo.shopee_product_url}
-                    </Typography>
+                  <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'grey.200' }}>
+                    <Typography variant="body2" sx={{ fontSize: 13, wordBreak: 'break-all' }}>{selectedDescriptionVideo.shopee_product_url}</Typography>
                   </Box>
                 </Box>
               )}
@@ -1743,134 +652,45 @@ export default function Videos() {
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       <TikTokIcon sx={{ fontSize: 18 }} />
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        TikTok Product URL
-                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>TikTok Product URL</Typography>
                     </Box>
-                    <IconButton 
-                      size="small" 
-                      onClick={() => copyToClipboard(selectedDescriptionVideo.tiktok_product_url!, 'TikTok Product')}
-                      title="Copy URL"
-                    >
+                    <IconButton size="small" onClick={() => copyToClipboard(selectedDescriptionVideo.tiktok_product_url!, 'TikTok Product')} title="Copy URL">
                       <CopyIcon fontSize="small" />
                     </IconButton>
                   </Box>
-                  <Box 
-                    sx={{ 
-                      p: 1.5, 
-                      bgcolor: 'grey.50', 
-                      borderRadius: 1,
-                      border: '1px solid',
-                      borderColor: 'grey.200'
-                    }}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: 13, wordBreak: 'break-all' }}>
-                      {selectedDescriptionVideo.tiktok_product_url}
-                    </Typography>
+                  <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'grey.200' }}>
+                    <Typography variant="body2" sx={{ fontSize: 13, wordBreak: 'break-all' }}>{selectedDescriptionVideo.tiktok_product_url}</Typography>
                   </Box>
                 </Box>
               )}
             </>
           )}
         </DialogContent>
-        {!isMobile && (
-          <DialogActions>
-            <Button onClick={() => setDescriptionOpen(false)}>Close</Button>
-          </DialogActions>
-        )}
+        {!isMobile && <DialogActions><Button onClick={() => setDescriptionOpen(false)}>Close</Button></DialogActions>}
       </Dialog>
 
-      {/* Video Player Dialog */}
       <Dialog open={videoPlayerOpen} onClose={() => setVideoPlayerOpen(false)} maxWidth="sm" fullWidth fullScreen={isMobile}>
-        <DialogTitle sx={{ pb: 0 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>Video Player</span>
-            <IconButton onClick={() => setVideoPlayerOpen(false)} size="small">
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
+        <DialogTitle sx={{ pb: 0 }}><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span>Video Player</span><IconButton onClick={() => setVideoPlayerOpen(false)} size="small"><CloseIcon /></IconButton></Box></DialogTitle>
         <DialogContent sx={{ p: 0 }}>
           {selectedVideoUrl && getYouTubeVideoId(selectedVideoUrl) && (
             <>
-              {videoLoading && (
-                <Box sx={{
-                  width: '100%',
-                  height: isMobile ? '85vh' : '80vh',
-                  maxWidth: 450,
-                  mx: 'auto',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: '#000'
-                }}>
-                  <CircularProgress color="primary" />
-                </Box>
-              )}
-              <Box sx={{
-                position: 'relative',
-                width: '100%',
-                height: isMobile ? '85vh' : '80vh',
-                maxWidth: 450,
-                mx: 'auto',
-                overflow: 'hidden',
-                display: videoLoading ? 'none' : 'block'
-              }}>
-                <iframe
-                  src={`https://www.youtube.com/embed/${getYouTubeVideoId(selectedVideoUrl)}?autoplay=1`}
-                  title="YouTube video player"
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    border: 'none'
-                  }}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  onLoad={handleVideoLoad}
-                />
+              {videoLoading && <Box sx={{ width: '100%', height: isMobile ? '85vh' : '80vh', maxWidth: 450, mx: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}><CircularProgress color="primary" /></Box>}
+              <Box sx={{ position: 'relative', width: '100%', height: isMobile ? '85vh' : '80vh', maxWidth: 450, mx: 'auto', overflow: 'hidden', display: videoLoading ? 'none' : 'block' }}>
+                <iframe src={`https://www.youtube.com/embed/${getYouTubeVideoId(selectedVideoUrl)}?autoplay=1`} title="YouTube video player"
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen onLoad={handleVideoLoad} />
               </Box>
             </>
           )}
-
-          {/* Available Platforms */}
           <Box sx={{ mt: 2, px: 2, pb: 2 }}>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-              Available Platforms:
-            </Typography>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>Available Platforms:</Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
               {(() => {
-                const currentVideo = videos.find(v =>
-                  v.youtube_url === selectedVideoUrl ||
-                  v.facebook_url === selectedVideoUrl ||
-                  v.instagram_url === selectedVideoUrl ||
-                  v.tiktok_url === selectedVideoUrl ||
-                  v.threads_url === selectedVideoUrl ||
-                  v.shopee_url === selectedVideoUrl
-                )
-
-                if (!currentVideo) return null
-
-                return getAvailablePlatforms(currentVideo).map(platform => {
-                  const url = currentVideo[`${platform.key}_url` as keyof Video] as string
-                  const isYouTube = platform.key === 'youtube'
-                  const icon = platformIcons[platform.key]
-
-                  return (
-                    <Button
-                      key={platform.key}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      variant={isYouTube ? 'contained' : 'outlined'}
-                      startIcon={icon || undefined}
-                      size="small"
-                    >
-                      {platform.label}
-                    </Button>
-                  )
+                const cv = videos.find(v => v.youtube_url === selectedVideoUrl || v.facebook_url === selectedVideoUrl || v.instagram_url === selectedVideoUrl || v.tiktok_url === selectedVideoUrl || v.threads_url === selectedVideoUrl || v.shopee_url === selectedVideoUrl)
+                if (!cv) return null
+                return getAvailablePlatforms(cv).map(p => {
+                  const u = cv[`${p.key}_url` as keyof Video] as string
+                  return <Button key={p.key} href={u} target="_blank" rel="noopener noreferrer" variant={p.key === 'youtube' ? 'contained' : 'outlined'} startIcon={platformIcons[p.key] || undefined} size="small">{p.label}</Button>
                 })
               })()}
             </Box>
@@ -1878,81 +698,27 @@ export default function Videos() {
         </DialogContent>
       </Dialog>
 
-      {/* Upload Info Dialog */}
       <Dialog open={uploadInfoOpen} onClose={() => setUploadInfoOpen(false)} maxWidth="md" fullWidth fullScreen={isMobile}>
-        <DialogTitle>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>Upload Info - {selectedVideoForInfo?.title}</span>
-            <IconButton onClick={() => setUploadInfoOpen(false)} size="small">
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
+        <DialogTitle><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span>Upload Info - {selectedVideoForInfo?.title}</span><IconButton onClick={() => setUploadInfoOpen(false)} size="small"><CloseIcon /></IconButton></Box></DialogTitle>
         <DialogContent>
           <TableContainer component={Paper} sx={{ mt: 2 }}>
-              <Table size={isMobile ? 'small' : 'medium'}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell><strong>Platform</strong></TableCell>
-                    <TableCell><strong>Upload Date</strong></TableCell>
-                    <TableCell><strong>URL</strong></TableCell>
-                    <TableCell><strong>Reuploads</strong></TableCell>
-                  </TableRow>
-                </TableHead>
+            <Table size={isMobile ? 'small' : 'medium'}>
+              <TableHead><TableRow><TableCell><strong>Platform</strong></TableCell><TableCell><strong>Upload Date</strong></TableCell><TableCell><strong>URL</strong></TableCell><TableCell><strong>Reuploads</strong></TableCell></TableRow></TableHead>
               <TableBody>
-                {selectedVideoForInfo && platforms.map((platform) => {
-                  const url = selectedVideoForInfo[`${platform.key}_url` as keyof Video] as string | null
-                  const uploadDate = selectedVideoForInfo[`${platform.key}_upload_date` as keyof Video] as string | null
-                  const isUploaded = !!url
-
+                {selectedVideoForInfo && platforms.map((p) => {
+                  const url = selectedVideoForInfo[`${p.key}_url` as keyof Video] as string | null
+                  const ud = selectedVideoForInfo[`${p.key}_upload_date` as keyof Video] as string | null
+                  const isUp = !!url
                   return (
-                    <TableRow key={platform.key} hover>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {platformIcons[platform.key]}
-                          {platform.label}
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        {isUploaded ? (uploadDate || '-') : (
-                          <Chip label="Not Uploaded" size="small" color="warning" variant="outlined" />
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {isUploaded ? (
-                          <Button
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            size="small"
-                            variant="text"
-                          >
-                            Open Link
-                          </Button>
-                        ) : (
-                          <Typography color="text.secondary" variant="body2">-</Typography>
-                        )}
-                      </TableCell>
+                    <TableRow key={p.key} hover>
+                      <TableCell><Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>{platformIcons[p.key]}{p.label}</Box></TableCell>
+                      <TableCell>{isUp ? (ud || '-') : <Chip label="Not Uploaded" size="small" color="warning" variant="outlined" />}</TableCell>
+                      <TableCell>{isUp ? <Button href={url} target="_blank" rel="noopener noreferrer" size="small" variant="text">Open Link</Button> : <Typography color="text.secondary" variant="body2">-</Typography>}</TableCell>
                       <TableCell>
                         {(() => {
-                          const videoReuploads = reuploads.filter(r => r.video_id === selectedVideoForInfo.id && r.platform === platform.key)
-                          if (videoReuploads.length === 0) {
-                            return <Typography color="text.secondary" variant="body2">-</Typography>
-                          }
-                          return (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                              {videoReuploads.map((r) => (
-                                <Chip
-                                  key={r.id}
-                                  label={r.upload_date || 'No date'}
-                                  size="small"
-                                  color="warning"
-                                  variant="outlined"
-                                  sx={{ fontSize: 11, height: 20, fontWeight: 500 }}
-                                />
-                              ))}
-                            </Box>
-                          )
+                          const vr = reuploads.filter(r => r.video_id === selectedVideoForInfo.id && r.platform === p.key)
+                          if (vr.length === 0) return <Typography color="text.secondary" variant="body2">-</Typography>
+                          return <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>{vr.map(r => <Chip key={r.id} label={r.upload_date || 'No date'} size="small" color="warning" variant="outlined" sx={{ fontSize: 11, height: 20, fontWeight: 500 }} />)}</Box>
                         })()}
                       </TableCell>
                     </TableRow>
