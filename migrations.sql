@@ -66,3 +66,23 @@ CREATE INDEX IF NOT EXISTS idx_reuploads_upload_date ON reuploads(upload_date);
 -- Additional indexes for stat card queries (platform + upload_date combinations)
 CREATE INDEX IF NOT EXISTS idx_reuploads_platform_date ON reuploads(platform, upload_date);
 CREATE INDEX IF NOT EXISTS idx_reuploads_video_platform_date ON reuploads(video_id, platform, upload_date);
+
+-- Bookmarks table - for user-specific video bookmarks
+CREATE TABLE IF NOT EXISTS bookmarks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, video_id)
+);
+
+ALTER TABLE bookmarks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own bookmarks"
+  ON bookmarks FOR ALL
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON bookmarks(user_id);
+CREATE INDEX IF NOT EXISTS idx_bookmarks_video_id ON bookmarks(video_id);

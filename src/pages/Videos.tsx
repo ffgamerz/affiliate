@@ -10,7 +10,7 @@ import {
   Add, Edit, Delete, YouTube, Facebook, Instagram, Info, Upload,
   MusicNote as TikTokIcon, Shop, Forum as ThreadsIcon,
   Search as SearchIcon, Close as CloseIcon, ContentCopy as CopyIcon,
-  Replay as ReplayIcon,
+  Replay as ReplayIcon, Bookmark, BookmarkBorder,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 
@@ -148,6 +148,8 @@ export default function Videos() {
   const [shopeeProductUrl, setShopeeProductUrl] = useState(''); const [threadsUrl, setThreadsUrl] = useState('')
   const [threadsUploadDate, setThreadsUploadDate] = useState(''); const [tiktokUrl, setTiktokUrl] = useState('')
   const [tiktokUploadDate, setTiktokUploadDate] = useState(''); const [tiktokProductUrl, setTiktokProductUrl] = useState('')
+  const [bookmarkedVideoIds, setBookmarkedVideoIds] = useState<Set<string>>(new Set())
+  const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false)
 
   // Date helper functions - defined early to avoid hoisting issues
   // Use Asia/Kuala_Lumpur timezone to match Malaysia local time
@@ -336,7 +338,7 @@ export default function Videos() {
       // No pagination - fetch all matching records (for upload date filter)
       q = q.order('created_at', { ascending: false })
     }
-    if (activeSearchQuery) q = q.or(`title.ilike.%${activeSearchQuery}%,description.ilike.%${activeSearchQuery}%`)
+    if (activeSearchQuery) q = q.or(`title.ilike.%${activeSearchQuery}%`)
     if (dateFilter) q = q.eq('created_at', `${dateFilter}T00:00:00.000Z`)
     if (platformFilter) q = q.not(`${platformFilter}_url`, 'is', null)
     if (filterEmptyPlatform) q = q.is(`${filterEmptyPlatform}_url`, null)
@@ -440,6 +442,19 @@ export default function Videos() {
     setLoading(false); setLoadingMore(false); fetchStats()
   }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9])
 
+  // Fetch bookmarks for current user
+  const fetchBookmarks = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setBookmarkedVideoIds(new Set())
+      return
+    }
+    const { data } = await supabase.from('bookmarks').select('video_id').eq('user_id', user.id)
+    if (data) {
+      setBookmarkedVideoIds(new Set(data.map((b: any) => b.video_id)))
+    }
+  }, [])
+
   // Effect to trigger fetch when activeSearchQuery changes
   useEffect(() => {
     setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
@@ -453,6 +468,36 @@ export default function Videos() {
       fetchData(0, true)
     }
   }, [location.key, fetchData])
+
+  // Fetch bookmarks on mount
+  useEffect(() => {
+    fetchBookmarks()
+  }, [fetchBookmarks])
+
+  // Fetch bookmarked videos when bookmark filter is active
+  useEffect(() => {
+    if (showBookmarkedOnly) {
+      const loadBookmarkedVideos = async () => {
+        setLoading(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          setLoading(false)
+          return
+        }
+        const { data: bookmarkData } = await supabase.from('bookmarks').select('video_id').eq('user_id', user.id)
+        if (bookmarkData && bookmarkData.length > 0) {
+          const videoIds = bookmarkData.map((b: any) => b.video_id)
+          const { data: videoData } = await supabase.from('videos').select('*').in('id', videoIds)
+          setVideos((videoData as Video[]) || [])
+        } else {
+          setVideos([])
+        }
+        setHasMore(false)
+        setLoading(false)
+      }
+      loadBookmarkedVideos()
+    }
+  }, [showBookmarkedOnly])
 
   const handleLoadMore = () => { const np = currentPage + 1; setCurrentPage(np); fetchData(np, false) }
 
@@ -533,16 +578,57 @@ export default function Videos() {
   const hasUploadOnDate = (v: Video, d: string) => platforms.some(p => (v[`${p.key}_upload_date` as keyof Video] as string | null) === d)
   const hasUploadOnAnyDateInRange = (v: Video, ds: string[]) => platforms.some(p => { const ud = v[`${p.key}_upload_date` as keyof Video] as string | null; return ud && ds.includes(ud) })
 
+  // Toggle bookmark for a video
+  const toggleBookmark = async (videoId: string) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setSnackbar({ open: true, message: 'Please login to bookmark videos' })
+      return
+    }
+    
+    const isBookmarked = bookmarkedVideoIds.has(videoId)
+    
+    if (isBookmarked) {
+      // Remove bookmark
+      const { error } = await supabase.from('bookmarks').delete().eq('user_id', user.id).eq('video_id', videoId)
+      if (!error) {
+        setBookmarkedVideoIds(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(videoId)
+          return newSet
+        })
+        setSnackbar({ open: true, message: 'Bookmark removed' })
+      }
+    } else {
+      // Add bookmark
+      const { error } = await supabase.from('bookmarks').insert({ user_id: user.id, video_id: videoId })
+      if (!error) {
+        setBookmarkedVideoIds(prev => new Set(prev).add(videoId))
+        setSnackbar({ open: true, message: 'Video bookmarked!' })
+      }
+    }
+  }
+
+  // Apply bookmark filter first (standalone filter)
+  const bookmarkFilteredVideos = useMemo(() => {
+    if (showBookmarkedOnly) {
+      return videos.filter(v => bookmarkedVideoIds.has(v.id))
+    }
+    return videos
+  }, [videos, showBookmarkedOnly, bookmarkedVideoIds])
+
   const filteredVideos = useMemo(() => {
     // If there's an active search query, videos are already filtered by buildFilteredQuery
     // Only apply client-side filtering for upload date filters
-    if (activeSearchQuery) return videos
-    return videos.filter(v => {
+    if (activeSearchQuery) return bookmarkFilteredVideos
+    return bookmarkFilteredVideos.filter(v => {
       const m = uploadDateFilter === '' || (uploadDateFilter === 'today' ? hasUploadOnDate(v, todayDate) || hasReuploadForVideoOnDate(v.id, todayDate) : uploadDateFilter === 'yesterday' ? hasUploadOnDate(v, yesterdayDate) || hasReuploadForVideoOnDate(v.id, yesterdayDate) : uploadDateFilter === 'range-3-9' ? hasUploadOnAnyDateInRange(v, dates3to9) || hasReuploadForVideoOnAnyDateInRange(v.id, dates3to9) : true)
       const mc = customUploadDateFilter === '' || hasUploadOnDate(v, customUploadDateFilter) || hasReuploadForVideoOnDate(v.id, customUploadDateFilter)
       return m && mc
     })
-  }, [videos, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, reuploads, activeSearchQuery])
+  }, [bookmarkFilteredVideos, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, reuploads, activeSearchQuery])
+
+  const displayedVideos = filteredVideos
 
   return (
     <Box>
@@ -592,20 +678,29 @@ export default function Videos() {
           <option value="">Platform</option>
           {platforms.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
         </TextField>
-        {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter) && (
-          <Button variant="outlined" size="small" onClick={() => { setSearchQuery(''); setActiveSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter(''); setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter('') }} startIcon={<CloseIcon />}>Clear</Button>
+        <Chip 
+          label="Bookmarked" 
+          size="small" 
+          onClick={() => setShowBookmarkedOnly(!showBookmarkedOnly)}
+          color={showBookmarkedOnly ? 'primary' : 'default'}
+          variant={showBookmarkedOnly ? 'filled' : 'outlined'}
+          sx={{ cursor: 'pointer', height: 36 }}
+        />
+        {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter || showBookmarkedOnly) && (
+          <Button variant="outlined" size="small" onClick={() => { setSearchQuery(''); setActiveSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter(''); setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter(''); setShowBookmarkedOnly(false) }} startIcon={<CloseIcon />}>Clear</Button>
         )}
       </Box>
 
       {filterEmptyPlatform && <Alert severity="info" sx={{ mb: 2 }}>Showing videos without {filterEmptyPlatform} URL</Alert>}
+      {showBookmarkedOnly && <Alert severity="info" sx={{ mb: 2 }}>Showing only bookmarked videos</Alert>}
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}><CircularProgress /></Box>
-      ) : filteredVideos.length === 0 ? (
-        <Typography color="text.secondary" align="center" sx={{ py: 6 }}>{searchQuery || dateFilter ? 'No videos found matching your criteria' : 'No videos yet. Click "Add Video" to create one!'}</Typography>
+      ) : displayedVideos.length === 0 ? (
+        <Typography color="text.secondary" align="center" sx={{ py: 6 }}>{showBookmarkedOnly ? 'No bookmarked videos found. Click the bookmark icon on videos to bookmark them.' : searchQuery || dateFilter ? 'No videos found matching your criteria' : 'No videos yet. Click "Add Video" to create one!'}</Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {filteredVideos.map((video) => {
+          {displayedVideos.map((video) => {
             const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
             return (
               <Card key={video.id}>
@@ -624,6 +719,14 @@ export default function Videos() {
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mb: 0.5 }}>
                         <Typography variant="h6" sx={{ fontWeight: 600, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', flex: 1 }}>{video.title}</Typography>
                         {video.description && (<IconButton size="small" onClick={() => { setSelectedDescription(video.description || ''); setSelectedDescriptionVideo(video); setDescriptionOpen(true) }} sx={{ p: 0.5 }} title="View description"><Info fontSize="small" /></IconButton>)}
+                        <IconButton 
+                          size="small" 
+                          onClick={() => toggleBookmark(video.id)} 
+                          sx={{ p: 0.5, color: bookmarkedVideoIds.has(video.id) ? 'primary.main' : 'text.secondary' }} 
+                          title={bookmarkedVideoIds.has(video.id) ? 'Remove bookmark' : 'Bookmark this video'}
+                        >
+                          {bookmarkedVideoIds.has(video.id) ? <Bookmark fontSize="small" /> : <BookmarkBorder fontSize="small" />}
+                        </IconButton>
                       </Box>
                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>{new Date(video.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</Typography>
                       <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
