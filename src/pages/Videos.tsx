@@ -13,7 +13,6 @@ import {
   Replay as ReplayIcon,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
-import { useDebounce } from '../hooks/useDebounce'
 
 const GoogleDriveIcon = () => (
   <svg width="20" height="20" viewBox="0 0 87.3 76.6" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -74,14 +73,14 @@ const getPlatformColor = (p: string): string => {
 
 const buildUploadDateOrFilter = (date: string): string => platforms.map(p => `${p.key}_upload_date.eq.${date}`).join(',')
 
-const StatCard = ({ filterKey, title, videoCount, platformUploadCount, uploadDateFilter, setUploadDateFilter, platformBreakdown }: {
+const StatCard = ({ filterKey, title, videoCount, platformUploadCount, uploadDateFilter, onFilterClick, platformBreakdown }: {
   filterKey: 'today' | 'yesterday' | 'range-3-9'; title: string; videoCount: number; platformUploadCount: number
   uploadDateFilter: 'today' | 'yesterday' | 'range-3-9' | ''
-  setUploadDateFilter: (val: 'today' | 'yesterday' | 'range-3-9' | '') => void
+  onFilterClick: (filterKey: 'today' | 'yesterday' | 'range-3-9') => void
   platformBreakdown: { key: string; original: number; reupload: number }[]
 }) => (
   <Card sx={{ bgcolor: 'background.paper', cursor: 'pointer', transition: 'all 0.2s ease', border: uploadDateFilter === filterKey ? '1px solid' : '1px solid #f0f0f0', borderColor: uploadDateFilter === filterKey ? 'primary.main' : '#f0f0f0', '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' } }}
-    onClick={() => setUploadDateFilter(uploadDateFilter === filterKey ? '' : filterKey)}>
+    onClick={() => onFilterClick(filterKey)}>
     <CardContent sx={{ p: 2.5 }}>
       <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 500, color: 'text.secondary', letterSpacing: 0.5, display: 'block', mb: 1 }}>{title}</Typography>
       <Typography variant="h4" sx={{ fontWeight: 700, fontSize: 32, color: 'text.primary', mb: 0.5 }}>{videoCount}</Typography>
@@ -126,7 +125,7 @@ export default function Videos() {
   const [videoLoading, setVideoLoading] = useState(false); const [uploadInfoOpen, setUploadInfoOpen] = useState(false)
   const [selectedVideoForInfo, setSelectedVideoForInfo] = useState<Video | null>(null)
   const ITEMS_PER_PAGE = 10
-  const [searchQuery, setSearchQuery] = useState(''); const debouncedSearchQuery = useDebounce(searchQuery, 300)
+  const [searchQuery, setSearchQuery] = useState(''); const [activeSearchQuery, setActiveSearchQuery] = useState('')
   const [dateFilter, setDateFilter] = useState(''); const [filterEmptyPlatform, setFilterEmptyPlatform] = useState<string | null>(null)
   const [platformFilter, setPlatformFilter] = useState<string>('')
   const [uploadDateFilter, setUploadDateFilter] = useState<'today' | 'yesterday' | 'range-3-9' | ''>('')
@@ -138,6 +137,7 @@ export default function Videos() {
   const [reuploadDialogOpen, setReuploadDialogOpen] = useState(false); const [reuploadPlatform, setReuploadPlatform] = useState('')
   const [reuploadUrl, setReuploadUrl] = useState(''); const [reuploadUploadDate, setReuploadUploadDate] = useState('')
   const [reuploadNotes, setReuploadNotes] = useState(''); const searchInputRef = useRef<HTMLInputElement>(null)
+  const processedLocationStateRef = useRef<string | null>(null)
   const [snackbar, setSnackbar] = useState({ open: false, message: '' })
   const [title, setTitle] = useState(''); const [description, setDescription] = useState('')
   const [descriptionFocused, setDescriptionFocused] = useState(false); const [createdAt, setCreatedAt] = useState('')
@@ -171,14 +171,17 @@ export default function Videos() {
     d.setDate(d.getDate() - days)
     return formatter.format(d)
   }
-  const todayDate = getTodayDate(); const yesterdayDate = getDateDaysAgo(1); const dates3to9 = Array.from({ length: 7 }, (_, i) => getDateDaysAgo(i + 3))
+  // Memoize date values to prevent infinite re-render loop
+  const todayDate = useMemo(() => getTodayDate(), [])
+  const yesterdayDate = useMemo(() => getDateDaysAgo(1), [])
+  const dates3to9 = useMemo(() => Array.from({ length: 7 }, (_, i) => getDateDaysAgo(i + 3)), [])
 
   // Optimized fetchStats - fetch IDs for proper deduplication
   const fetchStats = useCallback(async () => {
-    // Use the same timezone-aware date functions
-    const todayStr = getTodayDate()
-    const yesterdayStr = getDateDaysAgo(1)
-    const d3to9 = Array.from({ length: 7 }, (_, i) => getDateDaysAgo(i + 3))
+    // Use memoized date values
+    const todayStr = todayDate
+    const yesterdayStr = yesterdayDate
+    const d3to9 = dates3to9
     
     // Check cache first
     const cacheKey = `stats_${todayStr}`; const cached = localStorage.getItem(cacheKey)
@@ -273,15 +276,56 @@ export default function Videos() {
     setTodayStats(ts); setYesterdayStats(ys); setRange3to9Stats(rs)
   }, [])
 
+  // Handle location state for navigation from other pages
   useEffect(() => {
-    if ((location.state as any)?.focusSearch && searchInputRef.current) searchInputRef.current.focus()
-    if ((location.state as any)?.calendarUploadDate) { setCustomUploadDateFilter((location.state as any).calendarUploadDate); setUploadDateFilter('') }
-    if ((location.state as any)?.searchQuery) setSearchQuery((location.state as any).searchQuery)
-  }, [location])
+    const state = location.state as any
+    const stateKey = state ? JSON.stringify(state) : null
+    // Only process if this is a new state (not same as before)
+    if (processedLocationStateRef.current === stateKey) return
+    processedLocationStateRef.current = stateKey
+    
+    if (state?.focusSearch && searchInputRef.current) searchInputRef.current.focus()
+    if (state?.calendarUploadDate) { 
+      setCustomUploadDateFilter(state.calendarUploadDate); 
+      setUploadDateFilter(''); 
+      setSearchQuery(''); 
+      setActiveSearchQuery('');
+      setPlatformFilter(''); 
+      setFilterEmptyPlatform(null); 
+    }
+    if (state?.searchQuery) {
+      setSearchQuery(state.searchQuery);
+      setActiveSearchQuery(state.searchQuery);
+      setUploadDateFilter('');
+      setPlatformFilter('');
+      setDateFilter('');
+      setCustomUploadDateFilter('');
+      setFilterEmptyPlatform(null);
+    }
+    if (state?.filterEmptyPlatform) {
+      setFilterEmptyPlatform(state.filterEmptyPlatform)
+    }
+    if (state?.openAddDialog) {
+      openAddDialog()
+    }
+  }, [location.key])
 
-  useEffect(() => { fetchData(0, true); if (location.state && (location.state as any).filterEmptyPlatform) setFilterEmptyPlatform((location.state as any).filterEmptyPlatform); if (location.state && (location.state as any).openAddDialog) openAddDialog() }, [])
+  // Handle stat card click - reset other filters when clicking stat card
+  const handleStatCardClick = (filterKey: 'today' | 'yesterday' | 'range-3-9') => {
+    setUploadDateFilter(uploadDateFilter === filterKey ? '' : filterKey)
+    // Reset other filters when clicking stat card to show clean data
+    setSearchQuery('')
+    setActiveSearchQuery('')
+    setDateFilter('')
+    setPlatformFilter('')
+    setFilterEmptyPlatform(null)
+    setCustomUploadDateFilter('')
+  }
 
-  useEffect(() => { setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true) }, [debouncedSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter])
+  // Handle search button click
+  const handleSearch = () => {
+    setActiveSearchQuery(searchQuery)
+  }
 
   // Build query for videos - with optional pagination
   const buildFilteredQuery = useCallback((page: number, usePagination: boolean = true) => {
@@ -292,7 +336,7 @@ export default function Videos() {
       // No pagination - fetch all matching records (for upload date filter)
       q = q.order('created_at', { ascending: false })
     }
-    if (debouncedSearchQuery) q = q.or(`title.ilike.%${debouncedSearchQuery}%,description.ilike.%${debouncedSearchQuery}%`)
+    if (activeSearchQuery) q = q.or(`title.ilike.%${activeSearchQuery}%,description.ilike.%${activeSearchQuery}%`)
     if (dateFilter) q = q.eq('created_at', `${dateFilter}T00:00:00.000Z`)
     if (platformFilter) q = q.not(`${platformFilter}_url`, 'is', null)
     if (filterEmptyPlatform) q = q.is(`${filterEmptyPlatform}_url`, null)
@@ -306,7 +350,7 @@ export default function Videos() {
     }
     else if (customUploadDateFilter) q = q.or(buildUploadDateOrFilter(customUploadDateFilter))
     return q
-  }, [debouncedSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9])
+  }, [activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9])
 
   const fetchData = useCallback(async (page: number = 0, reset: boolean = false) => {
     if (page === 0) setLoading(true); else setLoadingMore(true)
@@ -396,6 +440,20 @@ export default function Videos() {
     setLoading(false); setLoadingMore(false); fetchStats()
   }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9])
 
+  // Effect to trigger fetch when activeSearchQuery changes
+  useEffect(() => {
+    setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
+  }, [activeSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter, fetchData])
+
+  // Fetch data on initial mount (only if no search query from location state)
+  useEffect(() => {
+    // Check if there's a search query from location state
+    const state = location.state as any
+    if (!state?.searchQuery) {
+      fetchData(0, true)
+    }
+  }, [location.key, fetchData])
+
   const handleLoadMore = () => { const np = currentPage + 1; setCurrentPage(np); fetchData(np, false) }
 
   const handleAddVideo = async () => {
@@ -475,11 +533,16 @@ export default function Videos() {
   const hasUploadOnDate = (v: Video, d: string) => platforms.some(p => (v[`${p.key}_upload_date` as keyof Video] as string | null) === d)
   const hasUploadOnAnyDateInRange = (v: Video, ds: string[]) => platforms.some(p => { const ud = v[`${p.key}_upload_date` as keyof Video] as string | null; return ud && ds.includes(ud) })
 
-  const filteredVideos = useMemo(() => videos.filter(v => {
-    const m = uploadDateFilter === '' || (uploadDateFilter === 'today' ? hasUploadOnDate(v, todayDate) || hasReuploadForVideoOnDate(v.id, todayDate) : uploadDateFilter === 'yesterday' ? hasUploadOnDate(v, yesterdayDate) || hasReuploadForVideoOnDate(v.id, yesterdayDate) : uploadDateFilter === 'range-3-9' ? hasUploadOnAnyDateInRange(v, dates3to9) || hasReuploadForVideoOnAnyDateInRange(v.id, dates3to9) : true)
-    const mc = customUploadDateFilter === '' || hasUploadOnDate(v, customUploadDateFilter) || hasReuploadForVideoOnDate(v.id, customUploadDateFilter)
-    return m && mc
-  }), [videos, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, reuploads])
+  const filteredVideos = useMemo(() => {
+    // If there's an active search query, videos are already filtered by buildFilteredQuery
+    // Only apply client-side filtering for upload date filters
+    if (activeSearchQuery) return videos
+    return videos.filter(v => {
+      const m = uploadDateFilter === '' || (uploadDateFilter === 'today' ? hasUploadOnDate(v, todayDate) || hasReuploadForVideoOnDate(v.id, todayDate) : uploadDateFilter === 'yesterday' ? hasUploadOnDate(v, yesterdayDate) || hasReuploadForVideoOnDate(v.id, yesterdayDate) : uploadDateFilter === 'range-3-9' ? hasUploadOnAnyDateInRange(v, dates3to9) || hasReuploadForVideoOnAnyDateInRange(v.id, dates3to9) : true)
+      const mc = customUploadDateFilter === '' || hasUploadOnDate(v, customUploadDateFilter) || hasReuploadForVideoOnDate(v.id, customUploadDateFilter)
+      return m && mc
+    })
+  }, [videos, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, reuploads, activeSearchQuery])
 
   return (
     <Box>
@@ -495,15 +558,33 @@ export default function Videos() {
       </Box>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
-        <StatCard filterKey="today" title="Total videos uploaded today" videoCount={todayStats.videoCount} platformUploadCount={todayStats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} setUploadDateFilter={setUploadDateFilter} platformBreakdown={todayStats.platformBreakdown} />
-        <StatCard filterKey="yesterday" title="Total videos uploaded yesterday" videoCount={yesterdayStats.videoCount} platformUploadCount={yesterdayStats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} setUploadDateFilter={setUploadDateFilter} platformBreakdown={yesterdayStats.platformBreakdown} />
-        <StatCard filterKey="range-3-9" title="Days 3-9 uploads" videoCount={range3to9Stats.videoCount} platformUploadCount={range3to9Stats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} setUploadDateFilter={setUploadDateFilter} platformBreakdown={range3to9Stats.platformBreakdown} />
+        <StatCard filterKey="today" title="Total videos uploaded today" videoCount={todayStats.videoCount} platformUploadCount={todayStats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={todayStats.platformBreakdown} />
+        <StatCard filterKey="yesterday" title="Total videos uploaded yesterday" videoCount={yesterdayStats.videoCount} platformUploadCount={yesterdayStats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={yesterdayStats.platformBreakdown} />
+        <StatCard filterKey="range-3-9" title="Days 3-9 uploads" videoCount={range3to9Stats.videoCount} platformUploadCount={range3to9Stats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={range3to9Stats.platformBreakdown} />
       </Box>
 
       <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1, mb: 2, display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Box sx={{ flex: 1, minWidth: 200, position: 'relative' }}>
+        <Box sx={{ flex: 1, minWidth: 200, position: 'relative', display: 'flex', gap: 1 }}>
           <SearchIcon sx={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'text.secondary', fontSize: 20, zIndex: 1 }} />
-          <TextField inputRef={searchInputRef} size="small" placeholder="Search videos..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} sx={{ width: '100%', '& .MuiOutlinedInput-root': { pl: 4 } }} />
+          <TextField 
+            inputRef={searchInputRef} 
+            size="small" 
+            placeholder="Search videos..." 
+            value={searchQuery} 
+            onChange={(e) => setSearchQuery(e.target.value)} 
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            sx={{ width: '100%', '& .MuiOutlinedInput-root': { pl: 4 } }} 
+          />
+          {searchQuery && (
+            <Button 
+              variant="contained" 
+              size="small" 
+              onClick={handleSearch}
+              sx={{ minWidth: 80 }}
+            >
+              Search
+            </Button>
+          )}
         </Box>
         <TextField size="small" label="Date" type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} sx={{ minWidth: { xs: '100%', sm: 160 } }} slotProps={{ inputLabel: { shrink: true } }} />
         <TextField size="small" label="Upload Date" type="date" value={customUploadDateFilter} onChange={(e) => setCustomUploadDateFilter(e.target.value)} sx={{ minWidth: { xs: '100%', sm: 160 } }} slotProps={{ inputLabel: { shrink: true } }} />
@@ -512,7 +593,7 @@ export default function Videos() {
           {platforms.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
         </TextField>
         {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter) && (
-          <Button variant="outlined" size="small" onClick={() => { setSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter(''); setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter('') }} startIcon={<CloseIcon />}>Clear</Button>
+          <Button variant="outlined" size="small" onClick={() => { setSearchQuery(''); setActiveSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter(''); setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter('') }} startIcon={<CloseIcon />}>Clear</Button>
         )}
       </Box>
 
