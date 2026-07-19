@@ -457,8 +457,10 @@ export default function Videos() {
 
   // Effect to trigger fetch when activeSearchQuery changes
   useEffect(() => {
+    // Don't reset if bookmark filter is active - it has its own fetch logic
+    if (showBookmarkedOnly) return
     setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
-  }, [activeSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter, fetchData])
+  }, [activeSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter, fetchData, showBookmarkedOnly])
 
   // Fetch data on initial mount (only if no search query from location state)
   useEffect(() => {
@@ -512,7 +514,25 @@ export default function Videos() {
     const u: any = { title, description, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate || null, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate || null, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate || null, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate || null, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate || null, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate || null, tiktok_product_url: tiktokProductUrl || null }
     if (createdAt) u.created_at = new Date(createdAt).toISOString()
     const { error } = await supabase.from('videos').update(u).eq('id', editingVideo.id)
-    if (!error) { setOpen(false); setEditingVideo(null); resetForm(); fetchData(0, true) }
+    if (!error) { 
+      setOpen(false); 
+      setEditingVideo(null); 
+      resetForm(); 
+      // If bookmark filter is active, fetch bookmarked videos; otherwise use normal fetch
+      if (showBookmarkedOnly) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: bookmarkData } = await supabase.from('bookmarks').select('video_id').eq('user_id', user.id)
+          if (bookmarkData && bookmarkData.length > 0) {
+            const videoIds = bookmarkData.map((b: any) => b.video_id)
+            const { data: videoData } = await supabase.from('videos').select('*').in('id', videoIds)
+            setVideos((videoData as Video[]) || [])
+          }
+        }
+      } else {
+        fetchData(0, true)
+      }
+    }
   }
 
   const handleDeleteVideo = async (id: string) => { if (confirm('Are you sure you want to delete this video?')) { await supabase.from('videos').delete().eq('id', id); fetchData(0, true) } }
