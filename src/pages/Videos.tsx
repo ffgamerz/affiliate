@@ -261,58 +261,58 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
 
   // Auto-set/clear upload dates when URL changes - using useEffect for Safari compatibility
   useEffect(() => {
-    if (youtubeUrl && !prevYoutubeUrlRef.current) {
+    if (youtubeUrl && !prevYoutubeUrlRef.current && !youtubeUploadDate) {
       setYoutubeUploadDate(todayDate)
     } else if (!youtubeUrl && prevYoutubeUrlRef.current) {
       setYoutubeUploadDate(null)
     }
     prevYoutubeUrlRef.current = youtubeUrl
-  }, [youtubeUrl, todayDate])
+  }, [youtubeUrl, todayDate, youtubeUploadDate])
 
   useEffect(() => {
-    if (facebookUrl && !prevFacebookUrlRef.current) {
+    if (facebookUrl && !prevFacebookUrlRef.current && !facebookUploadDate) {
       setFacebookUploadDate(todayDate)
     } else if (!facebookUrl && prevFacebookUrlRef.current) {
       setFacebookUploadDate(null)
     }
     prevFacebookUrlRef.current = facebookUrl
-  }, [facebookUrl, todayDate])
+  }, [facebookUrl, todayDate, facebookUploadDate])
 
   useEffect(() => {
-    if (instagramUrl && !prevInstagramUrlRef.current) {
+    if (instagramUrl && !prevInstagramUrlRef.current && !instagramUploadDate) {
       setInstagramUploadDate(todayDate)
     } else if (!instagramUrl && prevInstagramUrlRef.current) {
       setInstagramUploadDate(null)
     }
     prevInstagramUrlRef.current = instagramUrl
-  }, [instagramUrl, todayDate])
+  }, [instagramUrl, todayDate, instagramUploadDate])
 
   useEffect(() => {
-    if (shopeeUrl && !prevShopeeUrlRef.current) {
+    if (shopeeUrl && !prevShopeeUrlRef.current && !shopeeUploadDate) {
       setShopeeUploadDate(todayDate)
     } else if (!shopeeUrl && prevShopeeUrlRef.current) {
       setShopeeUploadDate(null)
     }
     prevShopeeUrlRef.current = shopeeUrl
-  }, [shopeeUrl, todayDate])
+  }, [shopeeUrl, todayDate, shopeeUploadDate])
 
   useEffect(() => {
-    if (threadsUrl && !prevThreadsUrlRef.current) {
+    if (threadsUrl && !prevThreadsUrlRef.current && !threadsUploadDate) {
       setThreadsUploadDate(todayDate)
     } else if (!threadsUrl && prevThreadsUrlRef.current) {
       setThreadsUploadDate(null)
     }
     prevThreadsUrlRef.current = threadsUrl
-  }, [threadsUrl, todayDate])
+  }, [threadsUrl, todayDate, threadsUploadDate])
 
   useEffect(() => {
-    if (tiktokUrl && !prevTiktokUrlRef.current) {
+    if (tiktokUrl && !prevTiktokUrlRef.current && !tiktokUploadDate) {
       setTiktokUploadDate(todayDate)
     } else if (!tiktokUrl && prevTiktokUrlRef.current) {
       setTiktokUploadDate(null)
     }
     prevTiktokUrlRef.current = tiktokUrl
-  }, [tiktokUrl, todayDate])
+  }, [tiktokUrl, todayDate, tiktokUploadDate])
 
   // Sync date with URL when dialog opens (for edit mode)
   useEffect(() => {
