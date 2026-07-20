@@ -153,6 +153,7 @@ const [weeklyHistory, setWeeklyHistory] = useState<Array<{
 }>>([])
 const [weeklyHistoryOpen, setWeeklyHistoryOpen] = useState(false)
 const [shopeeWeekFilter, setShopeeWeekFilter] = useState(false) // Filter for shopee videos in current week
+  const [shopeeWeekDateRange, setShopeeWeekDateRange] = useState<string[] | null>(null) // Specific week date range for filtering
   const [reuploadUrl, setReuploadUrl] = useState(''); const [reuploadUploadDate, setReuploadUploadDate] = useState('')
   const [reuploadNotes, setReuploadNotes] = useState(''); const searchInputRef = useRef<HTMLInputElement>(null)
   const processedLocationStateRef = useRef<string | null>(null)
@@ -169,7 +170,8 @@ const [shopeeWeekFilter, setShopeeWeekFilter] = useState(false) // Filter for sh
   const [bookmarkedVideoIds, setBookmarkedVideoIds] = useState<Set<string>>(new Set())
   const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false)
 
-  // Refs to track previous URL values for Safari date input fix
+  // Refs to track previous values for unselect optimization
+  const prevUploadDateFilterRef = useRef<'today' | 'yesterday' | 'range-3-9' | ''>('')
   const prevYoutubeUrlRef = useRef('')
   const prevFacebookUrlRef = useRef('')
   const prevInstagramUrlRef = useRef('')
@@ -461,14 +463,28 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
 
   // Handle stat card click - reset other filters when clicking stat card
   const handleStatCardClick = (filterKey: 'today' | 'yesterday' | 'range-3-9') => {
-    setUploadDateFilter(uploadDateFilter === filterKey ? '' : filterKey)
-    // Reset other filters when clicking stat card to show clean data
-    setSearchQuery('')
-    setActiveSearchQuery('')
-    setDateFilter('')
-    setPlatformFilter('')
-    setFilterEmptyPlatform(null)
-    setCustomUploadDateFilter('')
+    // If clicking the same filter (unselect), just reset without fetching
+    if (uploadDateFilter === filterKey) {
+      setUploadDateFilter('')
+      setSearchQuery('')
+      setActiveSearchQuery('')
+      setDateFilter('')
+      setPlatformFilter('')
+      setFilterEmptyPlatform(null)
+      setCustomUploadDateFilter('')
+      // Don't fetch - data is already loaded, just reset filter
+      // Reset loading state to false since we're not fetching
+      setLoading(false)
+    } else {
+      setUploadDateFilter(filterKey)
+      // Reset other filters when clicking stat card to show clean data
+      setSearchQuery('')
+      setActiveSearchQuery('')
+      setDateFilter('')
+      setPlatformFilter('')
+      setFilterEmptyPlatform(null)
+      setCustomUploadDateFilter('')
+    }
   }
 
   // Handle search button click
@@ -507,6 +523,8 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     // When uploadDateFilter is active, we need to fetch all matching videos to include reuploads
     // This is more accurate but uses more bandwidth - only when user clicks a stat card
     const isUploadDateFilterActive = uploadDateFilter !== '' || customUploadDateFilter !== ''
+    // When shopee week filter is active, we need to fetch all videos to filter client-side
+    const isShopeeWeekFilterActive = shopeeWeekFilter || shopeeWeekDateRange !== null
     
     let vR
     if (isUploadDateFilterActive && page === 0) {
@@ -527,6 +545,11 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
         // Fetch all matching videos (no pagination) for accurate upload date filter
         vR = await buildFilteredQuery(0, false)
       }
+    } else if (isShopeeWeekFilterActive && page === 0) {
+      // Fetch all videos for shopee week filter - we'll filter client-side
+      // This ensures videos with shopee_upload_date but no shopee_url are included
+      const { data: allVideos } = await supabase.from('videos').select('*').order('created_at', { ascending: false })
+      vR = { data: allVideos || [] }
     } else {
       vR = await buildFilteredQuery(page)
     }
@@ -574,10 +597,10 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
       }
     }
     
-    if (isUploadDateFilterActive) {
-      // For upload date filter, use all results
+    if (isUploadDateFilterActive || isShopeeWeekFilterActive) {
+      // For upload date filter or shopee week filter, use all results
       setVideos(vData)
-      setHasMore(false) // No pagination when filtering by upload date
+      setHasMore(false) // No pagination when filtering
     } else if (reset || page === 0) {
       setVideos((vR.data as Video[]) || [])
     } else {
@@ -587,7 +610,7 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     
     setReuploads((rR.data as Reupload[]) || [])
     setLoading(false); setLoadingMore(false); fetchStats()
-  }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9])
+  }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, shopeeWeekFilter, shopeeWeekDateRange])
 
   // Fetch bookmarks for current user
   const fetchBookmarks = useCallback(async () => {
@@ -603,11 +626,20 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
   }, [])
 
   // Effect to trigger fetch when filters change
+  // Note: shopeeWeekFilter and shopeeWeekDateRange are handled separately in onClick to avoid unnecessary re-fetch
+  // Note: uploadDateFilter unselect is also handled in handleStatCardClick to avoid unnecessary re-fetch
   useEffect(() => {
     // Don't reset if bookmark filter is active - it has its own fetch logic
     if (showBookmarkedOnly) return
+    // Skip fetch if this is an unselect operation (uploadDateFilter changed from value to '')
+    // The unselect is handled in handleStatCardClick which just resets the filter without fetching
+    if (prevUploadDateFilterRef.current !== '' && uploadDateFilter === '') {
+      prevUploadDateFilterRef.current = uploadDateFilter
+      return
+    }
+    prevUploadDateFilterRef.current = uploadDateFilter
     setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
-  }, [activeSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter, fetchData, showBookmarkedOnly, shopeeWeekFilter])
+  }, [activeSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter, fetchData, showBookmarkedOnly])
 
   // Fetch data on initial mount (only if no search query from location state)
   useEffect(() => {
@@ -893,10 +925,15 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
   }, [videos, showBookmarkedOnly, bookmarkedVideoIds])
 
   // Helper: Check if video has shopee upload in current week
+// Helper: Check if video has shopee upload in a specific date range
+const hasShopeeUploadInDateRange = (v: Video, dates: string[]) => {
+  const shopeeDate = v.shopee_upload_date
+  return shopeeDate && dates.includes(shopeeDate)
+}
+
 const hasShopeeUploadInCurrentWeek = (v: Video) => {
   const { weekDates } = getCurrentWeekRange()
-  const shopeeDate = v.shopee_upload_date
-  return shopeeDate && weekDates.includes(shopeeDate)
+  return hasShopeeUploadInDateRange(v, weekDates)
 }
 
 const filteredVideos = useMemo(() => {
@@ -906,11 +943,13 @@ const filteredVideos = useMemo(() => {
     return bookmarkFilteredVideos.filter(v => {
       const m = uploadDateFilter === '' || (uploadDateFilter === 'today' ? hasUploadOnDate(v, todayDate) || hasReuploadForVideoOnDate(v.id, todayDate) : uploadDateFilter === 'yesterday' ? hasUploadOnDate(v, yesterdayDate) || hasReuploadForVideoOnDate(v.id, yesterdayDate) : uploadDateFilter === 'range-3-9' ? hasUploadOnAnyDateInRange(v, dates3to9) || hasReuploadForVideoOnAnyDateInRange(v.id, dates3to9) : true)
       const mc = customUploadDateFilter === '' || hasUploadOnDate(v, customUploadDateFilter) || hasReuploadForVideoOnDate(v.id, customUploadDateFilter)
-      // Special case: shopee week filter
-      const sw = !shopeeWeekFilter || hasShopeeUploadInCurrentWeek(v)
+      // Special case: shopee week filter (current week or specific date range)
+      const sw = !shopeeWeekFilter && !shopeeWeekDateRange ? true : 
+                 shopeeWeekDateRange ? hasShopeeUploadInDateRange(v, shopeeWeekDateRange) :
+                 hasShopeeUploadInCurrentWeek(v)
       return m && mc && sw
     })
-  }, [bookmarkFilteredVideos, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, reuploads, activeSearchQuery, shopeeWeekFilter])
+  }, [bookmarkFilteredVideos, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, reuploads, activeSearchQuery, shopeeWeekFilter, shopeeWeekDateRange])
 
 // Original Creator Card Component
 const OriginalCreatorCard = () => {
@@ -938,19 +977,28 @@ const OriginalCreatorCard = () => {
         bgcolor: 'background.paper', 
         cursor: 'pointer', 
         transition: 'all 0.2s ease',
-        border: '1px solid #f0f0f0',
+        border: (shopeeWeekFilter || shopeeWeekDateRange !== null) ? '1px solid' : '1px solid #f0f0f0',
+        borderColor: (shopeeWeekFilter || shopeeWeekDateRange !== null) ? 'primary.main' : '#f0f0f0',
         '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }
       }}
       onClick={() => {
-        // Filter to show shopee videos in current week
-        setPlatformFilter('shopee')
-        setUploadDateFilter('')
-        setCustomUploadDateFilter('')
-        setSearchQuery('')
-        setActiveSearchQuery('')
-        setDateFilter('')
-        setFilterEmptyPlatform(null)
-        setShopeeWeekFilter(true)
+        // Toggle filter - if already active, clear it
+        if (shopeeWeekFilter) {
+          setShopeeWeekFilter(false)
+          setShopeeWeekDateRange(null)
+          // Don't need to fetch again - just reset filter, data is already loaded
+        } else {
+          // Filter to show shopee videos in current week
+          // Don't set platformFilter - we want to show videos with shopee_upload_date even if shopee_url is empty
+          setUploadDateFilter('')
+          setCustomUploadDateFilter('')
+          setSearchQuery('')
+          setActiveSearchQuery('')
+          setDateFilter('')
+          setFilterEmptyPlatform(null)
+          setShopeeWeekFilter(true)
+          setShopeeWeekDateRange(null)
+        }
       }}
     >
       <CardContent sx={{ p: 2.5 }}>
@@ -1073,52 +1121,6 @@ const WeeklyHistoryDialog = () => {
       </DialogTitle>
       <DialogContent>
         <Box sx={{ mt: 1 }}>
-          {/* Current Week */}
-          <Box 
-            key="current" 
-            sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 1.5,
-              py: 1,
-              borderBottom: '1px solid #eee',
-              cursor: 'pointer',
-              '&:hover': { bgcolor: '#f5f5f5' }
-            }}
-            onClick={() => {
-              setPlatformFilter('shopee')
-              setUploadDateFilter('')
-              setCustomUploadDateFilter('')
-              setSearchQuery('')
-              setActiveSearchQuery('')
-              setDateFilter('')
-              setFilterEmptyPlatform(null)
-              setShopeeWeekFilter(true)
-              setWeeklyHistoryOpen(false)
-            }}
-          >
-            <Box sx={{ width: 40, flexShrink: 0 }}>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>W{creatorStats.weekNumber}</Typography>
-            </Box>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  Current Week
-                </Typography>
-                <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                  {creatorStats.shopeeCount} / 20
-                </Typography>
-              </Box>
-              <Box sx={{ width: '100%', height: 6, bgcolor: '#e0e0e0', borderRadius: 1, overflow: 'hidden' }}>
-                <Box sx={{ 
-                  width: `${Math.min((creatorStats.shopeeCount / 20) * 100, 100)}%`, 
-                  height: '100%', 
-                  bgcolor: getProgressColor(creatorStats.shopeeCount)
-                }} />
-              </Box>
-            </Box>
-          </Box>
-          
           {weeklyHistory.map((week, index) => (
             <Box 
               key={index} 
@@ -1133,19 +1135,16 @@ const WeeklyHistoryDialog = () => {
               }}
               onClick={() => {
                 // Filter to show shopee videos for this specific week
-                setPlatformFilter('shopee')
+                setPlatformFilter('')
                 setUploadDateFilter('')
                 setCustomUploadDateFilter('')
                 setSearchQuery('')
                 setActiveSearchQuery('')
                 setDateFilter('')
                 setFilterEmptyPlatform(null)
-                // We need to filter by the specific week dates
-                // For simplicity, we'll use a custom filter approach
                 setShopeeWeekFilter(false)
+                setShopeeWeekDateRange(week.dates)
                 setWeeklyHistoryOpen(false)
-                // Set a temporary state to indicate we're filtering by a specific week
-                // This will be handled by the main filter logic
               }}
             >
               <Box sx={{ width: 40, flexShrink: 0 }}>
@@ -1263,14 +1262,15 @@ const displayedVideos = filteredVideos
           variant={showBookmarkedOnly ? 'filled' : 'outlined'}
           sx={{ cursor: 'pointer', height: 36 }}
         />
-        {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter || showBookmarkedOnly || shopeeWeekFilter) && (
-          <Button variant="outlined" size="small" onClick={() => { setSearchQuery(''); setActiveSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter(''); setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter(''); setShowBookmarkedOnly(false); setShopeeWeekFilter(false) }} startIcon={<CloseIcon />}>Clear</Button>
+        {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter || showBookmarkedOnly || shopeeWeekFilter || shopeeWeekDateRange) && (
+          <Button variant="outlined" size="small" onClick={() => { setSearchQuery(''); setActiveSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter(''); setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter(''); setShowBookmarkedOnly(false); setShopeeWeekFilter(false); setShopeeWeekDateRange(null) }} startIcon={<CloseIcon />}>Clear</Button>
         )}
       </Box>
 
       {filterEmptyPlatform && <Alert severity="info" sx={{ mb: 2 }}>Showing videos without {filterEmptyPlatform} URL</Alert>}
       {showBookmarkedOnly && <Alert severity="info" sx={{ mb: 2 }}>Showing only bookmarked videos</Alert>}
       {shopeeWeekFilter && <Alert severity="info" sx={{ mb: 2 }}>Showing Shopee videos uploaded this week (Mon-Sun)</Alert>}
+      {shopeeWeekDateRange && <Alert severity="info" sx={{ mb: 2 }}>Showing Shopee videos for selected week</Alert>}
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}><CircularProgress /></Box>
