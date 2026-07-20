@@ -1,16 +1,19 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
-import { CssBaseline } from '@mui/material'
+import { CssBaseline, CircularProgress, Box } from '@mui/material'
+import { Suspense, lazy } from 'react'
 import { AuthProvider, useAuth } from './hooks/useAuth.tsx'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import Dashboard from './pages/Dashboard'
-import Videos from './pages/Videos'
-import Settings from './pages/Settings'
-import RandomPicker from './pages/RandomPicker'
-import UploadCalendar from './pages/UploadCalendar'
-import Reuploads from './pages/Reuploads'
 import Layout from './components/Layout'
+
+// Lazy load pages for code splitting
+const Login = lazy(() => import('./pages/Login'))
+const Register = lazy(() => import('./pages/Register'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Videos = lazy(() => import('./pages/Videos'))
+const Settings = lazy(() => import('./pages/Settings'))
+const RandomPicker = lazy(() => import('./pages/RandomPicker'))
+const UploadCalendar = lazy(() => import('./pages/UploadCalendar'))
+const Reuploads = lazy(() => import('./pages/Reuploads'))
 
 const theme = createTheme({
   palette: {
@@ -117,7 +120,11 @@ function AppContent() {
   const { user, loading } = useAuth()
 
   if (loading) {
-    return <div>Loading...</div>
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    )
   }
 
   return (
@@ -146,7 +153,13 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <AppContent />
+        <Suspense fallback={
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+            <CircularProgress />
+          </Box>
+        }>
+          <AppContent />
+        </Suspense>
       </AuthProvider>
     </ThemeProvider>
   )

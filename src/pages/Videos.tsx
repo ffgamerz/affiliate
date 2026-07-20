@@ -141,15 +141,23 @@ export default function Videos() {
   const [snackbar, setSnackbar] = useState({ open: false, message: '' })
   const [title, setTitle] = useState(''); const [description, setDescription] = useState('')
   const [descriptionFocused, setDescriptionFocused] = useState(false); const [createdAt, setCreatedAt] = useState('')
-  const [youtubeUrl, setYoutubeUrl] = useState(''); const [youtubeUploadDate, setYoutubeUploadDate] = useState('')
-  const [facebookUrl, setFacebookUrl] = useState(''); const [facebookUploadDate, setFacebookUploadDate] = useState('')
-  const [instagramUrl, setInstagramUrl] = useState(''); const [instagramUploadDate, setInstagramUploadDate] = useState('')
-  const [shopeeUrl, setShopeeUrl] = useState(''); const [shopeeUploadDate, setShopeeUploadDate] = useState('')
+  const [youtubeUrl, setYoutubeUrl] = useState(''); const [youtubeUploadDate, setYoutubeUploadDate] = useState<string | null>(null)
+  const [facebookUrl, setFacebookUrl] = useState(''); const [facebookUploadDate, setFacebookUploadDate] = useState<string | null>(null)
+  const [instagramUrl, setInstagramUrl] = useState(''); const [instagramUploadDate, setInstagramUploadDate] = useState<string | null>(null)
+  const [shopeeUrl, setShopeeUrl] = useState(''); const [shopeeUploadDate, setShopeeUploadDate] = useState<string | null>(null)
   const [shopeeProductUrl, setShopeeProductUrl] = useState(''); const [threadsUrl, setThreadsUrl] = useState('')
-  const [threadsUploadDate, setThreadsUploadDate] = useState(''); const [tiktokUrl, setTiktokUrl] = useState('')
-  const [tiktokUploadDate, setTiktokUploadDate] = useState(''); const [tiktokProductUrl, setTiktokProductUrl] = useState('')
+  const [threadsUploadDate, setThreadsUploadDate] = useState<string | null>(null); const [tiktokUrl, setTiktokUrl] = useState('')
+  const [tiktokUploadDate, setTiktokUploadDate] = useState<string | null>(null); const [tiktokProductUrl, setTiktokProductUrl] = useState('')
   const [bookmarkedVideoIds, setBookmarkedVideoIds] = useState<Set<string>>(new Set())
   const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false)
+
+  // Refs to track previous URL values for Safari date input fix
+  const prevYoutubeUrlRef = useRef('')
+  const prevFacebookUrlRef = useRef('')
+  const prevInstagramUrlRef = useRef('')
+  const prevShopeeUrlRef = useRef('')
+  const prevThreadsUrlRef = useRef('')
+  const prevTiktokUrlRef = useRef('')
 
   // Date helper functions - defined early to avoid hoisting issues
   // Use Asia/Kuala_Lumpur timezone to match Malaysia local time
@@ -177,6 +185,74 @@ export default function Videos() {
   const todayDate = useMemo(() => getTodayDate(), [])
   const yesterdayDate = useMemo(() => getDateDaysAgo(1), [])
   const dates3to9 = useMemo(() => Array.from({ length: 7 }, (_, i) => getDateDaysAgo(i + 3)), [])
+
+  // Auto-set/clear upload dates when URL changes - using useEffect for Safari compatibility
+  useEffect(() => {
+    if (youtubeUrl && !prevYoutubeUrlRef.current) {
+      setYoutubeUploadDate(todayDate)
+    } else if (!youtubeUrl && prevYoutubeUrlRef.current) {
+      setYoutubeUploadDate(null)
+    }
+    prevYoutubeUrlRef.current = youtubeUrl
+  }, [youtubeUrl, todayDate])
+
+  useEffect(() => {
+    if (facebookUrl && !prevFacebookUrlRef.current) {
+      setFacebookUploadDate(todayDate)
+    } else if (!facebookUrl && prevFacebookUrlRef.current) {
+      setFacebookUploadDate(null)
+    }
+    prevFacebookUrlRef.current = facebookUrl
+  }, [facebookUrl, todayDate])
+
+  useEffect(() => {
+    if (instagramUrl && !prevInstagramUrlRef.current) {
+      setInstagramUploadDate(todayDate)
+    } else if (!instagramUrl && prevInstagramUrlRef.current) {
+      setInstagramUploadDate(null)
+    }
+    prevInstagramUrlRef.current = instagramUrl
+  }, [instagramUrl, todayDate])
+
+  useEffect(() => {
+    if (shopeeUrl && !prevShopeeUrlRef.current) {
+      setShopeeUploadDate(todayDate)
+    } else if (!shopeeUrl && prevShopeeUrlRef.current) {
+      setShopeeUploadDate(null)
+    }
+    prevShopeeUrlRef.current = shopeeUrl
+  }, [shopeeUrl, todayDate])
+
+  useEffect(() => {
+    if (threadsUrl && !prevThreadsUrlRef.current) {
+      setThreadsUploadDate(todayDate)
+    } else if (!threadsUrl && prevThreadsUrlRef.current) {
+      setThreadsUploadDate(null)
+    }
+    prevThreadsUrlRef.current = threadsUrl
+  }, [threadsUrl, todayDate])
+
+  useEffect(() => {
+    if (tiktokUrl && !prevTiktokUrlRef.current) {
+      setTiktokUploadDate(todayDate)
+    } else if (!tiktokUrl && prevTiktokUrlRef.current) {
+      setTiktokUploadDate(null)
+    }
+    prevTiktokUrlRef.current = tiktokUrl
+  }, [tiktokUrl, todayDate])
+
+  // Sync date with URL when dialog opens (for edit mode)
+  useEffect(() => {
+    if (open && editingVideo) {
+      // When editing, if URL exists but date is empty, set date to today
+      if (youtubeUrl && !youtubeUploadDate) setYoutubeUploadDate(todayDate)
+      if (facebookUrl && !facebookUploadDate) setFacebookUploadDate(todayDate)
+      if (instagramUrl && !instagramUploadDate) setInstagramUploadDate(todayDate)
+      if (shopeeUrl && !shopeeUploadDate) setShopeeUploadDate(todayDate)
+      if (threadsUrl && !threadsUploadDate) setThreadsUploadDate(todayDate)
+      if (tiktokUrl && !tiktokUploadDate) setTiktokUploadDate(todayDate)
+    }
+  }, [open, editingVideo, youtubeUrl, youtubeUploadDate, facebookUrl, facebookUploadDate, instagramUrl, instagramUploadDate, shopeeUrl, shopeeUploadDate, threadsUrl, threadsUploadDate, tiktokUrl, tiktokUploadDate, todayDate])
 
   // Optimized fetchStats - fetch IDs for proper deduplication
   const fetchStats = useCallback(async () => {
@@ -505,13 +581,13 @@ export default function Videos() {
 
   const handleAddVideo = async () => {
     if (!title) return
-    const { error } = await supabase.from('videos').insert({ title, description, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate || null, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate || null, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate || null, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate || null, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate || null, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate || null, tiktok_product_url: tiktokProductUrl || null })
+    const { error } = await supabase.from('videos').insert({ title, description, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null })
     if (!error) { setOpen(false); resetForm(); fetchData(0, true) }
   }
 
   const handleUpdateVideo = async () => {
     if (!editingVideo) return
-    const u: any = { title, description, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate || null, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate || null, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate || null, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate || null, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate || null, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate || null, tiktok_product_url: tiktokProductUrl || null }
+    const u: any = { title, description, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null }
     if (createdAt) u.created_at = new Date(createdAt).toISOString()
     const { error } = await supabase.from('videos').update(u).eq('id', editingVideo.id)
     if (!error) { 
@@ -537,19 +613,17 @@ export default function Videos() {
 
   const handleDeleteVideo = async (id: string) => { if (confirm('Are you sure you want to delete this video?')) { await supabase.from('videos').delete().eq('id', id); fetchData(0, true) } }
 
-  const resetForm = () => { setTitle(''); setDescription(''); setCreatedAt(''); setYoutubeUrl(''); setYoutubeUploadDate(''); setFacebookUrl(''); setFacebookUploadDate(''); setInstagramUrl(''); setInstagramUploadDate(''); setShopeeUrl(''); setShopeeUploadDate(''); setShopeeProductUrl(''); setThreadsUrl(''); setThreadsUploadDate(''); setTiktokUrl(''); setTiktokUploadDate(''); setTiktokProductUrl('') }
-
-  const autoSetTodayDate = (s: (v: string) => void, c: string, u: string) => { if (u && !c) s(getTodayDate()); else if (!u && c) s('') }
+  const resetForm = () => { setTitle(''); setDescription(''); setCreatedAt(''); setYoutubeUrl(''); setYoutubeUploadDate(null); setFacebookUrl(''); setFacebookUploadDate(null); setInstagramUrl(''); setInstagramUploadDate(null); setShopeeUrl(''); setShopeeUploadDate(null); setShopeeProductUrl(''); setThreadsUrl(''); setThreadsUploadDate(null); setTiktokUrl(''); setTiktokUploadDate(null); setTiktokProductUrl('') }
 
   const openEditDialog = (video: Video) => {
     setEditingVideo(video); setTitle(video.title); setDescription(video.description || ''); setDescriptionFocused(false)
     setCreatedAt(video.created_at ? video.created_at.split('T')[0] : '')
-    setYoutubeUrl(video.youtube_url || ''); setYoutubeUploadDate(video.youtube_upload_date || '')
-    setFacebookUrl(video.facebook_url || ''); setFacebookUploadDate(video.facebook_upload_date || '')
-    setInstagramUrl(video.instagram_url || ''); setInstagramUploadDate(video.instagram_upload_date || '')
-    setShopeeUrl(video.shopee_url || ''); setShopeeUploadDate(video.shopee_upload_date || ''); setShopeeProductUrl(video.shopee_product_url || '')
-    setThreadsUrl(video.threads_url || ''); setThreadsUploadDate(video.threads_upload_date || '')
-    setTiktokUrl(video.tiktok_url || ''); setTiktokUploadDate(video.tiktok_upload_date || ''); setTiktokProductUrl(video.tiktok_product_url || '')
+    setYoutubeUrl(video.youtube_url || ''); setYoutubeUploadDate(video.youtube_upload_date || null)
+    setFacebookUrl(video.facebook_url || ''); setFacebookUploadDate(video.facebook_upload_date || null)
+    setInstagramUrl(video.instagram_url || ''); setInstagramUploadDate(video.instagram_upload_date || null)
+    setShopeeUrl(video.shopee_url || ''); setShopeeUploadDate(video.shopee_upload_date || null); setShopeeProductUrl(video.shopee_product_url || '')
+    setThreadsUrl(video.threads_url || ''); setThreadsUploadDate(video.threads_upload_date || null)
+    setTiktokUrl(video.tiktok_url || ''); setTiktokUploadDate(video.tiktok_upload_date || null); setTiktokProductUrl(video.tiktok_product_url || '')
     setOpen(true)
   }
 
@@ -560,7 +634,30 @@ export default function Videos() {
   const handleSaveReupload = async () => {
     if (!editingVideo) return
     const { error } = await supabase.from('reuploads').insert({ video_id: editingVideo.id, platform: reuploadPlatform, url: reuploadUrl || null, upload_date: reuploadUploadDate || null, notes: reuploadNotes || null })
-    if (!error) { setReuploadDialogOpen(false); setOpen(false); setEditingVideo(null); resetForm(); setSnackbar({ open: true, message: 'Reupload saved successfully!' }); fetchData(0, true) } else { console.error('Reupload error:', error); setSnackbar({ open: true, message: `Failed: ${error.message || 'Unknown error'}` }) }
+    if (!error) {
+      setReuploadDialogOpen(false)
+      setOpen(false)
+      setEditingVideo(null)
+      resetForm()
+      setSnackbar({ open: true, message: 'Reupload saved successfully!' })
+      // If bookmark filter is active, fetch bookmarked videos; otherwise use normal fetch
+      if (showBookmarkedOnly) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: bookmarkData } = await supabase.from('bookmarks').select('video_id').eq('user_id', user.id)
+          if (bookmarkData && bookmarkData.length > 0) {
+            const videoIds = bookmarkData.map((b: any) => b.video_id)
+            const { data: videoData } = await supabase.from('videos').select('*').in('id', videoIds)
+            setVideos((videoData as Video[]) || [])
+          }
+        }
+      } else {
+        fetchData(0, true)
+      }
+    } else {
+      console.error('Reupload error:', error)
+      setSnackbar({ open: true, message: `Failed: ${error.message || 'Unknown error'}` })
+    }
   }
 
   const getYouTubeVideoId = (url: string): string | null => {
@@ -809,8 +906,8 @@ export default function Videos() {
               const setUrl = p === 'tiktok' ? setTiktokUrl : p === 'youtube' ? setYoutubeUrl : p === 'facebook' ? setFacebookUrl : p === 'instagram' ? setInstagramUrl : p === 'shopee' ? setShopeeUrl : setThreadsUrl
               const setDate = p === 'tiktok' ? setTiktokUploadDate : p === 'youtube' ? setYoutubeUploadDate : p === 'facebook' ? setFacebookUploadDate : p === 'instagram' ? setInstagramUploadDate : p === 'shopee' ? setShopeeUploadDate : setThreadsUploadDate
               return (<Box key={p} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <TextField label="Upload Date" type="date" value={dateVal} onChange={(e) => setDate(e.target.value)} sx={{ flex: 1 }} size="small" slotProps={{ inputLabel: { shrink: true } }} />
-                <TextField label={`${p.charAt(0).toUpperCase() + p.slice(1)} URL`} value={urlVal} onChange={(e) => { setUrl(e.target.value); autoSetTodayDate(setDate, dateVal, e.target.value) }} sx={{ flex: 2 }} size="small" placeholder="https://..." />
+                <TextField label="Upload Date" type="date" value={dateVal || ''} onChange={(e) => setDate(e.target.value || null)} sx={{ flex: 1 }} size="small" slotProps={{ inputLabel: { shrink: true } }} key={`${p}-date-${urlVal ? 'has-url' : 'no-url'}`} />
+                <TextField label={`${p.charAt(0).toUpperCase() + p.slice(1)} URL`} value={urlVal} onChange={(e) => setUrl(e.target.value)} sx={{ flex: 2 }} size="small" placeholder="https://..." />
                 {editingVideo && <IconButton size="small" onClick={() => openReuploadDialog(p)} title={`Reupload ${p}`} color="warning" sx={{ flexShrink: 0 }}><ReplayIcon fontSize="small" /></IconButton>}
               </Box>)
             })}
