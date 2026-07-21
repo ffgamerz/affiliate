@@ -25,7 +25,7 @@ interface Video {
   youtube_url: string | null;
   shopee_product_url: string | null;
   bolreview_id: string | null;
-  created_at: string | null;
+  bolreview_created_at: string | null;
   upload_date: string | null;
   facebook_url: string | null;
 }
@@ -55,7 +55,7 @@ const transformVideoData = (raw: VideoRaw): Video => {
     youtube_url: raw.youtube_url,
     shopee_product_url: raw.shopee_product_url,
     bolreview_id: bolreview?.id || null,
-    created_at: bolreview?.created_at || null,
+    bolreview_created_at: bolreview?.created_at || null,
     upload_date: bolreview?.upload_date || null,
     facebook_url: bolreview?.facebook_url || null,
   }
