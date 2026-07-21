@@ -86,3 +86,27 @@ CREATE POLICY "Users can manage own bookmarks"
 
 CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON bookmarks(user_id);
 CREATE INDEX IF NOT EXISTS idx_bookmarks_video_id ON bookmarks(video_id);
+
+-- BolReview uploads table - track videos uploaded to BolReview Facebook page
+CREATE TABLE IF NOT EXISTS bolreview_uploads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  uploaded_at TIMESTAMPTZ DEFAULT NOW(),
+  facebook_url TEXT,
+  UNIQUE(video_id)
+);
+
+ALTER TABLE bolreview_uploads ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all operations on bolreview_uploads"
+  ON bolreview_uploads
+  FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_bolreview_uploads_video_id ON bolreview_uploads(video_id);
+CREATE INDEX IF NOT EXISTS idx_bolreview_uploads_uploaded_at ON bolreview_uploads(uploaded_at);
+
+-- Index for title search (for BolReview page search)
+CREATE INDEX IF NOT EXISTS idx_videos_title ON videos(title);

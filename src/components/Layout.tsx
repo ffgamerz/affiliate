@@ -30,6 +30,7 @@ import {
   Shuffle as ShuffleIcon,
   CalendarViewMonth as CalendarViewIcon,
   Replay as ReplayIcon,
+  Facebook,
 } from '@mui/icons-material'
 import { useAuth } from '../hooks/useAuth.tsx'
 
@@ -46,6 +47,7 @@ export default function Layout() {
   const navItems = [
     { path: '/', label: 'Dashboard', icon: <DashboardIcon /> },
     { path: '/videos', label: 'Videos', icon: <VideoIcon /> },
+    { path: '/bolreview-upload', label: 'BolReview', icon: <Facebook /> },
     { path: '/reuploads', label: 'Reuploads', icon: <ReplayIcon /> },
     { path: '/random', label: 'Random', icon: <ShuffleIcon /> },
     { path: '/upload-calendar', label: 'Upload Calendar', icon: <CalendarViewIcon /> },
