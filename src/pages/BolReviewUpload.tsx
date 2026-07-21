@@ -28,6 +28,7 @@ interface Video {
   bolreview_created_at: string | null;
   upload_date: string | null;
   facebook_url: string | null;
+  bolreview_upload_count: number;
 }
 
 interface VideoRaw {
@@ -42,11 +43,30 @@ interface VideoRaw {
     created_at: string;
     upload_date: string | null;
     facebook_url: string | null;
-  }[] | null;
+  }[] | {
+    id: string;
+    created_at: string;
+    upload_date: string | null;
+    facebook_url: string | null;
+  } | null;
 }
 
 const transformVideoData = (raw: VideoRaw): Video => {
-  const bolreview = raw.bolreview_uploads?.[0]
+  // Handle both null, empty array, and single object cases
+  // Supabase !inner join may return a single object instead of array
+  let bolreview = null
+  let uploadCount = 0
+  if (raw.bolreview_uploads) {
+    if (Array.isArray(raw.bolreview_uploads)) {
+      uploadCount = raw.bolreview_uploads.length
+      if (raw.bolreview_uploads.length > 0) {
+        bolreview = raw.bolreview_uploads[0]
+      }
+    } else {
+      uploadCount = 1
+      bolreview = raw.bolreview_uploads
+    }
+  }
   return {
     id: raw.id,
     title: raw.title,
@@ -58,6 +78,7 @@ const transformVideoData = (raw: VideoRaw): Video => {
     bolreview_created_at: bolreview?.created_at || null,
     upload_date: bolreview?.upload_date || null,
     facebook_url: bolreview?.facebook_url || null,
+    bolreview_upload_count: uploadCount,
   }
 }
 
@@ -193,14 +214,18 @@ export default function BolReviewUpload() {
   const fetchData = useCallback(async (page: number = 0, reset: boolean = false) => {
     if (page === 0) setLoading(true); else setLoadingMore(true)
     
+    // Build select query - use !left to get all videos, and count for upload count
+    const selectQuery = 'id, title, description, created_at, youtube_url, shopee_product_url, bolreview_uploads!left(id, created_at, upload_date, facebook_url)'
+    
     let q = supabase.from('videos')
-      .select('id, title, description, created_at, youtube_url, shopee_product_url, bolreview_uploads!left(id, created_at, upload_date, facebook_url)', { count: 'exact' })
-      .order('created_at', { ascending: true })
+      .select(selectQuery, { count: 'exact' })
+      
     
     if (showNotUploadedOnly) {
       q = q.is('bolreview_uploads', null)
     } else if (showUploadedOnly) {
       q = q.not('bolreview_uploads', 'is', null)
+      .order('upload_date', { ascending: true, foreignTable: 'bolreview_uploads' })
     }
     
     if (activeSearchQuery) q = q.or(`title.ilike.%${activeSearchQuery}%`)
@@ -518,7 +543,7 @@ export default function BolReviewUpload() {
                       <Box sx={{ mb: 1.5 }}>
                         {isUploaded ? (
                           <Chip
-                            label="Uploaded"
+                            label={video.bolreview_upload_count > 1 ? `Uploaded (${video.bolreview_upload_count})` : 'Uploaded'}
                             size="small"
                             sx={{
                               bgcolor: '#e8f5e9',
