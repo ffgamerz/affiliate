@@ -168,11 +168,18 @@ export default function BolReviewUpload() {
   const [selectedVideoForUpload, setSelectedVideoForUpload] = useState<Video | null>(null)
   const [facebookUrl, setFacebookUrl] = useState('')
   const [uploadDate, setUploadDate] = useState('')
+  const [editUploadDialogOpen, setEditUploadDialogOpen] = useState(false)
+  const [editingUpload, setEditingUpload] = useState<BolReviewRecord | null>(null)
+  const [editUploadDate, setEditUploadDate] = useState('')
+  const [editFacebookUrl, setEditFacebookUrl] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [activeSearchQuery, setActiveSearchQuery] = useState('')
   const [uploadDateFilter, setUploadDateFilter] = useState<'today' | 'yesterday' | 'range-3-9' | ''>('')
   const [showUploadedOnly, setShowUploadedOnly] = useState(false)
   const [showNotUploadedOnly, setShowNotUploadedOnly] = useState(true)
+  const [videoPlayerOpen, setVideoPlayerOpen] = useState(false)
+  const [selectedVideoUrl, setSelectedVideoUrl] = useState('')
+  const [videoLoading, setVideoLoading] = useState(false)
   const [snackbar, setSnackbar] = useState({ open: false, message: '' })
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -189,37 +196,31 @@ export default function BolReviewUpload() {
   const [range3to9Stats, setRange3to9Stats] = useState({ count: 0 })
 
   const fetchStats = useCallback(async () => {
-    const todayStr = todayDate
-    const yesterdayStr = yesterdayDate
+    // Query bolreview_uploads directly to count upload records
+    const { data: todayUploads } = await supabase.from('bolreview_uploads')
+      .select('id')
+      .eq('upload_date', todayDate)
+    
+    const { data: yesterdayUploads } = await supabase.from('bolreview_uploads')
+      .select('id')
+      .eq('upload_date', yesterdayDate)
+    
+    const { data: rangeUploads } = await supabase.from('bolreview_uploads')
+      .select('id')
+      .in('upload_date', dates3to9)
 
-    const { count: tCount } = await supabase.from('videos')
-      .select('id', { count: 'exact', head: true })
-      .not('bolreview_uploads', 'is', null)
-      .gte('bolreview_uploads.upload_date', todayStr)
-      .lte('bolreview_uploads.upload_date', todayStr)
-
-    const { count: yCount } = await supabase.from('videos')
-      .select('id', { count: 'exact', head: true })
-      .not('bolreview_uploads', 'is', null)
-      .gte('bolreview_uploads.upload_date', yesterdayStr)
-      .lte('bolreview_uploads.upload_date', yesterdayStr)
-
-    const { count: rCount } = await supabase.from('videos')
-      .select('id', { count: 'exact', head: true })
-      .not('bolreview_uploads', 'is', null)
-      .gte('bolreview_uploads.upload_date', dates3to9[6])
-      .lte('bolreview_uploads.upload_date', dates3to9[0])
-
-    setTodayStats({ count: tCount || 0 })
-    setYesterdayStats({ count: yCount || 0 })
-    setRange3to9Stats({ count: rCount || 0 })
+    setTodayStats({ count: todayUploads?.length || 0 })
+    setYesterdayStats({ count: yesterdayUploads?.length || 0 })
+    setRange3to9Stats({ count: rangeUploads?.length || 0 })
   }, [todayDate, yesterdayDate, dates3to9])
 
   const fetchData = useCallback(async (page: number = 0, reset: boolean = false) => {
     if (page === 0) setLoading(true); else setLoadingMore(true)
     
-    // Build select query - use !left to get all videos, and count for upload count
-    const selectQuery = 'id, title, description, created_at, youtube_url, shopee_product_url, bolreview_uploads!left(id, created_at, upload_date, facebook_url)'
+    // Build select query - use !inner when filtering by upload date to only return matching videos
+    // Use !left otherwise to get all videos with their upload records
+    const joinType = uploadDateFilter ? 'inner' : 'left'
+    const selectQuery = `id, title, description, created_at, youtube_url, shopee_product_url, bolreview_uploads!${joinType}(id, created_at, upload_date, facebook_url)`
     
     let q = supabase.from('videos')
       .select(selectQuery, { count: 'exact' })
@@ -233,6 +234,15 @@ export default function BolReviewUpload() {
       .order('upload_date', { ascending: true, foreignTable: 'bolreview_uploads' })
     } else {
       q = q.order('created_at', { ascending: true })
+    }
+    
+    // Add upload_date filter when a date filter is active
+    if (uploadDateFilter === 'today') {
+      q = q.eq('bolreview_uploads.upload_date', todayDate)
+    } else if (uploadDateFilter === 'yesterday') {
+      q = q.eq('bolreview_uploads.upload_date', yesterdayDate)
+    } else if (uploadDateFilter === 'range-3-9') {
+      q = q.in('bolreview_uploads.upload_date', dates3to9)
     }
     
     if (activeSearchQuery) q = q.or(`title.ilike.%${activeSearchQuery}%`)
@@ -251,7 +261,7 @@ export default function BolReviewUpload() {
     setHasMore((vData?.length || 0) === ITEMS_PER_PAGE)
     setLoading(false); setLoadingMore(false)
     fetchStats()
-  }, [activeSearchQuery, showNotUploadedOnly, showUploadedOnly, fetchStats])
+  }, [activeSearchQuery, showNotUploadedOnly, showUploadedOnly, uploadDateFilter, todayDate, yesterdayDate, dates3to9, fetchStats])
 
   useEffect(() => {
     fetchData(0, true)
@@ -264,12 +274,18 @@ export default function BolReviewUpload() {
       setActiveSearchQuery('')
       setShowUploadedOnly(false)
       setShowNotUploadedOnly(false)
+      setCurrentPage(0)
+      setVideos([])
+      setHasMore(true)
     } else {
       setUploadDateFilter(filterKey)
       setSearchQuery('')
       setActiveSearchQuery('')
       setShowUploadedOnly(false)
       setShowNotUploadedOnly(false)
+      setCurrentPage(0)
+      setVideos([])
+      setHasMore(true)
     }
   }
 
@@ -292,6 +308,22 @@ export default function BolReviewUpload() {
     }
     return null
   }
+
+  const getAvailablePlatforms = (video: Video) => {
+    return [{ key: 'youtube', label: 'YouTube' }].filter(p => !!(video[`${p.key}_url` as keyof Video] as string | null))
+  }
+
+  const platformIcons: Record<string, React.ReactElement | null> = {
+    youtube: <svg width="20" height="20" viewBox="0 0 24 24" fill="#FF0000"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>,
+  }
+
+  const openVideoPlayer = (url: string) => {
+    setSelectedVideoUrl(url)
+    setVideoPlayerOpen(true)
+    setVideoLoading(true)
+  }
+
+  const handleVideoLoad = () => setVideoLoading(false)
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -317,20 +349,6 @@ export default function BolReviewUpload() {
   const searchGoogleDriveAll = (t: string) => {
     window.open(`https://drive.google.com/drive/u/0/search?q=${encodeURIComponent(t)}`, '_blank')
   }
-
-  const filteredVideos = useMemo(() => {
-    let result = videos
-
-    if (uploadDateFilter === 'today') {
-      result = result.filter(v => v.bolreview_uploads.some(u => u.upload_date === todayDate))
-    } else if (uploadDateFilter === 'yesterday') {
-      result = result.filter(v => v.bolreview_uploads.some(u => u.upload_date === yesterdayDate))
-    } else if (uploadDateFilter === 'range-3-9') {
-      result = result.filter(v => v.bolreview_uploads.some(u => u.upload_date && dates3to9.includes(u.upload_date)))
-    }
-
-    return result
-  }, [videos, uploadDateFilter, todayDate, yesterdayDate, dates3to9])
 
   const handleLoadMore = () => {
     const np = currentPage + 1
@@ -396,6 +414,28 @@ export default function BolReviewUpload() {
     if (!error) {
       fetchData(0, true)
       setSnackbar({ open: true, message: 'Upload record removed!' })
+    }
+  }
+
+  const openEditUploadDialog = (upload: BolReviewRecord) => {
+    setEditingUpload(upload)
+    setEditUploadDate(upload.upload_date || '')
+    setEditFacebookUrl(upload.facebook_url || '')
+    setEditUploadDialogOpen(true)
+  }
+
+  const handleUpdateUpload = async () => {
+    if (!editingUpload) return
+    const { error } = await supabase.from('bolreview_uploads').update({
+      upload_date: editUploadDate || null,
+      facebook_url: editFacebookUrl || null
+    }).eq('id', editingUpload.id)
+
+    if (!error) {
+      setEditUploadDialogOpen(false)
+      setEditingUpload(null)
+      fetchData(0, true)
+      setSnackbar({ open: true, message: 'Upload record updated!' })
     }
   }
 
@@ -490,7 +530,7 @@ export default function BolReviewUpload() {
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
           <CircularProgress />
         </Box>
-      ) : filteredVideos.length === 0 ? (
+      ) : videos.length === 0 ? (
         <Typography color="text.secondary" align="center" sx={{ py: 6 }}>
           {searchQuery || showUploadedOnly || showNotUploadedOnly || uploadDateFilter
             ? 'No videos found matching your criteria'
@@ -498,7 +538,7 @@ export default function BolReviewUpload() {
         </Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {filteredVideos.map((video) => {
+          {videos.map((video) => {
             const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
             const isUploaded = video.bolreview_uploads.length > 0
             const uploadCount = video.bolreview_uploads.length
@@ -512,6 +552,7 @@ export default function BolReviewUpload() {
                         component="img"
                         src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
                         alt={video.title}
+                        onClick={() => openVideoPlayer(video.youtube_url!)}
                         onError={(e) => {
                           const t = e.target as HTMLImageElement
                           if (t.src.includes('mqdefault')) t.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
@@ -523,7 +564,9 @@ export default function BolReviewUpload() {
                           height: 160,
                           objectFit: 'cover',
                           borderRadius: 1,
-                          flexShrink: 0
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                          '&:hover': { opacity: 0.8 }
                         }}
                       />
                     ) : (
@@ -600,6 +643,9 @@ export default function BolReviewUpload() {
                                   </IconButton>
                                 </>
                               )}
+                              <IconButton size="small" onClick={() => openEditUploadDialog(upload)} title="Edit upload" sx={{ p: 0.25, color: 'primary.main' }}>
+                                <Edit fontSize="small" />
+                              </IconButton>
                               <IconButton size="small" onClick={() => handleRemoveUpload(upload.id)} title="Remove this upload" sx={{ p: 0.25, color: 'warning.main' }}>
                                 <Delete fontSize="small" />
                               </IconButton>
@@ -788,6 +834,108 @@ export default function BolReviewUpload() {
             Mark as Uploaded
           </Button>
         </DialogActions>
+      </Dialog>
+
+      <Dialog open={editUploadDialogOpen} onClose={() => setEditUploadDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="h6">Edit Upload Record</Typography>
+            <IconButton onClick={() => setEditUploadDialogOpen(false)} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 1 }}>
+            <TextField
+              label="Upload Date"
+              type="date"
+              value={editUploadDate}
+              onChange={(e) => setEditUploadDate(e.target.value)}
+              fullWidth
+              margin="normal"
+              size="small"
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <TextField
+              label="Facebook URL"
+              value={editFacebookUrl}
+              onChange={(e) => setEditFacebookUrl(e.target.value)}
+              fullWidth
+              margin="normal"
+              size="small"
+              placeholder="https://facebook.com/..."
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setEditUploadDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleUpdateUpload} variant="contained" startIcon={<Edit />}>
+            Update
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={videoPlayerOpen} onClose={() => setVideoPlayerOpen(false)} maxWidth="sm" fullWidth fullScreen={isMobile}>
+        <DialogTitle sx={{ pb: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Video Player</span>
+            <IconButton onClick={() => setVideoPlayerOpen(false)} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          {selectedVideoUrl && (() => {
+            const vid = selectedVideoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([^&\n?#]+)/)?.[1] ||
+              selectedVideoUrl.match(/youtube\.com\/watch\?.*v=([^&\n?#]+)/)?.[1]
+            if (!vid) return null
+            return (
+              <>
+                {videoLoading && (
+                  <Box sx={{ width: '100%', height: isMobile ? '85vh' : '80vh', maxWidth: 450, mx: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
+                    <CircularProgress color="primary" />
+                  </Box>
+                )}
+                <Box sx={{ position: 'relative', width: '100%', height: isMobile ? '85vh' : '80vh', maxWidth: 450, mx: 'auto', overflow: 'hidden', display: videoLoading ? 'none' : 'block' }}>
+                  <iframe
+                    src={`https://www.youtube.com/embed/${vid}?autoplay=1`}
+                    title="YouTube video player"
+                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    onLoad={handleVideoLoad}
+                  />
+                </Box>
+              </>
+            )
+          })()}
+          <Box sx={{ mt: 2, px: 2, pb: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>Available Platforms:</Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              {(() => {
+                const cv = videos.find(v => v.youtube_url === selectedVideoUrl)
+                if (!cv) return null
+                return getAvailablePlatforms(cv).map(p => {
+                  const u = cv[`${p.key}_url` as keyof Video] as string
+                  return (
+                    <Button
+                      key={p.key}
+                      href={u}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      variant={p.key === 'youtube' ? 'contained' : 'outlined'}
+                      startIcon={platformIcons[p.key] || undefined}
+                      size="small"
+                    >
+                      {p.label}
+                    </Button>
+                  )
+                })
+              })()}
+            </Box>
+          </Box>
+        </DialogContent>
       </Dialog>
 
       <Dialog open={descriptionOpen} onClose={() => setDescriptionOpen(false)} maxWidth="md" fullWidth fullScreen={isMobile}>

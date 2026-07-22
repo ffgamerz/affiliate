@@ -206,7 +206,7 @@ const todayDate = useMemo(() => getTodayDate(), [])
 const yesterdayDate = useMemo(() => getDateDaysAgo(1), [])
 const dates3to9 = useMemo(() => Array.from({ length: 7 }, (_, i) => getDateDaysAgo(i + 3)), [])
 
-// Helper: Get current week range (Monday-Sunday) in MY timezone
+// Helper: Get current week range (Wednesday-Tuesday) in MY timezone
 const getCurrentWeekRange = () => {
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Kuala_Lumpur',
@@ -218,23 +218,26 @@ const getCurrentWeekRange = () => {
   const myDateStr = formatter.format(now)
   const myDate = new Date(myDateStr)
   
-  // Get Monday of current week (0 = Sunday, 1 = Monday)
+  // Get Wednesday of current week (0 = Sunday, 3 = Wednesday)
   const dayOfWeek = myDate.getDay()
-  const monday = new Date(myDate)
-  monday.setDate(myDate.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
+  const wednesday = new Date(myDate)
+  // Calculate days to go back to get to Wednesday
+  // If day is Wed(3), go back 0; Thu(4), go back 1; ... Sun(0), go back 4; Mon(1), go back 5; Tue(2), go back 6
+  const daysToWednesday = (dayOfWeek + 4) % 7
+  wednesday.setDate(myDate.getDate() - daysToWednesday)
   
-  const sunday = new Date(monday)
-  sunday.setDate(monday.getDate() + 6)
+  const tuesday = new Date(wednesday)
+  tuesday.setDate(wednesday.getDate() + 6)
   
-  // Generate all 7 dates in the week
+  // Generate all 7 dates in the week (Wed to Tue)
   const weekDates: string[] = []
   for (let i = 0; i < 7; i++) {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
+    const d = new Date(wednesday)
+    d.setDate(wednesday.getDate() + i)
     weekDates.push(formatter.format(d))
   }
   
-  return { monday, sunday, weekDates }
+  return { monday: wednesday, sunday: tuesday, weekDates }
 }
 
 // Helper: Get ISO week number
@@ -1055,7 +1058,7 @@ const OriginalCreatorCard = () => {
         
         {/* Duration Text */}
         <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1.5 }}>
-          Mon, {creatorStats.weekStart} 12:00am – Sun, {creatorStats.weekEnd} 11:59pm
+          Wed, {creatorStats.weekStart} 12:00am – Tue, {creatorStats.weekEnd} 11:59pm
         </Typography>
         
         {/* Progress Section */}
@@ -1269,7 +1272,7 @@ const displayedVideos = filteredVideos
 
       {filterEmptyPlatform && <Alert severity="info" sx={{ mb: 2 }}>Showing videos without {filterEmptyPlatform} URL</Alert>}
       {showBookmarkedOnly && <Alert severity="info" sx={{ mb: 2 }}>Showing only bookmarked videos</Alert>}
-      {shopeeWeekFilter && <Alert severity="info" sx={{ mb: 2 }}>Showing Shopee videos uploaded this week (Mon-Sun)</Alert>}
+      {shopeeWeekFilter && <Alert severity="info" sx={{ mb: 2 }}>Showing Shopee videos uploaded this week (Wed-Tue)</Alert>}
       {shopeeWeekDateRange && <Alert severity="info" sx={{ mb: 2 }}>Showing Shopee videos for selected week</Alert>}
 
       {loading ? (
