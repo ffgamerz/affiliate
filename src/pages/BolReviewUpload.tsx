@@ -223,9 +223,12 @@ export default function BolReviewUpload() {
     
     if (showNotUploadedOnly) {
       q = q.is('bolreview_uploads', null)
+      q = q.order('created_at', { ascending: true })
     } else if (showUploadedOnly) {
       q = q.not('bolreview_uploads', 'is', null)
       .order('upload_date', { ascending: true, foreignTable: 'bolreview_uploads' })
+    } else {
+      q = q.order('created_at', { ascending: true })
     }
     
     if (activeSearchQuery) q = q.or(`title.ilike.%${activeSearchQuery}%`)
