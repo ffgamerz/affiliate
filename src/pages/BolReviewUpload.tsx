@@ -17,6 +17,13 @@ const GoogleDriveIcon = () => (
   </svg>
 )
 
+interface BolReviewRecord {
+  id: string;
+  created_at: string;
+  upload_date: string | null;
+  facebook_url: string | null;
+}
+
 interface Video {
   id: string;
   title: string;
@@ -24,11 +31,7 @@ interface Video {
   created_at: string;
   youtube_url: string | null;
   shopee_product_url: string | null;
-  bolreview_id: string | null;
-  bolreview_created_at: string | null;
-  upload_date: string | null;
-  facebook_url: string | null;
-  bolreview_upload_count: number;
+  bolreview_uploads: BolReviewRecord[];
 }
 
 interface VideoRaw {
@@ -54,17 +57,22 @@ interface VideoRaw {
 const transformVideoData = (raw: VideoRaw): Video => {
   // Handle both null, empty array, and single object cases
   // Supabase !inner join may return a single object instead of array
-  let bolreview = null
-  let uploadCount = 0
+  let uploads: BolReviewRecord[] = []
   if (raw.bolreview_uploads) {
     if (Array.isArray(raw.bolreview_uploads)) {
-      uploadCount = raw.bolreview_uploads.length
-      if (raw.bolreview_uploads.length > 0) {
-        bolreview = raw.bolreview_uploads[0]
-      }
+      uploads = raw.bolreview_uploads.map(u => ({
+        id: u.id,
+        created_at: u.created_at,
+        upload_date: u.upload_date,
+        facebook_url: u.facebook_url
+      }))
     } else {
-      uploadCount = 1
-      bolreview = raw.bolreview_uploads
+      uploads = [{
+        id: raw.bolreview_uploads.id,
+        created_at: raw.bolreview_uploads.created_at,
+        upload_date: raw.bolreview_uploads.upload_date,
+        facebook_url: raw.bolreview_uploads.facebook_url
+      }]
     }
   }
   return {
@@ -74,11 +82,7 @@ const transformVideoData = (raw: VideoRaw): Video => {
     created_at: raw.created_at,
     youtube_url: raw.youtube_url,
     shopee_product_url: raw.shopee_product_url,
-    bolreview_id: bolreview?.id || null,
-    bolreview_created_at: bolreview?.created_at || null,
-    upload_date: bolreview?.upload_date || null,
-    facebook_url: bolreview?.facebook_url || null,
-    bolreview_upload_count: uploadCount,
+    bolreview_uploads: uploads,
   }
 }
 
@@ -318,11 +322,11 @@ export default function BolReviewUpload() {
     let result = videos
 
     if (uploadDateFilter === 'today') {
-      result = result.filter(v => v.upload_date && v.upload_date === todayDate)
+      result = result.filter(v => v.bolreview_uploads.some(u => u.upload_date === todayDate))
     } else if (uploadDateFilter === 'yesterday') {
-      result = result.filter(v => v.upload_date && v.upload_date === yesterdayDate)
+      result = result.filter(v => v.bolreview_uploads.some(u => u.upload_date === yesterdayDate))
     } else if (uploadDateFilter === 'range-3-9') {
-      result = result.filter(v => v.upload_date && dates3to9.includes(v.upload_date))
+      result = result.filter(v => v.bolreview_uploads.some(u => u.upload_date && dates3to9.includes(u.upload_date)))
     }
 
     return result
@@ -383,15 +387,15 @@ export default function BolReviewUpload() {
     }
   }
 
-  const handleRemoveUpload = async (videoId: string) => {
-    if (!confirm('Remove upload status from BolReview?')) return
+  const handleRemoveUpload = async (uploadId: string) => {
+    if (!confirm('Remove this upload record from BolReview?')) return
     const { error } = await supabase.from('bolreview_uploads')
       .delete()
-      .eq('video_id', videoId)
+      .eq('id', uploadId)
 
     if (!error) {
       fetchData(0, true)
-      setSnackbar({ open: true, message: 'Upload status removed!' })
+      setSnackbar({ open: true, message: 'Upload record removed!' })
     }
   }
 
@@ -496,7 +500,8 @@ export default function BolReviewUpload() {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {filteredVideos.map((video) => {
             const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
-            const isUploaded = video.bolreview_id !== null
+            const isUploaded = video.bolreview_uploads.length > 0
+            const uploadCount = video.bolreview_uploads.length
             
             return (
               <Card key={video.id}>
@@ -546,7 +551,7 @@ export default function BolReviewUpload() {
                       <Box sx={{ mb: 1.5 }}>
                         {isUploaded ? (
                           <Chip
-                            label={video.bolreview_upload_count > 1 ? `Uploaded (${video.bolreview_upload_count})` : 'Uploaded'}
+                            label={uploadCount > 1 ? `Uploaded (${uploadCount})` : 'Uploaded'}
                             size="small"
                             sx={{
                               bgcolor: '#e8f5e9',
@@ -571,10 +576,36 @@ export default function BolReviewUpload() {
                         )}
                       </Box>
 
-                      {isUploaded && video.upload_date && (
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11, display: 'block', mb: 1 }}>
-                          Upload Date: {new Date(video.upload_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </Typography>
+                      {isUploaded && (
+                        <Box sx={{ mb: 1.5 }}>
+                          <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', letterSpacing: 0.5, mb: 0.5, display: 'block' }}>
+                            Upload Records
+                          </Typography>
+                          {video.bolreview_uploads.map((upload) => (
+                            <Box key={upload.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5, flexWrap: 'wrap' }}>
+                              <Chip
+                                label={upload.upload_date ? new Date(upload.upload_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No date'}
+                                size="small"
+                                variant="outlined"
+                                sx={{ fontSize: 10, height: 20 }}
+                              />
+                              {upload.facebook_url && (
+                                <>
+                                  <Facebook sx={{ fontSize: 14, color: '#1877F2' }} />
+                                  <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {upload.facebook_url}
+                                  </Typography>
+                                  <IconButton size="small" onClick={() => copyToClipboard(upload.facebook_url!, 'Facebook')} sx={{ p: 0.25 }}>
+                                    <CopyIcon fontSize="small" />
+                                  </IconButton>
+                                </>
+                              )}
+                              <IconButton size="small" onClick={() => handleRemoveUpload(upload.id)} title="Remove this upload" sx={{ p: 0.25, color: 'warning.main' }}>
+                                <Delete fontSize="small" />
+                              </IconButton>
+                            </Box>
+                          ))}
+                        </Box>
                       )}
 
                       {video.shopee_product_url && (
@@ -629,33 +660,15 @@ export default function BolReviewUpload() {
                           </>
                         )}
                       </Box>
-
-                      {isUploaded && video.facebook_url && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
-                          <Facebook sx={{ fontSize: 16, color: '#1877F2' }} />
-                          <Typography variant="caption" sx={{ fontSize: 11, color: 'text.secondary' }}>
-                            {video.facebook_url}
-                          </Typography>
-                          <IconButton size="small" onClick={() => copyToClipboard(video.facebook_url!, 'Facebook')} sx={{ p: 0.5 }}>
-                            <CopyIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
-                      )}
                     </Box>
 
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>
                       <IconButton size="small" onClick={() => openEditDialog(video)} title="Edit">
                         <Edit fontSize="small" />
                       </IconButton>
-                      {isUploaded ? (
-                        <IconButton size="small" onClick={() => handleRemoveUpload(video.id)} title="Remove Upload" sx={{ color: 'warning.main' }}>
-                          <Delete fontSize="small" />
-                        </IconButton>
-                      ) : (
-                        <IconButton size="small" onClick={() => openUploadDialog(video)} title="Mark as Uploaded" sx={{ color: 'success.main' }}>
-                          <Facebook fontSize="small" />
-                        </IconButton>
-                      )}
+                      <IconButton size="small" onClick={() => openUploadDialog(video)} title="Mark as Uploaded" sx={{ color: 'success.main' }}>
+                        <Facebook fontSize="small" />
+                      </IconButton>
                     </Box>
                   </Box>
                 </CardContent>
