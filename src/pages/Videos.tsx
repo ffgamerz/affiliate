@@ -526,6 +526,7 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
       setHasMore(vData.length === ITEMS_PER_PAGE)
 
     // ELSEIF - tekan card platform dari dashboard (youtube, tiktok, facebook, dll)
+    // Tak perlu fetch reuploads - platform tanpa URL confirm tiada reupload
     } else if (filterEmptyPlatform) {
       const q = supabase.from('videos').select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
@@ -533,8 +534,6 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
         .is(`${filterEmptyPlatform}_url`, null)
       const vR = await q
       vData = (vR.data as Video[]) || []
-      const rR = await supabase.from('reuploads').select('*')
-      rData = (rR.data as Reupload[]) || []
 
       if (reset || page === 0) {
         setVideos(vData)
@@ -649,7 +648,8 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     }
 
     // Fetch reuploads if not already fetched (for chip highlighting)
-    if (rData.length === 0 && !showBookmarkedOnly) {
+    // Skip for: filterEmptyPlatform (no URL = no reuploads), bookmarked, shopee week
+    if (rData.length === 0 && !showBookmarkedOnly && !filterEmptyPlatform && !shopeeWeekFilter && !shopeeWeekDateRange) {
       const rR = await supabase.from('reuploads').select('*')
       rData = (rR.data as Reupload[]) || []
     }
