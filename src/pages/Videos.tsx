@@ -654,7 +654,7 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
 
     // ELSEIF - tekan card today/yesterday/days 3-9 (dengan pagination)
     } else if (uploadDateFilter) {
-      // Step 1: Fetch IDs - lightweight queries (no pagination needed for IDs)
+      // Step 1: Fetch IDs - lightweight queries
       let vIds: string[] = []
       let reuploadVideoIds: string[] = []
       let targetDate: string | null = null
@@ -662,13 +662,10 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
 
       if (uploadDateFilter === 'range-3-9') {
         targetDates = dates3to9
-        const allIds: string[] = []
-        for (const p of platforms) {
-          const { data } = await supabase.from('videos').select('id')
-            .in(`${p.key}_upload_date`, dates3to9)
-          if (data) allIds.push(...data.map((v: any) => v.id))
-        }
-        vIds = [...new Set(allIds)]
+        // 1 query instead of 6 (loop per platform)
+        const orParts = platforms.map(p => `${p.key}_upload_date.in.(${dates3to9.join(',')})`).join(',')
+        const { data } = await supabase.from('videos').select('id').or(orParts)
+        vIds = data ? [...new Set(data.map((v: any) => v.id))] : []
         // Get reupload video IDs for range
         const { data: ruData } = await supabase.from('reuploads').select('video_id')
           .in('upload_date', targetDates)
@@ -678,7 +675,6 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
         const { data } = await supabase.from('videos').select('id')
           .or(buildUploadDateOrFilter(targetDate))
         vIds = data ? data.map((v: any) => v.id) : []
-        // Get reupload video IDs for that date
         const { data: ruData } = await supabase.from('reuploads').select('video_id')
           .eq('upload_date', targetDate)
         if (ruData) reuploadVideoIds = [...new Set(ruData.map((r: any) => r.video_id))]
@@ -792,6 +788,13 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
   }, [fetchBookmarks])
 
   // Fetch creator stats - original uploads only (no reuploads)
+  const countWeekBreakdown = (vRows: any[], weekStart: string, weekEnd: string, platformKey: string) => {
+    return vRows.filter((v: any) => {
+      const ud = v[`${platformKey}_upload_date`]
+      return ud && ud >= weekStart && ud <= weekEnd
+    }).length
+  }
+
   const fetchCreatorStats = useCallback(async () => {
     const formatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Kuala_Lumpur',
@@ -800,42 +803,42 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
       day: '2-digit'
     })
     
-    // Get current week range
     const { monday, sunday, weekDates } = getCurrentWeekRange()
     const weekNumber = getISOWeekNumber(monday)
     const { start, end } = formatWeekRange(monday, sunday)
     
-    // Count shopee uploads in current week (original uploads only)
-    const { count: shopeeCount } = await supabase.from('videos')
-      .select('*', { count: 'exact', head: true })
-      .gte('shopee_upload_date', weekDates[0])
-      .lte('shopee_upload_date', weekDates[6])
+    // Fetch all upload_date columns for the current week range (1 query instead of 7)
+    const allDateFields = platforms.map(p => `${p.key}_upload_date`).join(', ')
+    const { data: weekVideos } = await supabase.from('videos')
+      .select(allDateFields)
+      .or(platforms.map(p => `${p.key}_upload_date.gte.${weekDates[0]},${p.key}_upload_date.lte.${weekDates[6]}`).join(','))
+    const vRows = (weekVideos || []) as any[]
+    
+    // Count shopee uploads in current week
+    const shopeeCount = countWeekBreakdown(vRows, weekDates[0], weekDates[6], 'shopee')
     
     // Platform breakdown for current week
-    const platformBreakdown = await Promise.all(platforms.map(async (p) => {
-      const { count } = await supabase.from('videos')
-        .select('*', { count: 'exact', head: true })
-        .gte(`${p.key}_upload_date`, weekDates[0])
-        .lte(`${p.key}_upload_date`, weekDates[6])
-      return { key: p.key, original: count || 0, reupload: 0 }
+    const platformBreakdown = platforms.map(p => ({
+      key: p.key,
+      original: countWeekBreakdown(vRows, weekDates[0], weekDates[6], p.key),
+      reupload: 0
     }))
     
     setCreatorStats({
       weekNumber,
-      shopeeCount: shopeeCount || 0,
+      shopeeCount,
       target: 20,
       weekStart: start,
       weekEnd: end,
       platformBreakdown
     })
     
-    // Fetch last 5 weeks history
+    // Fetch last 5 weeks history - 1 query per week (for shopee count only)
+    // Replaced: 30 queries (5 weeks × 6 platforms) with 5 queries
     const historyPromises = []
     for (let i = 1; i <= 5; i++) {
       const pastMonday = new Date(monday)
       pastMonday.setDate(monday.getDate() - (i * 7))
-      const pastSunday = new Date(pastMonday)
-      pastSunday.setDate(pastMonday.getDate() + 6)
       
       const pastWeekDates: string[] = []
       for (let j = 0; j < 7; j++) {
@@ -846,24 +849,22 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
       
       const pastWeekNumber = getISOWeekNumber(pastMonday)
       
-      // Count shopee uploads for this past week
-      const { count: pastShopeeCount } = await supabase.from('videos')
-        .select('*', { count: 'exact', head: true })
-        .gte('shopee_upload_date', pastWeekDates[0])
-        .lte('shopee_upload_date', pastWeekDates[6])
+      // Fetch all upload_date columns for this week (1 query instead of 6)
+      const { data: pastWeekData } = await supabase.from('videos')
+        .select(allDateFields)
+        .or(platforms.map(p => `${p.key}_upload_date.gte.${pastWeekDates[0]},${p.key}_upload_date.lte.${pastWeekDates[6]}`).join(','))
+      const pwRows = (pastWeekData || []) as any[]
       
-      // Platform breakdown for this week
-      const pastPlatformBreakdown = await Promise.all(platforms.map(async (p) => {
-        const { count } = await supabase.from('videos')
-          .select('*', { count: 'exact', head: true })
-          .gte(`${p.key}_upload_date`, pastWeekDates[0])
-          .lte(`${p.key}_upload_date`, pastWeekDates[6])
-        return { key: p.key, original: count || 0, reupload: 0 }
+      const pastShopeeCount = countWeekBreakdown(pwRows, pastWeekDates[0], pastWeekDates[6], 'shopee')
+      const pastPlatformBreakdown = platforms.map(p => ({
+        key: p.key,
+        original: countWeekBreakdown(pwRows, pastWeekDates[0], pastWeekDates[6], p.key),
+        reupload: 0
       }))
       
       historyPromises.push({
         weekNumber: pastWeekNumber,
-        shopeeCount: pastShopeeCount || 0,
+        shopeeCount: pastShopeeCount,
         dates: pastWeekDates,
         platformBreakdown: pastPlatformBreakdown
       })
