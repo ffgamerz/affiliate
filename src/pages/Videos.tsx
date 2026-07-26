@@ -152,7 +152,7 @@ const getQueryPurpose = (url: string, method: string, table: string, params: URL
     return '📋 Videos with reuploads'
   }
   if (hasTitleSearch || hasDateFilter || hasPlatformFilter) return '🔍 Search videos' + (hasTitleSearch ? '' : ' (filter)')
-  if (hasIsNull && url.includes('_url')) return '📋 Dashboard card: videos without ' + params.get('url')?.replace('_url','') + ' URL'
+  if (hasIsNull && url.includes('_url')) return '📋 Dashboard card: videos without ' + (url.match(/(\w+)_url/) || ['',''])[1] + ' URL'
   if (hasInId) return '📋 Load More / initial page'
   if (url.includes('reuploads') && url.includes('video_id')) return '📎 Fetch reuploads for chip highlighting'
   if (url.includes('reuploads') && (url.includes('upload_date.eq') || url.includes('upload_date.in'))) return '📎 Fetch reupload IDs for date'
@@ -803,10 +803,20 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
   }, [])
 
   // Effect to trigger fetch when filters change
-  // Note: navigation from other pages (location state) sets filterEmptyPlatform etc. which triggers this
+  // Skip initial mount fetch if location state will trigger it - prevents double-fetch
+  const initialFetchSkippedRef = useRef(false)
   useEffect(() => {
+    const state = location.state as any
+    // On first mount, if there's location state that will set filters, skip fetch (location handler will trigger it)
+    if (!initialFetchSkippedRef.current && (state?.calendarUploadDate || state?.searchQuery || state?.filterEmptyPlatform)) {
+      initialFetchSkippedRef.current = true
+      setLoading(false) // Don't show loading since fetch will happen
+      return
+    }
+    initialFetchSkippedRef.current = true
     setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
-  }, [activeSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange, fetchData])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange])
 
 
   // Fetch bookmarks only when needed (lazy: on bookmark filter click or bookmark icon click)
