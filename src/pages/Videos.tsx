@@ -802,10 +802,11 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     }
   }, [])
 
-  // Effect to trigger fetch when filters change or navigation happens
+  // Effect to trigger fetch when filters change
+  // Note: navigation from other pages (location state) sets filterEmptyPlatform etc. which triggers this
   useEffect(() => {
     setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
-  }, [activeSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange, location.key, fetchData])
+  }, [activeSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange, fetchData])
 
 
   // Fetch bookmarks only when needed (lazy: on bookmark filter click or bookmark icon click)
