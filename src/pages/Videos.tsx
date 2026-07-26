@@ -543,16 +543,16 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
       }
       setHasMore(vData.length === ITEMS_PER_PAGE)
 
-    // ELSEIF - tekan card today/yesterday/days 3-9
+    // ELSEIF - tekan card today/yesterday/days 3-9 (dengan pagination)
     } else if (uploadDateFilter) {
-      // Fetch reuploads first
-      const { data: ruData } = await supabase.from('reuploads').select('*')
-      rData = (ruData as Reupload[]) || []
-
+      // Step 1: Fetch IDs - lightweight queries (no pagination needed for IDs)
       let vIds: string[] = []
+      let reuploadVideoIds: string[] = []
+      let targetDate: string | null = null
+      let targetDates: string[] | null = null
 
       if (uploadDateFilter === 'range-3-9') {
-        // Fetch all video IDs for the date range
+        targetDates = dates3to9
         const allIds: string[] = []
         for (const p of platforms) {
           const { data } = await supabase.from('videos').select('id')
@@ -560,37 +560,44 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
           if (data) allIds.push(...data.map((v: any) => v.id))
         }
         vIds = [...new Set(allIds)]
+        // Get reupload video IDs for range
+        const { data: ruData } = await supabase.from('reuploads').select('video_id')
+          .in('upload_date', targetDates)
+        if (ruData) reuploadVideoIds = [...new Set(ruData.map((r: any) => r.video_id))]
       } else {
-        // For today/yesterday, use buildUploadDateOrFilter
-        const targetDate = uploadDateFilter === 'today' ? todayDate : yesterdayDate
+        targetDate = uploadDateFilter === 'today' ? todayDate : yesterdayDate
         const { data } = await supabase.from('videos').select('id')
           .or(buildUploadDateOrFilter(targetDate))
         vIds = data ? data.map((v: any) => v.id) : []
+        // Get reupload video IDs for that date
+        const { data: ruData } = await supabase.from('reuploads').select('video_id')
+          .eq('upload_date', targetDate)
+        if (ruData) reuploadVideoIds = [...new Set(ruData.map((r: any) => r.video_id))]
       }
 
-      // Get video IDs from reuploads on target date(s)
-      const targetDate = uploadDateFilter === 'today' ? todayDate
-        : uploadDateFilter === 'yesterday' ? yesterdayDate
-        : null
-      const targetDates = uploadDateFilter === 'range-3-9' ? dates3to9 : null
-
-      let reuploadVideoIds: string[] = []
-      if (targetDate) {
-        reuploadVideoIds = [...new Set(rData.filter(r => r.upload_date === targetDate).map(r => r.video_id))]
-      } else if (targetDates) {
-        reuploadVideoIds = [...new Set(rData.filter(r => targetDates.includes(r.upload_date || '')).map(r => r.video_id))]
-      }
-
-      // Combine all video IDs
+      // Step 2: Combine IDs and fetch paginated results
       const allVideoIds = [...new Set([...vIds, ...reuploadVideoIds])]
-
       if (allVideoIds.length > 0) {
-        const { data: videoData } = await supabase.from('videos').select('*').in('id', allVideoIds)
+        const { data: videoData } = await supabase.from('videos').select('*')
+          .in('id', allVideoIds)
+          .order('created_at', { ascending: false })
+          .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
         vData = (videoData as Video[]) || []
       }
 
-      setVideos(vData)
-      setHasMore(false)
+      // Step 3: Fetch all reuploads for the matched videos (for chip highlighting)
+      if (vData.length > 0) {
+        const { data: ruData } = await supabase.from('reuploads').select('*')
+          .in('video_id', vData.map(v => v.id))
+        rData = (ruData as Reupload[]) || []
+      }
+
+      if (reset || page === 0) {
+        setVideos(vData)
+      } else {
+        setVideos(prev => [...prev, ...vData])
+      }
+      setHasMore(vData.length === ITEMS_PER_PAGE)
 
     // ELSEIF - tekan bookmarked
     } else if (showBookmarkedOnly) {
@@ -606,15 +613,22 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
       setVideos(vData)
       setHasMore(false)
 
-    // ELSEIF - shopee week filter
+    // ELSEIF - shopee week filter (dengan pagination)
     } else if (shopeeWeekFilter || shopeeWeekDateRange) {
-      const { data: allVideos } = await supabase.from('videos').select('*').order('created_at', { ascending: false })
-      const allData = (allVideos as Video[]) || []
-      // Filter client-side by shopee_upload_date in range
       const range = shopeeWeekDateRange || getCurrentWeekRange().weekDates
-      vData = allData.filter(v => v.shopee_upload_date && range.includes(v.shopee_upload_date))
-      setVideos(vData)
-      setHasMore(false)
+      const { data: videoData } = await supabase.from('videos').select('*', { count: 'exact' })
+        .gte('shopee_upload_date', range[0])
+        .lte('shopee_upload_date', range[6])
+        .order('created_at', { ascending: false })
+        .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
+      vData = (videoData as Video[]) || []
+
+      if (reset || page === 0) {
+        setVideos(vData)
+      } else {
+        setVideos(prev => [...prev, ...vData])
+      }
+      setHasMore(vData.length === ITEMS_PER_PAGE)
 
     // ELSE - default load video page, tanpa filter
     } else {
@@ -634,8 +648,8 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
       setHasMore(vData.length === ITEMS_PER_PAGE)
     }
 
-    // Always fetch reuploads if not already fetched
-    if (rData.length === 0 && !showBookmarkedOnly && !shopeeWeekFilter && !shopeeWeekDateRange) {
+    // Fetch reuploads if not already fetched (for chip highlighting)
+    if (rData.length === 0 && !showBookmarkedOnly) {
       const rR = await supabase.from('reuploads').select('*')
       rData = (rR.data as Reupload[]) || []
     }
