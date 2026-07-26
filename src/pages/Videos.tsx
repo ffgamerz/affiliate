@@ -113,8 +113,118 @@ const StatCard = ({ filterKey, title, videoCount, platformUploadCount, uploadDat
   </Card>
 )
 
+// Debug: parse Supabase REST URL into SQL
+const parseSupabaseUrlToSql = (url: string, method: string, body: string | null): string => {
+  try {
+    const u = new URL(url)
+    const path = u.pathname.split('/rest/v1/')[1] || u.pathname
+    const table = path.split('?')[0]
+    const params = u.searchParams
+
+    // Build SQL
+    let select = params.get('select') || '*'
+    let sql = `SELECT ${select} FROM ${table}`
+
+    // WHERE clauses from URL params
+    const wheres: string[] = []
+    for (const [key, val] of params.entries()) {
+      if (key === 'select' || key === 'order' || key === 'limit' || key === 'offset' || key === 'offset' || key === '0') continue
+      if (key.endsWith('=eq')) { wheres.push(`${key.replace('=eq','')} = '${val}'`) }
+      else if (key.endsWith('.eq')) { wheres.push(`${key.replace('.eq','')} = '${val}'`) }
+      else if (key.endsWith('.gte')) { wheres.push(`${key.replace('.gte','')} >= '${val}'`) }
+      else if (key.endsWith('.lte')) { wheres.push(`${key.replace('.lte','')} <= '${val}'`) }
+      else if (key.endsWith('.ilike')) { wheres.push(`${key.replace('.ilike','')} ILIKE '%${val}%'`) }
+      else if (key.endsWith('.is')) { wheres.push(`${key.replace('.is','')} IS ${val}`) }
+      else if (key.endsWith('.not')) { wheres.push(`${key.replace('.not','')} IS NOT NULL`) }
+      else if (key.endsWith('.in')) { wheres.push(`${key.replace('.in','')} IN (${(val||'').split(',').map((v:string)=>`'${v}'`).join(',')})`) }
+      else if (key === 'or') {
+        const parts = val.split(',')
+        const ors = parts.map((p: string) => {
+          const [, col, op, v] = p.match(/^(.+?)\.(.+?)\.(.+)$/) || []
+          if (op === 'eq') return `${col} = '${v}'`
+          if (op === 'is') return `${col} IS ${v}`
+          return p
+        })
+        wheres.push(`(${ors.join(' OR ')})`)
+      } else if (key.startsWith('order')) {
+        // skip - handled separately
+      } else {
+        wheres.push(`${key} = '${val}'`)
+      }
+    }
+
+    // Handle POST (insert) with body
+    if (method === 'POST' && body) {
+      try { sql = `INSERT INTO ${table} ${body}` } catch {}
+    }
+    if (method === 'DELETE') {
+      sql = `DELETE FROM ${table}`
+      // Add IDs from body
+      try { const ids = JSON.parse(body||'{}'); if (ids?.id) wheres.push(`id = '${ids.id}'`) } catch {}
+    }
+    if (method === 'PATCH') {
+      sql = `UPDATE ${table} SET ...`
+      // Add filters from URL
+      try { const filters = JSON.parse(body||'{}'); Object.entries(filters).forEach(([k,v]) => wheres.push(`${k} = '${v}'`)) } catch {}
+    }
+
+    if (wheres.length > 0) sql += ` WHERE ${wheres.join(' AND ')}`
+
+    // Order
+    const order = params.get('order')
+    if (order) sql += ` ORDER BY ${order}`
+
+    // Range (pagination)
+    const range = u.pathname.match(/range=(\d+)-(\d+)/) || u.hash.match(/range=(\d+)-(\d+)/)
+    // Actually range is in headers, not URL. But we can see it from offset/limit
+    // Use our ITEMS_PER_PAGE assumption
+    const offset = params.get('offset')
+    const limit = params.get('limit')
+    if (offset) sql += ` OFFSET ${offset}`
+    if (limit) sql += ` LIMIT ${limit}`
+
+    return sql
+  } catch {
+    return `-- ${method} ${url}`
+  }
+}
+
 export default function Videos() {
   const location = useLocation(); const theme = useTheme(); const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const [debugQueries, setDebugQueries] = useState<{sql: string; time: number; ts: number}[]>([])
+  // Enable debug via: ?sql-debug in URL or localStorage set 'sql-debug' = '1'
+  const debugEnabled = import.meta.env.DEV || new URLSearchParams(window.location.search).has('sql-debug') || localStorage.getItem('sql-debug') === '1'
+  const debugStartRef = useRef(0)
+  const debugQueryCountRef = useRef(0)
+
+  // Debug: intercept Supabase fetch calls
+  useEffect(() => {
+    if (!debugEnabled) return
+    const origFetch = window.fetch.bind(window)
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    debugQueryCountRef.current = 0
+    debugStartRef.current = Date.now()
+    setDebugQueries([])
+
+    const handler = (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
+      if (url.includes(supabaseUrl) && url.includes('/rest/v1/')) {
+        const method = (init?.method || 'GET').toUpperCase()
+        const body = init?.body?.toString() || null
+        const sql = parseSupabaseUrlToSql(url, method, body)
+        const qIdx = ++debugQueryCountRef.current
+        const start = performance.now()
+        return origFetch(input, init).then(res => {
+          const elapsed = performance.now() - start
+          setDebugQueries(prev => [...prev, { sql, time: Math.round(elapsed), ts: qIdx }])
+          return res
+        })
+      }
+      return origFetch(input, init)
+    }
+    window.fetch = handler as typeof window.fetch
+    return () => { window.fetch = origFetch }
+  }, [debugEnabled])
   const [videos, setVideos] = useState<Video[]>([]); const [reuploads, setReuploads] = useState<Reupload[]>([])
   const [loading, setLoading] = useState(true); const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true); const [currentPage, setCurrentPage] = useState(0)
@@ -1140,8 +1250,33 @@ const WeeklyHistoryDialog = () => {
 
 const displayedVideos = videos
 
+  const debugTotalTime = debugQueries.length > 0
+    ? debugQueries.reduce((sum, q) => sum + q.time, 0)
+    : 0
+
   return (
     <Box>
+      {/* Debug Panel */}
+      {debugEnabled && debugQueries.length > 0 && (
+        <Box sx={{ mb: 2, p: 2, bgcolor: '#1a1a2e', color: '#00ff88', borderRadius: 1, fontFamily: 'monospace', fontSize: 12, maxHeight: 300, overflow: 'auto' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Typography variant="subtitle2" sx={{ color: '#00ff88', fontWeight: 700 }}>
+              🔍 SQL Queries: {debugQueries.length} queries • ~{debugTotalTime}ms
+            </Typography>
+            <Button size="small" variant="outlined" sx={{ color: '#00ff88', borderColor: '#00ff88', fontSize: 11 }} onClick={() => setDebugQueries([])}>Clear</Button>
+          </Box>
+          <Box component="div" sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+            {debugQueries.map((q, i) => (
+              <Box key={i} sx={{ display: 'flex', gap: 1, opacity: 0.9 }}>
+                <Typography component="span" sx={{ color: '#ff6b6b', fontSize: 10, minWidth: 20 }}>#{q.ts}</Typography>
+                <Typography component="span" sx={{ color: q.time > 100 ? '#ff6b6b' : '#00ff88', fontSize: 10, minWidth: 40 }}>{q.time}ms</Typography>
+                <Typography component="span" sx={{ color: '#ffffff', fontSize: 11, wordBreak: 'break-all' }}>{q.sql}</Typography>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      )}
+
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Box><Typography variant="h4" sx={{ fontWeight: 700 }}>Videos</Typography><Typography variant="body2" color="text.secondary">Track video uploads across platforms with quick search and smart filters.</Typography></Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
