@@ -651,47 +651,25 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
 
     // ELSEIF - tekan card today/yesterday/days 3-9 (dengan pagination)
     } else if (uploadDateFilter) {
-      // Step 1: Fetch IDs - lightweight queries
-      let vIds: string[] = []
-      let reuploadVideoIds: string[] = []
-      let targetDate: string | null = null
-      let targetDates: string[] | null = null
+      // Fetch videos with upload dates + join reuploads (1 query instead of 2)
+      const uploadDateOrFilter = uploadDateFilter === 'range-3-9'
+        ? platforms.map(p => `${p.key}_upload_date.in.(${dates3to9.join(',')})`).join(',')
+        : buildUploadDateOrFilter(uploadDateFilter === 'today' ? todayDate : yesterdayDate)
 
-      if (uploadDateFilter === 'range-3-9') {
-        targetDates = dates3to9
-        // 1 query instead of 6 (loop per platform)
-        const orParts = platforms.map(p => `${p.key}_upload_date.in.(${dates3to9.join(',')})`).join(',')
-        const { data } = await supabase.from('videos').select('id').or(orParts)
-        vIds = data ? [...new Set(data.map((v: any) => v.id))] : []
-        // Get reupload video IDs for range
-        const { data: ruData } = await supabase.from('reuploads').select('video_id')
-          .in('upload_date', targetDates)
-        if (ruData) reuploadVideoIds = [...new Set(ruData.map((r: any) => r.video_id))]
-      } else {
-        targetDate = uploadDateFilter === 'today' ? todayDate : yesterdayDate
-        const { data } = await supabase.from('videos').select('id')
-          .or(buildUploadDateOrFilter(targetDate))
-        vIds = data ? data.map((v: any) => v.id) : []
-        const { data: ruData } = await supabase.from('reuploads').select('video_id')
-          .eq('upload_date', targetDate)
-        if (ruData) reuploadVideoIds = [...new Set(ruData.map((r: any) => r.video_id))]
-      }
-
-      // Step 2: Combine IDs and fetch paginated results
-      const allVideoIds = [...new Set([...vIds, ...reuploadVideoIds])]
-      if (allVideoIds.length > 0) {
-        const { data: videoData } = await supabase.from('videos').select('*')
-          .in('id', allVideoIds)
-          .order('created_at', { ascending: false })
-          .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
-        vData = (videoData as Video[]) || []
-      }
-
-      // Step 3: Fetch all reuploads for the matched videos (for chip highlighting)
-      if (vData.length > 0) {
-        const { data: ruData } = await supabase.from('reuploads').select('*')
-          .in('video_id', vData.map(v => v.id))
-        rData = (ruData as Reupload[]) || []
+      const vR = await supabase.from('videos').select('*, reuploads!left(platform, upload_date)')
+        .or(uploadDateOrFilter)
+        .order('created_at', { ascending: false })
+        .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
+      
+      const vDataRaw = (vR.data as any[]) || []
+      vData = vDataRaw.map((v: any) => { const { reuploads, ...rest } = v; return rest as Video })
+      
+      // Extract reuploads from joined data for chip highlighting
+      rData = []
+      for (const v of vDataRaw) {
+        if (v.reuploads && v.reuploads.length > 0) {
+          rData.push(...v.reuploads.map((r: any) => ({ ...r, video_id: v.id })))
+        }
       }
 
       if (reset || page === 0) {
