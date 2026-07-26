@@ -115,9 +115,6 @@ const StatCard = ({ filterKey, title, videoCount, platformUploadCount, uploadDat
 
 // Debug: parse Supabase REST URL into SQL + infer purpose
 const getQueryPurpose = (url: string, method: string, table: string, params: URLSearchParams): string => {
-  const dateVal = [...params.entries()].find(([k]) => k.includes('upload_date') || k.includes('created_at'))?.[1] || ''
-  const tableInfo = (t: string) => t === 'reuploads' ? 'reuploads' : 'videos'
-  
   if (method === 'POST' && table === 'reuploads') return '💾 Save reupload'
   if (method === 'DELETE') return '🗑️ Delete video'
   if (method === 'PATCH') return '✏️ Update video'
@@ -803,19 +800,6 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     setReuploads(rData)
     setLoading(false); setLoadingMore(false); fetchStats()
   }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, shopeeWeekFilter, shopeeWeekDateRange, activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, showBookmarkedOnly])
-
-  // Fetch bookmarks for current user
-  const fetchBookmarks = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setBookmarkedVideoIds(new Set())
-      return
-    }
-    const { data } = await supabase.from('bookmarks').select('video_id').eq('user_id', user.id)
-    if (data) {
-      setBookmarkedVideoIds(new Set(data.map((b: any) => b.video_id)))
-    }
-  }, [])
 
   // Track if we came from location state to skip initial mount fetch
   const hasLocationState = useRef(false)
