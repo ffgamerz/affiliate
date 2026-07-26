@@ -175,9 +175,6 @@ const parseSupabaseUrlToSql = (url: string, method: string, body: string | null)
     if (order) sql += ` ORDER BY ${order}`
 
     // Range (pagination)
-    const range = u.pathname.match(/range=(\d+)-(\d+)/) || u.hash.match(/range=(\d+)-(\d+)/)
-    // Actually range is in headers, not URL. But we can see it from offset/limit
-    // Use our ITEMS_PER_PAGE assumption
     const offset = params.get('offset')
     const limit = params.get('limit')
     if (offset) sql += ` OFFSET ${offset}`
