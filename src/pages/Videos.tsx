@@ -586,6 +586,7 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
   }, [])
 
   // Handle location state for navigation from other pages
+  // Processed BEFORE the main fetch effect to avoid double-fetch
   useEffect(() => {
     const state = location.state as any
     const stateKey = state ? JSON.stringify(state) : null
@@ -601,6 +602,7 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
       setActiveSearchQuery('');
       setPlatformFilter(''); 
       setFilterEmptyPlatform(null); 
+      return
     }
     if (state?.searchQuery) {
       setSearchQuery(state.searchQuery);
@@ -610,9 +612,22 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
       setDateFilter('');
       setCustomUploadDateFilter('');
       setFilterEmptyPlatform(null);
+      return
     }
     if (state?.filterEmptyPlatform) {
-      setFilterEmptyPlatform(state.filterEmptyPlatform)
+      const platform = state.filterEmptyPlatform
+      setFilterEmptyPlatform(platform)
+      setCurrentPage(0); setVideos([]); setHasMore(true); setLoading(true);
+      (async () => {
+        const vR = await supabase.from('videos').select('*', { count: 'exact' })
+          .order('created_at', { ascending: false })
+          .range(0, ITEMS_PER_PAGE - 1)
+          .is(`${platform}_url`, null)
+        setVideos((vR.data as Video[]) || [])
+        setHasMore((vR.data?.length || 0) === ITEMS_PER_PAGE)
+        setLoading(false)
+      })()
+      return
     }
     if (state?.openAddDialog) {
       openAddDialog()
@@ -802,21 +817,22 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     }
   }, [])
 
+  // Track if we came from location state to skip initial mount fetch
+  const hasLocationState = useRef(false)
+
   // Effect to trigger fetch when filters change
-  // Skip initial mount fetch if location state will trigger it - prevents double-fetch
-  const initialFetchSkippedRef = useRef(false)
+  // Note: filterEmptyPlatform excluded - handled manually by location effect and Clear button
   useEffect(() => {
-    const state = location.state as any
-    // On first mount, if there's location state that will set filters, skip fetch (location handler will trigger it)
-    if (!initialFetchSkippedRef.current && (state?.calendarUploadDate || state?.searchQuery || state?.filterEmptyPlatform)) {
-      initialFetchSkippedRef.current = true
-      setLoading(false) // Don't show loading since fetch will happen
+    // If there's location state pending, skip mount fetch (location handler will trigger it)
+    if (location.state && !hasLocationState.current) {
+      hasLocationState.current = true
+      setLoading(false)
       return
     }
-    initialFetchSkippedRef.current = true
+    hasLocationState.current = true
     setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange])
+  }, [activeSearchQuery, dateFilter, customUploadDateFilter, platformFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange])
 
 
   // Fetch bookmarks only when needed (lazy: on bookmark filter click or bookmark icon click)
@@ -1385,7 +1401,13 @@ const displayedVideos = videos
           sx={{ cursor: 'pointer', height: 36 }}
         />
         {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter || showBookmarkedOnly || shopeeWeekFilter || shopeeWeekDateRange) && (
-          <Button variant="outlined" size="small" onClick={() => { setSearchQuery(''); setActiveSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter(''); setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter(''); setShowBookmarkedOnly(false); setShopeeWeekFilter(false); setShopeeWeekDateRange(null) }} startIcon={<CloseIcon />}>Clear</Button>
+          <Button variant="outlined" size="small" onClick={() => { 
+            setSearchQuery(''); setActiveSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter(''); 
+            const hadFilter = !!filterEmptyPlatform
+            setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter(''); 
+            setShowBookmarkedOnly(false); setShopeeWeekFilter(false); setShopeeWeekDateRange(null)
+            if (hadFilter) setTimeout(() => { setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true) }, 0)
+          }} startIcon={<CloseIcon />}>Clear</Button>
         )}
       </Box>
 
