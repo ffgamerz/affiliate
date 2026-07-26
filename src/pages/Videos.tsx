@@ -801,6 +801,17 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     setLoading(false); setLoadingMore(false); fetchStats()
   }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, shopeeWeekFilter, shopeeWeekDateRange, activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, showBookmarkedOnly])
 
+  // Fetch bookmarks (for bookmark icons display)
+  const fetchBookmarks = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setBookmarkedVideoIds(new Set()); return }
+    const { data } = await supabase.from('bookmarks').select('video_id').eq('user_id', user.id)
+    if (data) setBookmarkedVideoIds(new Set(data.map((b: any) => b.video_id)))
+  }, [])
+
+  // Fetch bookmarks on mount (needed for bookmark icon display)
+  useEffect(() => { fetchBookmarks() }, [fetchBookmarks])
+
   // Track if we came from location state to skip initial mount fetch
   const hasLocationState = useRef(false)
 
@@ -817,10 +828,6 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSearchQuery, dateFilter, customUploadDateFilter, platformFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange])
-
-
-  // Fetch bookmarks only when needed (lazy: on bookmark filter click or bookmark icon click)
-  // Removed: separate useEffect that always runs on mount
 
   // Fetch creator stats - single query for ALL weeks, filter client-side
   const fetchCreatorStats = useCallback(async () => {
