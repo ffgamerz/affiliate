@@ -501,10 +501,9 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     if (activeSearchQuery) q = q.or(`title.ilike.%${activeSearchQuery}%`)
     if (dateFilter) q = q.eq('created_at', `${dateFilter}T00:00:00.000Z`)
     if (platformFilter) q = q.not(`${platformFilter}_url`, 'is', null)
-    if (filterEmptyPlatform) q = q.is(`${filterEmptyPlatform}_url`, null)
     if (customUploadDateFilter) q = q.or(buildUploadDateOrFilter(customUploadDateFilter))
     return q
-  }, [activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, customUploadDateFilter])
+  }, [activeSearchQuery, dateFilter, platformFilter, customUploadDateFilter])
 
   const fetchData = useCallback(async (page: number = 0, reset: boolean = false) => {
     if (page === 0) setLoading(true); else setLoadingMore(true)
@@ -512,9 +511,27 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     let vData: Video[] = []
     let rData: Reupload[] = []
 
-    // IF - ada search query, date filter, platform filter, filter empty platform, atau custom upload date
-    if (activeSearchQuery || dateFilter || platformFilter || filterEmptyPlatform || customUploadDateFilter) {
+    // IF - ada search query, date filter, platform filter, atau custom upload date
+    if (activeSearchQuery || dateFilter || platformFilter || customUploadDateFilter) {
       const vR = await buildFilteredQuery(page)
+      vData = (vR.data as Video[]) || []
+      const rR = await supabase.from('reuploads').select('*')
+      rData = (rR.data as Reupload[]) || []
+
+      if (reset || page === 0) {
+        setVideos(vData)
+      } else {
+        setVideos(prev => [...prev, ...vData])
+      }
+      setHasMore(vData.length === ITEMS_PER_PAGE)
+
+    // ELSEIF - tekan card platform dari dashboard (youtube, tiktok, facebook, dll)
+    } else if (filterEmptyPlatform) {
+      const q = supabase.from('videos').select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
+        .is(`${filterEmptyPlatform}_url`, null)
+      const vR = await q
       vData = (vR.data as Video[]) || []
       const rR = await supabase.from('reuploads').select('*')
       rData = (rR.data as Reupload[]) || []
