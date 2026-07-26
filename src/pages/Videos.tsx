@@ -600,9 +600,9 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     setActiveSearchQuery(searchQuery)
   }
 
-  // Build query for videos with search/filter params - WITH pagination
+  // Build query for videos with search/filter params - WITH pagination + reuploads join
   const buildFilteredQuery = useCallback((page: number) => {
-    let q = supabase.from('videos').select('*', { count: 'exact' })
+    let q = supabase.from('videos').select('*, reuploads!left(platform, upload_date)', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
     if (activeSearchQuery) q = q.or(`title.ilike.%${activeSearchQuery}%`)
