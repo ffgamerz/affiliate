@@ -438,9 +438,32 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     }
   }, [open, editingVideo, youtubeUrl, youtubeUploadDate, facebookUrl, facebookUploadDate, instagramUrl, instagramUploadDate, shopeeUrl, shopeeUploadDate, threadsUrl, threadsUploadDate, tiktokUrl, tiktokUploadDate, todayDate])
 
-  // Optimized fetchStats - fetch IDs for proper deduplication
+  // Helper: count platform breakdown from raw rows
+  const countBreakdown = (vRows: any[], reupRows: any[], targetDate: string | null, targetDates: string[] | null) => {
+    const r: { key: string; original: number; reupload: number }[] = platforms.map(p => ({ key: p.key, original: 0, reupload: 0 }))
+    // Count original uploads per platform
+    for (const v of vRows) {
+      for (const p of platforms) {
+        const ud = v[`${p.key}_upload_date`]
+        if (targetDate && ud === targetDate) {
+          const entry = r.find(x => x.key === p.key)
+          if (entry) entry.original++
+        } else if (targetDates && ud && targetDates.includes(ud)) {
+          const entry = r.find(x => x.key === p.key)
+          if (entry) entry.original++
+        }
+      }
+    }
+    // Count reuploads per platform
+    for (const ru of reupRows) {
+      const entry = r.find(x => x.key === ru.platform)
+      if (entry) entry.reupload++
+    }
+    return r
+  }
+
+  // Optimized fetchStats - reduced from ~47 queries to ~10 queries
   const fetchStats = useCallback(async () => {
-    // Use memoized date values
     const todayStr = todayDate
     const yesterdayStr = yesterdayDate
     const d3to9 = dates3to9
@@ -448,93 +471,71 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     // Check cache first
     const cacheKey = `stats_${todayStr}`; const cached = localStorage.getItem(cacheKey)
     const now = Date.now(); const cacheAge = cached ? JSON.parse(cached).timestamp : 0
-    if (cached && (now - cacheAge) < 5 * 60 * 1000) { // 5 min cache
+    if (cached && (now - cacheAge) < 5 * 60 * 1000) {
       const { todayStats: ts, yesterdayStats: ys, range3to9Stats: rs } = JSON.parse(cached)
       setTodayStats(ts); setYesterdayStats(ys); setRange3to9Stats(rs)
       return
     }
-    
-    // Fetch video IDs for original uploads (to deduplicate)
+
+    // Column selector for upload dates only (lightweight)
+    const dateFields = platforms.map(p => `${p.key}_upload_date`).join(', ')
+
+    // Helper: get video IDs for a single date (for dedup count)
     const cOrigIds = async (date: string) => {
-      const { data } = await supabase.from('videos').select('id')
-        .or(buildUploadDateOrFilter(date))
+      const { data } = await supabase.from('videos').select('id').or(buildUploadDateOrFilter(date))
       return data ? data.map((v: any) => v.id) : []
     }
-    
-    // Fetch video IDs for reuploads (to deduplicate)
     const cReupIds = async (date: string) => {
-      const { data } = await supabase.from('reuploads').select('video_id')
-        .eq('upload_date', date)
+      const { data } = await supabase.from('reuploads').select('video_id').eq('upload_date', date)
       return data ? data.map((r: any) => r.video_id) : []
     }
-    
-    // Platform breakdown
-    const cBreak = async (date: string) => {
-      const r: { key: string; original: number; reupload: number }[] = []
-      for (const p of platforms) {
-        const [o, ru] = await Promise.all([
-          supabase.from('videos').select('*', { count: 'exact', head: true }).eq(`${p.key}_upload_date`, date),
-          supabase.from('reuploads').select('*', { count: 'exact', head: true }).eq('platform', p.key).eq('upload_date', date)
-        ])
-        r.push({ key: p.key, original: o.count || 0, reupload: ru.count || 0 })
-      }
-      return r
-    }
-    
-    // Range queries
-    // Range queries - use in() for each platform to get accurate count
+
+    // Helper: get video IDs for date range (1 query instead of 6)
     const cOrigRangeIds = async (dates: string[]) => {
-      // Use in() for each platform to get all video IDs
-      const allIds: string[] = []
-      for (const p of platforms) {
-        const { data } = await supabase.from('videos').select('id')
-          .in(`${p.key}_upload_date`, dates)
-        if (data) allIds.push(...data.map((v: any) => v.id))
-      }
-      return [...new Set(allIds)]
+      const orParts = platforms.map(p => `${p.key}_upload_date.in.(${dates.join(',')})`).join(',')
+      const { data } = await supabase.from('videos').select('id').or(orParts)
+      return data ? [...new Set(data.map((v: any) => v.id))] : []
     }
-    
     const cReupRangeIds = async (dates: string[]) => {
-      const { data } = await supabase.from('reuploads').select('video_id')
-        .in('upload_date', dates)
+      const { data } = await supabase.from('reuploads').select('video_id').in('upload_date', dates)
       return data ? data.map((r: any) => r.video_id) : []
     }
-    
-    const cBreakRange = async (dates: string[]) => {
-      const r: { key: string; original: number; reupload: number }[] = []
-      for (const p of platforms) {
-        const [o, ru] = await Promise.all([
-          supabase.from('videos').select('*', { count: 'exact', head: true }).in(`${p.key}_upload_date`, dates),
-          supabase.from('reuploads').select('*', { count: 'exact', head: true }).eq('platform', p.key).in('upload_date', dates)
-        ])
-        r.push({ key: p.key, original: o.count || 0, reupload: ru.count || 0 })
-      }
-      return r
+
+    // Breakdown: fetch raw data once per date, count client-side (replaces 12 queries per date)
+    // Select only upload_date columns (lightweight)
+    const allDateFields = platforms.map(p => `${p.key}_upload_date`).join(', ')
+
+    const cBreakFast = async (date: string) => {
+      const [vRes, ruRes] = await Promise.all([
+        supabase.from('videos').select(allDateFields).or(buildUploadDateOrFilter(date)),
+        supabase.from('reuploads').select('platform').eq('upload_date', date)
+      ])
+      return countBreakdown(vRes.data || [], ruRes.data || [], date, null)
     }
-    
-    // Calculate unique video count
-    const getUniqueCount = (vIds: string[], rIds: string[]) => {
-      const allIds = [...vIds, ...rIds]
-      return [...new Set(allIds)].length
+
+    const cBreakRangeFast = async (dates: string[]) => {
+      const orParts = platforms.map(p => `${p.key}_upload_date.in.(${dates.join(',')})`).join(',')
+      const [vRes, ruRes] = await Promise.all([
+        supabase.from('videos').select(allDateFields).or(orParts),
+        supabase.from('reuploads').select('platform').in('upload_date', dates)
+      ])
+      return countBreakdown(vRes.data || [], ruRes.data || [], null, dates)
     }
-    
-    // Run all queries in parallel
+
+    // Run all queries in parallel - only 10 queries total!
     const [tVIds, tRIds, tB, yVIds, yRIds, yB, rVIds, rRIds, rB] = await Promise.all([
-      cOrigIds(todayStr), cReupIds(todayStr), cBreak(todayStr),
-      cOrigIds(yesterdayStr), cReupIds(yesterdayStr), cBreak(yesterdayStr),
-      cOrigRangeIds(d3to9), cReupRangeIds(d3to9), cBreakRange(d3to9)
+      cOrigIds(todayStr), cReupIds(todayStr), cBreakFast(todayStr),
+      cOrigIds(yesterdayStr), cReupIds(yesterdayStr), cBreakFast(yesterdayStr),
+      cOrigRangeIds(d3to9), cReupRangeIds(d3to9), cBreakRangeFast(d3to9)
     ])
     
+    const getUniqueCount = (vIds: string[], rIds: string[]) => [...new Set([...vIds, ...rIds])].length
+
     const ts = { videoCount: getUniqueCount(tVIds, tRIds), reuploadCount: tRIds.length, platformBreakdown: tB }
     const ys = { videoCount: getUniqueCount(yVIds, yRIds), reuploadCount: yRIds.length, platformBreakdown: yB }
     const rs = { videoCount: getUniqueCount(rVIds, rRIds), reuploadCount: rRIds.length, platformBreakdown: rB }
-    
-    // Cache for 5 minutes
-    localStorage.setItem(cacheKey, JSON.stringify({ 
-      todayStats: ts, yesterdayStats: ys, range3to9Stats: rs, 
-      timestamp: now 
-    }))
-    
+
+    localStorage.setItem(cacheKey, JSON.stringify({ todayStats: ts, yesterdayStats: ys, range3to9Stats: rs, timestamp: now }))
     setTodayStats(ts); setYesterdayStats(ys); setRange3to9Stats(rs)
   }, [])
 
