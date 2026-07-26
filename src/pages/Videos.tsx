@@ -778,9 +778,10 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
       setHasMore(vData.length === ITEMS_PER_PAGE)
     }
 
-    // Fetch reuploads if not already fetched (for chip highlighting)
-    // Skip for: filterEmptyPlatform (no URL = no reuploads), bookmarked, shopee week
-    if (rData.length === 0 && !showBookmarkedOnly && !filterEmptyPlatform && !shopeeWeekFilter && !shopeeWeekDateRange) {
+      // For ELSE branch: reuploads already in join via buildFilteredQuery
+    // For default ELSE branch: reuploads fetched inline above
+    // Only fetch fallback if actually needed for other branches
+    if (rData.length === 0 && !showBookmarkedOnly && !filterEmptyPlatform && !shopeeWeekFilter && !shopeeWeekDateRange && !uploadDateFilter) {
       const rR = await supabase.from('reuploads').select('*')
       rData = (rR.data as Reupload[]) || []
     }
@@ -807,19 +808,10 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
   }, [activeSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange, location.key, fetchData])
 
 
-  // Fetch bookmarks on mount
-  useEffect(() => {
-    fetchBookmarks()
-  }, [fetchBookmarks])
+  // Fetch bookmarks only when needed (lazy: on bookmark filter click or bookmark icon click)
+  // Removed: separate useEffect that always runs on mount
 
-  // Fetch creator stats - original uploads only (no reuploads)
-  const countWeekBreakdown = (vRows: any[], weekStart: string, weekEnd: string, platformKey: string) => {
-    return vRows.filter((v: any) => {
-      const ud = v[`${platformKey}_upload_date`]
-      return ud && ud >= weekStart && ud <= weekEnd
-    }).length
-  }
-
+  // Fetch creator stats - single query for ALL weeks, filter client-side
   const fetchCreatorStats = useCallback(async () => {
     const formatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Kuala_Lumpur',
@@ -832,38 +824,46 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     const weekNumber = getISOWeekNumber(monday)
     const { start, end } = formatWeekRange(monday, sunday)
     
-    // Fetch all upload_date columns for the current week range (1 query instead of 7)
+    // Fetch ALL upload_date columns in 1 query (no date filter - get everything once)
+    // This replaces 6 queries (5 history weeks + 1 current week)
     const allDateFields = platforms.map(p => `${p.key}_upload_date`).join(', ')
-    const { data: weekVideos } = await supabase.from('videos')
-      .select(allDateFields)
-      .or(platforms.map(p => `${p.key}_upload_date.gte.${weekDates[0]},${p.key}_upload_date.lte.${weekDates[6]}`).join(','))
-    const vRows = (weekVideos || []) as any[]
+    const { data: allData } = await supabase.from('videos').select(allDateFields)
+    const allRows = (allData || []) as any[]
     
-    // Count shopee uploads in current week
-    const shopeeCount = countWeekBreakdown(vRows, weekDates[0], weekDates[6], 'shopee')
+    // Helper: count per week
+    const countPerWeek = (rows: any[], ws: string, we: string) => {
+      const breakdown = platforms.map(p => ({ key: p.key, original: 0, reupload: 0 }))
+      let shopeeCnt = 0
+      for (const v of rows) {
+        for (const p of platforms) {
+          const ud = v[`${p.key}_upload_date`]
+          if (ud && ud >= ws && ud <= we) {
+            const entry = breakdown.find(x => x.key === p.key)
+            if (entry) entry.original++
+            if (p.key === 'shopee') shopeeCnt++
+          }
+        }
+      }
+      return { shopeeCnt, breakdown }
+    }
     
-    // Platform breakdown for current week
-    const platformBreakdown = platforms.map(p => ({
-      key: p.key,
-      original: countWeekBreakdown(vRows, weekDates[0], weekDates[6], p.key),
-      reupload: 0
-    }))
-    
+    // Current week
+    const curr = countPerWeek(allRows, weekDates[0], weekDates[6])
     setCreatorStats({
       weekNumber,
-      shopeeCount,
+      shopeeCount: curr.shopeeCnt,
       target: 20,
       weekStart: start,
       weekEnd: end,
-      platformBreakdown
+      platformBreakdown: curr.breakdown
     })
     
-    // Fetch last 5 weeks history - 1 query per week (for shopee count only)
-    // Replaced: 30 queries (5 weeks × 6 platforms) with 5 queries
-    const historyPromises = []
+    // Last 5 weeks - all from the same 1 query, just different date ranges
+    const history = []
     for (let i = 1; i <= 5; i++) {
       const pastMonday = new Date(monday)
       pastMonday.setDate(monday.getDate() - (i * 7))
+      const pastWeekNumber = getISOWeekNumber(pastMonday)
       
       const pastWeekDates: string[] = []
       for (let j = 0; j < 7; j++) {
@@ -872,30 +872,14 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
         pastWeekDates.push(formatter.format(d))
       }
       
-      const pastWeekNumber = getISOWeekNumber(pastMonday)
-      
-      // Fetch all upload_date columns for this week (1 query instead of 6)
-      const { data: pastWeekData } = await supabase.from('videos')
-        .select(allDateFields)
-        .or(platforms.map(p => `${p.key}_upload_date.gte.${pastWeekDates[0]},${p.key}_upload_date.lte.${pastWeekDates[6]}`).join(','))
-      const pwRows = (pastWeekData || []) as any[]
-      
-      const pastShopeeCount = countWeekBreakdown(pwRows, pastWeekDates[0], pastWeekDates[6], 'shopee')
-      const pastPlatformBreakdown = platforms.map(p => ({
-        key: p.key,
-        original: countWeekBreakdown(pwRows, pastWeekDates[0], pastWeekDates[6], p.key),
-        reupload: 0
-      }))
-      
-      historyPromises.push({
+      const past = countPerWeek(allRows, pastWeekDates[0], pastWeekDates[6])
+      history.push({
         weekNumber: pastWeekNumber,
-        shopeeCount: pastShopeeCount,
+        shopeeCount: past.shopeeCnt,
         dates: pastWeekDates,
-        platformBreakdown: pastPlatformBreakdown
+        platformBreakdown: past.breakdown
       })
     }
-    
-    const history = await Promise.all(historyPromises)
     setWeeklyHistory(history)
   }, [])
 
