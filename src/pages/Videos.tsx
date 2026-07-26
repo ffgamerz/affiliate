@@ -113,19 +113,79 @@ const StatCard = ({ filterKey, title, videoCount, platformUploadCount, uploadDat
   </Card>
 )
 
-// Debug: parse Supabase REST URL into SQL
-const parseSupabaseUrlToSql = (url: string, method: string, body: string | null): string => {
+// Debug: parse Supabase REST URL into SQL + infer purpose
+const getQueryPurpose = (url: string, method: string, table: string, params: URLSearchParams): string => {
+  const dateVal = [...params.entries()].find(([k]) => k.includes('upload_date') || k.includes('created_at'))?.[1] || ''
+  const tableInfo = (t: string) => t === 'reuploads' ? 'reuploads' : 'videos'
+  
+  if (method === 'POST' && table === 'reuploads') return '💾 Save reupload'
+  if (method === 'DELETE') return '🗑️ Delete video'
+  if (method === 'PATCH') return '✏️ Update video'
+  if (method === 'POST' && table === 'videos') return '➕ Add video'
+  if (table === 'bookmarks') return '🔖 Fetch bookmarks'
+
+  const select = params.get('select') || ''
+
+  // RPC calls
+  if (url.includes('/rest/v1/rpc/')) {
+    if (url.includes('get_stats_single')) return '📊 Stat card: platform breakdown (today/yesterday)'
+    if (url.includes('get_stats_range')) return '📊 Stat card: platform breakdown (range 3-9)'
+    if (url.includes('get_video_count_single')) return '📊 Stat card: total video count (today/yesterday)'
+    if (url.includes('get_video_count_range')) return '📊 Stat card: total video count (range 3-9)'
+    return '⚡ RPC: ' + url.split('/rpc/')[1]?.split('?')[0]
+  }
+
+  const hasReuploadsJoin = select.includes('reuploads')
+  const hasOr = url.includes('=or')
+
+  // Detect which fetchData branch
+  const hasUploadDateFilter = [...params.keys()].some(k => k.includes('_upload_date'))
+  const hasTitleSearch = url.includes('.ilike.')
+  const hasDateFilter = url.includes('created_at.eq')
+  const hasPlatformFilter = url.includes('_url.not.')
+  const hasIsNull = url.includes('.is.')
+  const hasInId = url.includes('id=in.')
+
+  if (hasReuploadsJoin && hasUploadDateFilter) {
+    if (hasOr && url.includes('.in.')) return '📋 Today/Yesterday/Range-3-9 filter (videos + reuploads)'
+    if (hasOr) return '📋 Upload date filter with reuploads'
+    return '📋 Videos with reuploads'
+  }
+  if (hasTitleSearch || hasDateFilter || hasPlatformFilter) return '🔍 Search videos' + (hasTitleSearch ? '' : ' (filter)')
+  if (hasIsNull && url.includes('_url')) return '📋 Dashboard card: videos without ' + params.get('url')?.replace('_url','') + ' URL'
+  if (hasInId) return '📋 Load More / initial page'
+  if (url.includes('reuploads') && url.includes('video_id')) return '📎 Fetch reuploads for chip highlighting'
+  if (url.includes('reuploads') && (url.includes('upload_date.eq') || url.includes('upload_date.in'))) return '📎 Fetch reupload IDs for date'
+  if (url.includes('reuploads') && url.includes('platform')) return '📊 Stat card: reuploads per platform'
+  if (table === 'reuploads' && method === 'GET') return '📎 All reuploads (for chip highlighting)'
+  if (select === 'id' && hasUploadDateFilter) return '📊 Stat card: video IDs for count'
+  if (select === 'id' && hasOr) return '📊 Stat card: video IDs (range)'
+  if (select === 'video_id' && table === 'reuploads') return '📊 Stat card: reupload IDs'
+  if (url.includes('shopee_upload_date.gte')) return '📋 Shopee week filter'
+  if (select.includes('_upload_date') && !select.includes('*')) return '📊 Creator stats: weekly breakdown'
+  
+  // Default
+  if (table === 'videos' && !hasUploadDateFilter) return '📋 Default video list'
+  return '📋 ' + (select.length > 30 ? select.substring(0,30)+'...' : select) + ' FROM ' + table
+}
+
+const parseSupabaseUrlToSql = (url: string, method: string, body: string | null): { sql: string; purpose: string } => {
   try {
     const u = new URL(url)
+    
+    // Handle RPC calls
+    if (url.includes('/rest/v1/rpc/')) {
+      const rpcName = url.split('/rpc/')[1]?.split('?')[0] || 'unknown'
+      return { sql: `SELECT * FROM ${rpcName}(${body || '...'})`, purpose: getQueryPurpose(url, method, '', u.searchParams) }
+    }
+
     const path = u.pathname.split('/rest/v1/')[1] || u.pathname
     const table = path.split('?')[0]
     const params = u.searchParams
 
-    // Build SQL
     let select = params.get('select') || '*'
     let sql = `SELECT ${select} FROM ${table}`
 
-    // WHERE clauses from URL params
     const wheres: string[] = []
     for (const [key, val] of params.entries()) {
       if (key === 'select' || key === 'order' || key === 'limit' || key === 'offset' || key === 'offset' || key === '0') continue
@@ -147,48 +207,38 @@ const parseSupabaseUrlToSql = (url: string, method: string, body: string | null)
         })
         wheres.push(`(${ors.join(' OR ')})`)
       } else if (key.startsWith('order')) {
-        // skip - handled separately
       } else {
         wheres.push(`${key} = '${val}'`)
       }
     }
 
-    // Handle POST (insert) with body
-    if (method === 'POST' && body) {
-      try { sql = `INSERT INTO ${table} ${body}` } catch {}
-    }
+    if (method === 'POST' && body) { try { sql = `INSERT INTO ${table} ${body}` } catch {} }
     if (method === 'DELETE') {
       sql = `DELETE FROM ${table}`
-      // Add IDs from body
       try { const ids = JSON.parse(body||'{}'); if (ids?.id) wheres.push(`id = '${ids.id}'`) } catch {}
     }
     if (method === 'PATCH') {
       sql = `UPDATE ${table} SET ...`
-      // Add filters from URL
       try { const filters = JSON.parse(body||'{}'); Object.entries(filters).forEach(([k,v]) => wheres.push(`${k} = '${v}'`)) } catch {}
     }
 
     if (wheres.length > 0) sql += ` WHERE ${wheres.join(' AND ')}`
-
-    // Order
     const order = params.get('order')
     if (order) sql += ` ORDER BY ${order}`
-
-    // Range (pagination)
     const offset = params.get('offset')
     const limit = params.get('limit')
     if (offset) sql += ` OFFSET ${offset}`
     if (limit) sql += ` LIMIT ${limit}`
 
-    return sql
+    return { sql, purpose: getQueryPurpose(url, method, table, params) }
   } catch {
-    return `-- ${method} ${url}`
+    return { sql: `-- ${method} ${url}`, purpose: 'Unknown' }
   }
 }
 
 export default function Videos() {
   const location = useLocation(); const theme = useTheme(); const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const [debugQueries, setDebugQueries] = useState<{sql: string; time: number; ts: number}[]>([])
+  const [debugQueries, setDebugQueries] = useState<{sql: string; purpose: string; time: number; ts: number}[]>([])
   // Enable debug via: ?sql-debug in URL or localStorage set 'sql-debug' = '1'
   const debugEnabled = import.meta.env.DEV || new URLSearchParams(window.location.search).has('sql-debug') || localStorage.getItem('sql-debug') === '1'
   const debugStartRef = useRef(0)
@@ -208,12 +258,12 @@ export default function Videos() {
       if (url.includes(supabaseUrl) && url.includes('/rest/v1/')) {
         const method = (init?.method || 'GET').toUpperCase()
         const body = init?.body?.toString() || null
-        const sql = parseSupabaseUrlToSql(url, method, body)
+        const parsed = parseSupabaseUrlToSql(url, method, body)
         const qIdx = ++debugQueryCountRef.current
         const start = performance.now()
         return origFetch(input, init).then(res => {
           const elapsed = performance.now() - start
-          setDebugQueries(prev => [...prev, { sql, time: Math.round(elapsed), ts: qIdx }])
+          setDebugQueries(prev => [...prev, { sql: parsed.sql, purpose: parsed.purpose, time: Math.round(elapsed), ts: qIdx }])
           return res
         })
       }
@@ -1243,10 +1293,13 @@ const displayedVideos = videos
           </Box>
           <Box component="div" sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
             {debugQueries.map((q, i) => (
-              <Box key={i} sx={{ display: 'flex', gap: 1, opacity: 0.9 }}>
-                <Typography component="span" sx={{ color: '#ff6b6b', fontSize: 10, minWidth: 20 }}>#{q.ts}</Typography>
-                <Typography component="span" sx={{ color: q.time > 100 ? '#ff6b6b' : '#00ff88', fontSize: 10, minWidth: 40 }}>{q.time}ms</Typography>
-                <Typography component="span" sx={{ color: '#ffffff', fontSize: 11, wordBreak: 'break-all' }}>{q.sql}</Typography>
+              <Box key={i} sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, py: 0.25 }}>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Typography component="span" sx={{ color: '#ff6b6b', fontSize: 10, minWidth: 20 }}>#{q.ts}</Typography>
+                  <Typography component="span" sx={{ color: q.time > 100 ? '#ff6b6b' : '#00ff88', fontSize: 10, minWidth: 40 }}>{q.time}ms</Typography>
+                  <Typography component="span" sx={{ color: '#64b5f6', fontSize: 10, fontWeight: 600, flex: 1 }}>{q.purpose}</Typography>
+                </Box>
+                <Typography component="span" sx={{ color: '#aaaaaa', fontSize: 10, pl: 6, wordBreak: 'break-all' }}>{q.sql}</Typography>
               </Box>
             ))}
           </Box>
