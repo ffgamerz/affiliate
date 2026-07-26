@@ -1,0 +1,6 @@
+# Token Saving & Efficiency Rules
+
+1. **Be Concise**: Keep all explanations minimal. Provide direct code changes without unnecessary pleasantries or narrative summaries.
+2. **Targeted File Reading**: Do not read full files if inspecting small logic. Read specific line ranges or relevant functions only.
+3. **Avoid Unnecessary Tool Calls**: Do not list entire workspace directories (`list_dir`) repeatedly unless requested.
+4. **Minimal File Edits**: Modify only the specific lines or blocks needed. Do not rewrite whole files unnecessarily.

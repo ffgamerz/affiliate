@@ -170,8 +170,6 @@ const [shopeeWeekFilter, setShopeeWeekFilter] = useState(false) // Filter for sh
   const [bookmarkedVideoIds, setBookmarkedVideoIds] = useState<Set<string>>(new Set())
   const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false)
 
-  // Refs to track previous values for unselect optimization
-  const prevUploadDateFilterRef = useRef<'today' | 'yesterday' | 'range-3-9' | ''>('')
   const prevYoutubeUrlRef = useRef('')
   const prevFacebookUrlRef = useRef('')
   const prevInstagramUrlRef = useRef('')
@@ -495,43 +493,47 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     setActiveSearchQuery(searchQuery)
   }
 
-  // Build query for videos - with optional pagination
-  const buildFilteredQuery = useCallback((page: number, usePagination: boolean = true) => {
+  // Build query for videos with search/filter params - WITH pagination
+  const buildFilteredQuery = useCallback((page: number) => {
     let q = supabase.from('videos').select('*', { count: 'exact' })
-    if (usePagination) {
-      q = q.order('created_at', { ascending: false }).range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
-    } else {
-      // No pagination - fetch all matching records (for upload date filter)
-      q = q.order('created_at', { ascending: false })
-    }
+      .order('created_at', { ascending: false })
+      .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
     if (activeSearchQuery) q = q.or(`title.ilike.%${activeSearchQuery}%`)
     if (dateFilter) q = q.eq('created_at', `${dateFilter}T00:00:00.000Z`)
     if (platformFilter) q = q.not(`${platformFilter}_url`, 'is', null)
     if (filterEmptyPlatform) q = q.is(`${filterEmptyPlatform}_url`, null)
-    // Apply upload date filter (platform upload dates) - for klik kad Today/Yesterday/3-9
-    if (uploadDateFilter === 'today') q = q.or(buildUploadDateOrFilter(todayDate))
-    else if (uploadDateFilter === 'yesterday') q = q.or(buildUploadDateOrFilter(yesterdayDate))
-    else if (uploadDateFilter === 'range-3-9') {
-      // Use in() for each platform to get all matching videos
-      const rangeFilters = dates3to9.flatMap(d => buildUploadDateOrFilter(d).split(',')).join(',')
-      q = q.or(rangeFilters)
-    }
-    else if (customUploadDateFilter) q = q.or(buildUploadDateOrFilter(customUploadDateFilter))
+    if (customUploadDateFilter) q = q.or(buildUploadDateOrFilter(customUploadDateFilter))
     return q
-  }, [activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9])
+  }, [activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, customUploadDateFilter])
 
   const fetchData = useCallback(async (page: number = 0, reset: boolean = false) => {
     if (page === 0) setLoading(true); else setLoadingMore(true)
-    
-    // When uploadDateFilter is active, we need to fetch all matching videos to include reuploads
-    // This is more accurate but uses more bandwidth - only when user clicks a stat card
-    const isUploadDateFilterActive = uploadDateFilter !== '' || customUploadDateFilter !== ''
-    // When shopee week filter is active, we need to fetch all videos to filter client-side
-    const isShopeeWeekFilterActive = shopeeWeekFilter || shopeeWeekDateRange !== null
-    
-    let vR
-    if (isUploadDateFilterActive && page === 0) {
-      // For range-3-9, we need to fetch videos using in() for each platform
+
+    let vData: Video[] = []
+    let rData: Reupload[] = []
+
+    // IF - ada search query, date filter, platform filter, filter empty platform, atau custom upload date
+    if (activeSearchQuery || dateFilter || platformFilter || filterEmptyPlatform || customUploadDateFilter) {
+      const vR = await buildFilteredQuery(page)
+      vData = (vR.data as Video[]) || []
+      const rR = await supabase.from('reuploads').select('*')
+      rData = (rR.data as Reupload[]) || []
+
+      if (reset || page === 0) {
+        setVideos(vData)
+      } else {
+        setVideos(prev => [...prev, ...vData])
+      }
+      setHasMore(vData.length === ITEMS_PER_PAGE)
+
+    // ELSEIF - tekan card today/yesterday/days 3-9
+    } else if (uploadDateFilter) {
+      // Fetch reuploads first
+      const { data: ruData } = await supabase.from('reuploads').select('*')
+      rData = (ruData as Reupload[]) || []
+
+      let vIds: string[] = []
+
       if (uploadDateFilter === 'range-3-9') {
         // Fetch all video IDs for the date range
         const allIds: string[] = []
@@ -540,80 +542,89 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
             .in(`${p.key}_upload_date`, dates3to9)
           if (data) allIds.push(...data.map((v: any) => v.id))
         }
-        const uniqueIds = [...new Set(allIds)]
-        // Fetch full video data
-        const { data: vData } = await supabase.from('videos').select('*').in('id', uniqueIds)
-        vR = { data: vData || [] }
+        vIds = [...new Set(allIds)]
       } else {
-        // Fetch all matching videos (no pagination) for accurate upload date filter
-        vR = await buildFilteredQuery(0, false)
+        // For today/yesterday, use buildUploadDateOrFilter
+        const targetDate = uploadDateFilter === 'today' ? todayDate : yesterdayDate
+        const { data } = await supabase.from('videos').select('id')
+          .or(buildUploadDateOrFilter(targetDate))
+        vIds = data ? data.map((v: any) => v.id) : []
       }
-    } else if (isShopeeWeekFilterActive && page === 0) {
-      // Fetch all videos for shopee week filter - we'll filter client-side
-      // This ensures videos with shopee_upload_date but no shopee_url are included
-      const { data: allVideos } = await supabase.from('videos').select('*').order('created_at', { ascending: false })
-      vR = { data: allVideos || [] }
-    } else {
-      vR = await buildFilteredQuery(page)
-    }
-    
-    const rR = await supabase.from('reuploads').select('*')
-    
-    // If upload date filter is active, we need to also fetch videos that have reuploads on that date
-    // but no platform upload_date set
-    let vData = (vR.data as Video[]) || []
-    if (isUploadDateFilterActive && page === 0) {
-      const rData = (rR.data as Reupload[]) || []
-      let targetDate: string | null = null
-      let targetDates: string[] | null = null
-      if (uploadDateFilter === 'today') targetDate = todayDate
-      else if (uploadDateFilter === 'yesterday') targetDate = yesterdayDate
-      else if (uploadDateFilter === 'range-3-9') targetDates = dates3to9
-      else if (customUploadDateFilter) targetDate = customUploadDateFilter
-      
+
+      // Get video IDs from reuploads on target date(s)
+      const targetDate = uploadDateFilter === 'today' ? todayDate
+        : uploadDateFilter === 'yesterday' ? yesterdayDate
+        : null
+      const targetDates = uploadDateFilter === 'range-3-9' ? dates3to9 : null
+
+      let reuploadVideoIds: string[] = []
       if (targetDate) {
-        // Get video IDs from reuploads on target date
-        const reuploadVideoIds = [...new Set(rData.filter(r => r.upload_date === targetDate).map(r => r.video_id))]
-        // Fetch videos that have reuploads but no platform upload_date
-        if (reuploadVideoIds.length > 0) {
-          const { data: reuploadVideos } = await supabase.from('videos').select('id, title, description, created_at, youtube_url, youtube_upload_date, facebook_url, facebook_upload_date, instagram_url, instagram_upload_date, shopee_url, shopee_upload_date, shopee_product_url, threads_url, threads_upload_date, tiktok_url, tiktok_upload_date, tiktok_product_url')
-            .in('id', reuploadVideoIds)
-          if (reuploadVideos) {
-            // Merge with existing videos, avoiding duplicates
-            const existingIds = new Set(vData.map(v => v.id))
-            vData = [...vData, ...reuploadVideos.filter((v: any) => !existingIds.has(v.id))]
-          }
-        }
+        reuploadVideoIds = [...new Set(rData.filter(r => r.upload_date === targetDate).map(r => r.video_id))]
       } else if (targetDates) {
-        // For range-3-9, get video IDs from reuploads on any date in range
-        const reuploadVideoIds = [...new Set(rData.filter(r => targetDates!.includes(r.upload_date || '')).map(r => r.video_id))]
-        // Fetch videos that have reuploads but no platform upload_date
-        if (reuploadVideoIds.length > 0) {
-          const { data: reuploadVideos } = await supabase.from('videos').select('id, title, description, created_at, youtube_url, youtube_upload_date, facebook_url, facebook_upload_date, instagram_url, instagram_upload_date, shopee_url, shopee_upload_date, shopee_product_url, threads_url, threads_upload_date, tiktok_url, tiktok_upload_date, tiktok_product_url')
-            .in('id', reuploadVideoIds)
-          if (reuploadVideos) {
-            // Merge with existing videos, avoiding duplicates
-            const existingIds = new Set(vData.map(v => v.id))
-            vData = [...vData, ...reuploadVideos.filter((v: any) => !existingIds.has(v.id))]
-          }
+        reuploadVideoIds = [...new Set(rData.filter(r => targetDates.includes(r.upload_date || '')).map(r => r.video_id))]
+      }
+
+      // Combine all video IDs
+      const allVideoIds = [...new Set([...vIds, ...reuploadVideoIds])]
+
+      if (allVideoIds.length > 0) {
+        const { data: videoData } = await supabase.from('videos').select('*').in('id', allVideoIds)
+        vData = (videoData as Video[]) || []
+      }
+
+      setVideos(vData)
+      setHasMore(false)
+
+    // ELSEIF - tekan bookmarked
+    } else if (showBookmarkedOnly) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: bookmarkData } = await supabase.from('bookmarks').select('video_id').eq('user_id', user.id)
+        if (bookmarkData && bookmarkData.length > 0) {
+          const videoIds = bookmarkData.map((b: any) => b.video_id)
+          const { data: videoData } = await supabase.from('videos').select('*').in('id', videoIds)
+          vData = (videoData as Video[]) || []
         }
       }
-    }
-    
-    if (isUploadDateFilterActive || isShopeeWeekFilterActive) {
-      // For upload date filter or shopee week filter, use all results
       setVideos(vData)
-      setHasMore(false) // No pagination when filtering
-    } else if (reset || page === 0) {
-      setVideos((vR.data as Video[]) || [])
+      setHasMore(false)
+
+    // ELSEIF - shopee week filter
+    } else if (shopeeWeekFilter || shopeeWeekDateRange) {
+      const { data: allVideos } = await supabase.from('videos').select('*').order('created_at', { ascending: false })
+      const allData = (allVideos as Video[]) || []
+      // Filter client-side by shopee_upload_date in range
+      const range = shopeeWeekDateRange || getCurrentWeekRange().weekDates
+      vData = allData.filter(v => v.shopee_upload_date && range.includes(v.shopee_upload_date))
+      setVideos(vData)
+      setHasMore(false)
+
+    // ELSE - default load video page, tanpa filter
     } else {
-      setVideos(prev => [...prev, ...((vR.data as Video[]) || [])])
-      setHasMore((vR.data?.length || 0) === ITEMS_PER_PAGE)
+      const vR = await supabase.from('videos').select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
+      vData = (vR.data as Video[]) || []
+
+      const rR = await supabase.from('reuploads').select('*')
+      rData = (rR.data as Reupload[]) || []
+
+      if (reset || page === 0) {
+        setVideos(vData)
+      } else {
+        setVideos(prev => [...prev, ...vData])
+      }
+      setHasMore(vData.length === ITEMS_PER_PAGE)
     }
-    
-    setReuploads((rR.data as Reupload[]) || [])
+
+    // Always fetch reuploads if not already fetched
+    if (rData.length === 0 && !showBookmarkedOnly && !shopeeWeekFilter && !shopeeWeekDateRange) {
+      const rR = await supabase.from('reuploads').select('*')
+      rData = (rR.data as Reupload[]) || []
+    }
+    setReuploads(rData)
     setLoading(false); setLoadingMore(false); fetchStats()
-  }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, shopeeWeekFilter, shopeeWeekDateRange])
+  }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, shopeeWeekFilter, shopeeWeekDateRange, activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, showBookmarkedOnly])
 
   // Fetch bookmarks for current user
   const fetchBookmarks = useCallback(async () => {
@@ -628,30 +639,11 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     }
   }, [])
 
-  // Effect to trigger fetch when filters change
-  // Note: shopeeWeekFilter and shopeeWeekDateRange are handled separately in onClick to avoid unnecessary re-fetch
-  // Note: uploadDateFilter unselect is also handled in handleStatCardClick to avoid unnecessary re-fetch
+  // Effect to trigger fetch when filters change or navigation happens
   useEffect(() => {
-    // Don't reset if bookmark filter is active - it has its own fetch logic
-    if (showBookmarkedOnly) return
-    // Skip fetch if this is an unselect operation (uploadDateFilter changed from value to '')
-    // The unselect is handled in handleStatCardClick which just resets the filter without fetching
-    if (prevUploadDateFilterRef.current !== '' && uploadDateFilter === '') {
-      prevUploadDateFilterRef.current = uploadDateFilter
-      return
-    }
-    prevUploadDateFilterRef.current = uploadDateFilter
     setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
-  }, [activeSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter, fetchData, showBookmarkedOnly])
+  }, [activeSearchQuery, dateFilter, customUploadDateFilter, filterEmptyPlatform, platformFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange, location.key, fetchData])
 
-  // Fetch data on initial mount (only if no search query from location state)
-  useEffect(() => {
-    // Check if there's a search query from location state
-    const state = location.state as any
-    if (!state?.searchQuery) {
-      fetchData(0, true)
-    }
-  }, [location.key, fetchData])
 
   // Fetch bookmarks on mount
   useEffect(() => {
@@ -745,30 +737,6 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     fetchCreatorStats()
   }, [fetchCreatorStats])
 
-  // Fetch bookmarked videos when bookmark filter is active
-  useEffect(() => {
-    if (showBookmarkedOnly) {
-      const loadBookmarkedVideos = async () => {
-        setLoading(true)
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          setLoading(false)
-          return
-        }
-        const { data: bookmarkData } = await supabase.from('bookmarks').select('video_id').eq('user_id', user.id)
-        if (bookmarkData && bookmarkData.length > 0) {
-          const videoIds = bookmarkData.map((b: any) => b.video_id)
-          const { data: videoData } = await supabase.from('videos').select('*').in('id', videoIds)
-          setVideos((videoData as Video[]) || [])
-        } else {
-          setVideos([])
-        }
-        setHasMore(false)
-        setLoading(false)
-      }
-      loadBookmarkedVideos()
-    }
-  }, [showBookmarkedOnly])
 
   const handleLoadMore = () => { const np = currentPage + 1; setCurrentPage(np); fetchData(np, false) }
 
@@ -883,11 +851,6 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     if (!td) return false; return reuploads.some(r => r.video_id === vid && r.platform === pk && r.upload_date === td)
   }
 
-  const hasReuploadForVideoOnDate = (vid: string, d: string) => reuploads.some(r => r.video_id === vid && r.upload_date === d)
-  const hasReuploadForVideoOnAnyDateInRange = (vid: string, ds: string[]) => ds.some(d => reuploads.some(r => r.video_id === vid && r.upload_date === d))
-  const hasUploadOnDate = (v: Video, d: string) => platforms.some(p => (v[`${p.key}_upload_date` as keyof Video] as string | null) === d)
-  const hasUploadOnAnyDateInRange = (v: Video, ds: string[]) => platforms.some(p => { const ud = v[`${p.key}_upload_date` as keyof Video] as string | null; return ud && ds.includes(ud) })
-
   // Toggle bookmark for a video
   const toggleBookmark = async (videoId: string) => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -919,40 +882,6 @@ const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: stri
     }
   }
 
-  // Apply bookmark filter first (standalone filter)
-  const bookmarkFilteredVideos = useMemo(() => {
-    if (showBookmarkedOnly) {
-      return videos.filter(v => bookmarkedVideoIds.has(v.id))
-    }
-    return videos
-  }, [videos, showBookmarkedOnly, bookmarkedVideoIds])
-
-  // Helper: Check if video has shopee upload in current week
-// Helper: Check if video has shopee upload in a specific date range
-const hasShopeeUploadInDateRange = (v: Video, dates: string[]) => {
-  const shopeeDate = v.shopee_upload_date
-  return shopeeDate && dates.includes(shopeeDate)
-}
-
-const hasShopeeUploadInCurrentWeek = (v: Video) => {
-  const { weekDates } = getCurrentWeekRange()
-  return hasShopeeUploadInDateRange(v, weekDates)
-}
-
-const filteredVideos = useMemo(() => {
-    // If there's an active search query, videos are already filtered by buildFilteredQuery
-    // Only apply client-side filtering for upload date filters
-    if (activeSearchQuery) return bookmarkFilteredVideos
-    return bookmarkFilteredVideos.filter(v => {
-      const m = uploadDateFilter === '' || (uploadDateFilter === 'today' ? hasUploadOnDate(v, todayDate) || hasReuploadForVideoOnDate(v.id, todayDate) : uploadDateFilter === 'yesterday' ? hasUploadOnDate(v, yesterdayDate) || hasReuploadForVideoOnDate(v.id, yesterdayDate) : uploadDateFilter === 'range-3-9' ? hasUploadOnAnyDateInRange(v, dates3to9) || hasReuploadForVideoOnAnyDateInRange(v.id, dates3to9) : true)
-      const mc = customUploadDateFilter === '' || hasUploadOnDate(v, customUploadDateFilter) || hasReuploadForVideoOnDate(v.id, customUploadDateFilter)
-      // Special case: shopee week filter (current week or specific date range)
-      const sw = !shopeeWeekFilter && !shopeeWeekDateRange ? true : 
-                 shopeeWeekDateRange ? hasShopeeUploadInDateRange(v, shopeeWeekDateRange) :
-                 hasShopeeUploadInCurrentWeek(v)
-      return m && mc && sw
-    })
-  }, [bookmarkFilteredVideos, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, reuploads, activeSearchQuery, shopeeWeekFilter, shopeeWeekDateRange])
 
 // Original Creator Card Component
 const OriginalCreatorCard = () => {
@@ -1178,7 +1107,7 @@ const WeeklyHistoryDialog = () => {
   )
 }
 
-const displayedVideos = filteredVideos
+const displayedVideos = videos
 
   return (
     <Box>
