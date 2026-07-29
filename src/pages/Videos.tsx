@@ -11,7 +11,7 @@ import {
   MusicNote as TikTokIcon, Shop, Forum as ThreadsIcon,
   Search as SearchIcon, Close as CloseIcon, ContentCopy as CopyIcon,
   Replay as ReplayIcon, Bookmark, BookmarkBorder,
-  ContentPaste as PasteIcon,
+  ContentPaste as PasteIcon, AutoAwesome as AutoAwesomeIcon,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 
@@ -23,7 +23,7 @@ const GoogleDriveIcon = () => (
 )
 
 interface Video {
-  id: string; title: string; description: string | null; created_at: string
+  id: string; title: string; description: string | null; srt: string | null; created_at: string
   youtube_url: string | null; youtube_upload_date: string | null
   facebook_url: string | null; facebook_upload_date: string | null
   instagram_url: string | null; instagram_upload_date: string | null
@@ -313,7 +313,7 @@ export default function Videos() {
   const [reuploadNotes, setReuploadNotes] = useState(''); const searchInputRef = useRef<HTMLInputElement>(null)
   const processedLocationStateRef = useRef<string | null>(null)
   const [snackbar, setSnackbar] = useState({ open: false, message: '' })
-  const [title, setTitle] = useState(''); const [description, setDescription] = useState('')
+  const [title, setTitle] = useState(''); const [description, setDescription] = useState(''); const [srt, setSrt] = useState('')
   const [descriptionFocused, setDescriptionFocused] = useState(false); const [createdAt, setCreatedAt] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState(''); const [youtubeUploadDate, setYoutubeUploadDate] = useState<string | null>(null)
   const [facebookUrl, setFacebookUrl] = useState(''); const [facebookUploadDate, setFacebookUploadDate] = useState<string | null>(null)
@@ -322,6 +322,7 @@ export default function Videos() {
   const [shopeeProductUrl, setShopeeProductUrl] = useState(''); const [threadsUrl, setThreadsUrl] = useState('')
   const [threadsUploadDate, setThreadsUploadDate] = useState<string | null>(null); const [tiktokUrl, setTiktokUrl] = useState('')
   const [tiktokUploadDate, setTiktokUploadDate] = useState<string | null>(null); const [tiktokProductUrl, setTiktokProductUrl] = useState('')
+  const [aiGenerating, setAiGenerating] = useState(false)
   const [bookmarkedVideoIds, setBookmarkedVideoIds] = useState<Set<string>>(new Set())
   const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false)
 
@@ -714,10 +715,14 @@ export default function Videos() {
 
       // ELSEIF - tekan card today/yesterday/days 3-9 (dengan pagination)
     } else if (uploadDateFilter) {
-      // Fetch videos with upload dates + join reuploads (1 query instead of 2)
-      const uploadDateOrFilter = uploadDateFilter === 'range-3-9'
-        ? platforms.map(p => `${p.key}_upload_date.in.(${dates3to9.join(',')})`).join(',')
-        : buildUploadDateOrFilter(uploadDateFilter === 'today' ? todayDate : yesterdayDate)
+      const filterDate = uploadDateFilter === 'today' ? todayDate
+        : uploadDateFilter === 'yesterday' ? yesterdayDate : null
+      const filterDates = uploadDateFilter === 'range-3-9' ? dates3to9 : null
+
+      // 1) Fetch videos with original upload dates matching filter
+      const uploadDateOrFilter = filterDates
+        ? platforms.map(p => `${p.key}_upload_date.in.(${filterDates.join(',')})`).join(',')
+        : buildUploadDateOrFilter(filterDate!)
 
       const vR = await supabase.from('videos').select('*, reuploads!left(platform, upload_date)')
         .or(uploadDateOrFilter)
@@ -725,13 +730,51 @@ export default function Videos() {
         .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
 
       const vDataRaw = (vR.data as any[]) || []
-      vData = vDataRaw.map((v: any) => { const { reuploads, ...rest } = v; return rest as Video })
+      let vDataMap = new Map<string, any>()
+      for (const v of vDataRaw) {
+        const { reuploads, ...rest } = v
+        vDataMap.set(v.id, rest as Video)
+      }
 
-      // Extract reuploads from joined data for chip highlighting
-      rData = []
+      // 2) Also fetch videos that have reuploads matching the filter date
+      //    (videos originally uploaded on different date, but reuploaded today/yesterday)
+      const { data: reupVideoIds } = filterDates
+        ? await supabase.from('reuploads').select('video_id').in('upload_date', filterDates)
+        : await supabase.from('reuploads').select('video_id').eq('upload_date', filterDate!)
+
+      if (reupVideoIds && reupVideoIds.length > 0) {
+        const reupIds = [...new Set(reupVideoIds.map((r: any) => r.video_id))]
+        const missingIds = reupIds.filter(id => !vDataMap.has(id))
+        if (missingIds.length > 0) {
+          const { data: reupVideos } = await supabase.from('videos')
+            .select('*, reuploads!left(platform, upload_date)')
+            .in('id', missingIds)
+            .order('created_at', { ascending: false })
+          if (reupVideos) {
+            for (const v of reupVideos) {
+              const { reuploads, ...rest } = v
+              vDataMap.set(v.id, rest as Video)
+              // Collect reuploads for chip highlighting
+              if (reuploads && reuploads.length > 0) {
+                const filtered = reuploads.filter((r: any) =>
+                  filterDates ? filterDates.includes(r.upload_date) : r.upload_date === filterDate
+                )
+                rData.push(...filtered.map((r: any) => ({ ...r, video_id: v.id })))
+              }
+            }
+          }
+        }
+      }
+
+      vData = [...vDataMap.values()]
+
+      // Extract reuploads from original query for chip highlighting
       for (const v of vDataRaw) {
         if (v.reuploads && v.reuploads.length > 0) {
-          rData.push(...v.reuploads.map((r: any) => ({ ...r, video_id: v.id })))
+          const filtered = v.reuploads.filter((r: any) =>
+            filterDates ? filterDates.includes(r.upload_date) : r.upload_date === filterDate
+          )
+          rData.push(...filtered.map((r: any) => ({ ...r, video_id: v.id })))
         }
       }
 
@@ -740,7 +783,7 @@ export default function Videos() {
       } else {
         setVideos(prev => [...prev, ...vData])
       }
-      setHasMore(vData.length === ITEMS_PER_PAGE)
+      setHasMore(vData.length >= ITEMS_PER_PAGE)
 
       // ELSEIF - tekan bookmarked
     } else if (showBookmarkedOnly) {
@@ -912,13 +955,13 @@ export default function Videos() {
 
   const handleAddVideo = async () => {
     if (!title) return
-    const { error } = await supabase.from('videos').insert({ title, description, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null })
+    const { error } = await supabase.from('videos').insert({ title, description, srt: srt || null, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null })
     if (!error) { setOpen(false); resetForm(); fetchData(0, true) }
   }
 
   const handleUpdateVideo = async () => {
     if (!editingVideo) return
-    const u: any = { title, description, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null }
+    const u: any = { title, description, srt: srt || null, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null }
     if (createdAt) u.created_at = new Date(createdAt).toISOString()
     const { error } = await supabase.from('videos').update(u).eq('id', editingVideo.id)
     if (!error) {
@@ -944,10 +987,45 @@ export default function Videos() {
 
   const handleDeleteVideo = async (id: string) => { if (confirm('Are you sure you want to delete this video?')) { await supabase.from('videos').delete().eq('id', id); fetchData(0, true) } }
 
-  const resetForm = () => { setTitle(''); setDescription(''); setCreatedAt(''); setYoutubeUrl(''); setYoutubeUploadDate(null); setFacebookUrl(''); setFacebookUploadDate(null); setInstagramUrl(''); setInstagramUploadDate(null); setShopeeUrl(''); setShopeeUploadDate(null); setShopeeProductUrl(''); setThreadsUrl(''); setThreadsUploadDate(null); setTiktokUrl(''); setTiktokUploadDate(null); setTiktokProductUrl('') }
+  const resetForm = () => { setTitle(''); setDescription(''); setSrt(''); setCreatedAt(''); setYoutubeUrl(''); setYoutubeUploadDate(null); setFacebookUrl(''); setFacebookUploadDate(null); setInstagramUrl(''); setInstagramUploadDate(null); setShopeeUrl(''); setShopeeUploadDate(null); setShopeeProductUrl(''); setThreadsUrl(''); setThreadsUploadDate(null); setTiktokUrl(''); setTiktokUploadDate(null); setTiktokProductUrl(''); setAiGenerating(false) }
+
+  const handleGenerateDescription = async () => {
+    if (!editingVideo) return
+    setAiGenerating(true)
+    try {
+      const endpoint = import.meta.env.VITE_GENERATE_DESCRIPTION_URL || '/api/generate-description'
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video_id: editingVideo.id }),
+      })
+      const result = await response.json()
+      if (!response.ok) {
+        const errMsg = result?.error || 'Unknown error from server'
+        // Check for specific error messages
+        if (errMsg.includes('No SRT')) {
+          setSnackbar({ open: true, message: 'Sila tambah kandungan SRT/subtitle dahulu sebelum menggunakan AI.' })
+        } else {
+          setSnackbar({ open: true, message: `Gagal: ${errMsg}` })
+        }
+        return
+      }
+      if (result.success && result.description) {
+        setDescription(result.description)
+        setSnackbar({ open: true, message: '✅ Description berjaya dijana & disimpan!' })
+      } else {
+        setSnackbar({ open: true, message: 'Gagal: Response tidak lengkap dari server.' })
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Ralat rangkaian'
+      setSnackbar({ open: true, message: `Gagal menghubungi server: ${msg}` })
+    } finally {
+      setAiGenerating(false)
+    }
+  }
 
   const openEditDialog = (video: Video) => {
-    setEditingVideo(video); setTitle(video.title); setDescription(video.description || ''); setDescriptionFocused(false)
+    setEditingVideo(video); setTitle(video.title); setDescription(video.description || ''); setSrt(video.srt || ''); setDescriptionFocused(false)
     setCreatedAt(video.created_at ? video.created_at.split('T')[0] : '')
     setYoutubeUrl(video.youtube_url || ''); setYoutubeUploadDate(video.youtube_upload_date || null)
     setFacebookUrl(video.facebook_url || ''); setFacebookUploadDate(video.facebook_upload_date || null)
@@ -1490,6 +1568,31 @@ export default function Videos() {
           {isMobile && <IconButton onClick={() => setOpen(false)} size="small"><CloseIcon /></IconButton>}</Box></DialogTitle>
         <DialogContent sx={{ pb: 1 }}>
           <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} fullWidth margin="normal" required size={isMobile ? 'small' : 'medium'} />
+          <Typography variant="subtitle1" sx={{ mt: 1, mb: 0.5, fontWeight: 600 }}>SRT / Subtitle</Typography>
+          <TextField label="SRT Content" value={srt} onChange={(e) => setSrt(e.target.value)} fullWidth margin="normal" multiline minRows={4} maxRows={10} size={isMobile ? 'small' : 'medium'} placeholder="Paste SRT/subtitle content here...
+Example:
+1
+00:00:01,000 --> 00:00:05,000
+Assalamualaikum dan selamat datang
+
+2
+00:00:05,000 --> 00:00:10,000
+Hari ini kita nak tengok produk terbaru" />
+          {editingVideo && (
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleGenerateDescription}
+                disabled={aiGenerating}
+                sx={{ minWidth: 160, whiteSpace: 'nowrap' }}
+                startIcon={aiGenerating ? <CircularProgress size={16} /> : <AutoAwesomeIcon />}
+              >
+                {aiGenerating ? 'Sedang Jana...' : 'Jana Description (AI)'}
+              </Button>
+            </Box>
+          )}
+          <Typography variant="subtitle1" sx={{ mt: 1, mb: 0.5, fontWeight: 600 }}>Description (AI Output)</Typography>
           <TextField label="Description" value={description} onChange={(e) => setDescription(e.target.value)} fullWidth margin="normal" multiline
             minRows={isMobile ? (descriptionFocused ? undefined : 3) : 6} maxRows={isMobile ? (descriptionFocused ? undefined : 3) : undefined}
             size={isMobile ? 'small' : 'medium'} onFocus={() => isMobile && setDescriptionFocused(true)} onBlur={() => isMobile && setDescriptionFocused(false)}
@@ -1562,7 +1665,19 @@ export default function Videos() {
           <IconButton onClick={() => setReuploadDialogOpen(false)} size="small"><CloseIcon /></IconButton></Box></DialogTitle>
         <DialogContent><Box sx={{ mt: 1 }}>
           <TextField label="Platform" value={reuploadPlatform.charAt(0).toUpperCase() + reuploadPlatform.slice(1)} fullWidth margin="normal" size="small" disabled />
-          <TextField label="URL" value={reuploadUrl} onChange={(e) => setReuploadUrl(e.target.value)} fullWidth margin="normal" size="small" placeholder="https://..." />
+          <TextField label="URL" value={reuploadUrl} onChange={(e) => setReuploadUrl(e.target.value)} fullWidth margin="normal" size="small" placeholder="https://..."
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <IconButton size="small" onClick={async () => { try { const t = await navigator.clipboard.readText(); setReuploadUrl(t); setSnackbar({ open: true, message: 'Pasted to URL' }) } catch { } }} title="Paste" sx={{ p: 0.5, opacity: 0.7, '&:hover': { opacity: 1 } }}>
+                      <PasteIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                )
+              }
+            }}
+          />
           <TextField label="Upload Date" type="date" value={reuploadUploadDate} onChange={(e) => setReuploadUploadDate(e.target.value)} fullWidth margin="normal" size="small" slotProps={{ inputLabel: { shrink: true } }} />
           <TextField label="Notes (optional)" value={reuploadNotes} onChange={(e) => setReuploadNotes(e.target.value)} fullWidth margin="normal" size="small" multiline rows={3} placeholder="e.g. Reupload sebab video expired" />
         </Box></DialogContent>
