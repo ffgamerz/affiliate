@@ -15,6 +15,7 @@ const RandomPicker = lazy(() => import('./pages/RandomPicker'))
 const UploadCalendar = lazy(() => import('./pages/UploadCalendar'))
 const Reuploads = lazy(() => import('./pages/Reuploads'))
 const BolReviewUpload = lazy(() => import('./pages/BolReviewUpload'))
+const Campaigns = lazy(() => import('./pages/Campaigns'))
 
 const theme = createTheme({
   palette: {
@@ -143,6 +144,7 @@ function AppContent() {
           <Route path="random" element={<RandomPicker />} />
           <Route path="upload-calendar" element={<UploadCalendar />} />
           <Route path="reuploads" element={<Reuploads />} />
+          <Route path="campaigns" element={<Campaigns />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

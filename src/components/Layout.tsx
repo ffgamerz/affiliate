@@ -31,6 +31,7 @@ import {
   CalendarViewMonth as CalendarViewIcon,
   Replay as ReplayIcon,
   Facebook,
+  Campaign as CampaignIcon,
 } from '@mui/icons-material'
 import { useAuth } from '../hooks/useAuth.tsx'
 
@@ -51,7 +52,7 @@ export default function Layout() {
     { path: '/reuploads', label: 'Reuploads', icon: <ReplayIcon /> },
     { path: '/random', label: 'Random', icon: <ShuffleIcon /> },
     { path: '/upload-calendar', label: 'Upload Calendar', icon: <CalendarViewIcon /> },
-    ...(isAdmin ? [{ path: '/settings', label: 'Settings', icon: <SettingsIcon /> }] : []),
+    ...(isAdmin ? [{ path: '/campaigns', label: 'Campaigns', icon: <CampaignIcon /> }, { path: '/settings', label: 'Settings', icon: <SettingsIcon /> }] : []),
   ]
 
   const handleSignOut = async () => {
@@ -177,8 +178,8 @@ export default function Layout() {
             <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 600 }}>
               {navItems.find((item) => item.path === location.pathname)?.label || 'BOL Affiliate Video'}
             </Typography>
-            <IconButton 
-              color="inherit" 
+            <IconButton
+              color="inherit"
               sx={{ mr: 1 }}
               onClick={() => {
                 navigate('/videos', { state: { focusSearch: true } })
