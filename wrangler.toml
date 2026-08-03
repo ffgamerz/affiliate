@@ -1,14 +1,5 @@
 name = "bol-affiliate"
 pages_build_output_dir = "./dist"
 
-# Environment variables for Pages Functions
-# Set these in Cloudflare Dashboard → Pages → bol-affiliate → Settings → Environment variables
-[env.production.vars]
-GEMINI_API_KEY = ""
-SUPABASE_URL = ""
-SUPABASE_SERVICE_KEY = ""
-
-[env.preview.vars]
-GEMINI_API_KEY = ""
-SUPABASE_URL = ""
-SUPABASE_SERVICE_KEY = ""
+# Secrets are set via `wrangler pages secret put` or Cloudflare Dashboard
+# See .dev.vars.example for the list of required secrets

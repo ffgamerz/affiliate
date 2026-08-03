@@ -7,13 +7,14 @@ import {
 import {
   Edit, Delete, Facebook, Info,
   Search as SearchIcon, Close as CloseIcon, ContentCopy as CopyIcon, Shop,
+  AutoAwesome as AutoAwesomeIcon,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 
 const GoogleDriveIcon = () => (
   <svg width="20" height="20" viewBox="0 0 87.3 76.6" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M63.7 28.1l-11.9-6.8c-.1 0-.2-.1-.3-.1l-11.9-6.8c-.1 0-.2 0-.3.1L21.9 28c-.1.1-.2.1-.3.1L6.1 34.9c-.1 0-.2.1-.1.2v12.3c0 .1.1.2.2.2l15.6 9.1c.1 0 .2 0 .3-.1l11.9 6.8c.1 0 .2.1.3.1l11.9 6.8c.1 0 .2 0 .3-.1l11.9-6.8c.1 0-.2-.1-.3-.1l11.9-6.8c.1 0 .2 0 .3.1l15.6-9.1c.1 0 .2-.1.2-.2V35c0-.1-.1-.2-.2-.2l-15.6-9.1c-.1 0-.2-.1-.3-.1z" fill="#0066CC"/>
-    <path d="M63.7 28.1L44.2 4.2c-.1-.1-.2-.1-.3 0L21.9 28c-.1.1-.2.1-.3.1-.3.1 0-.1L6.1 34.9c-.1 0-.2.1-.1.2v12.3c0 .1.1.2.2.2l15.6 9.1c.1 0 .2 0 .3-.1l11.9 6.8c.1 0 .2.1.3.1l11.9 6.8c.1 0 .2 0 .3-.1l11.9-6.8c.1 0-.2-.1-.3-.1l11.9-6.8c.1 0 .2 0 .3.1l15.6-9.1c.1 0 .2-.1.2-.2V35c0-.1-.1-.2-.2-.2l-15.6-9.1c-.1 0-.2-.1-.3-.1z" fill="#00AC47"/>
+    <path d="M63.7 28.1l-11.9-6.8c-.1 0-.2-.1-.3-.1l-11.9-6.8c-.1 0-.2 0-.3.1L21.9 28c-.1.1-.2.1-.3.1L6.1 34.9c-.1 0-.2.1-.1.2v12.3c0 .1.1.2.2.2l15.6 9.1c.1 0 .2 0 .3-.1l11.9 6.8c.1 0 .2.1.3.1l11.9 6.8c.1 0 .2 0 .3-.1l11.9-6.8c.1 0-.2-.1-.3-.1l11.9-6.8c.1 0 .2 0 .3.1l15.6-9.1c.1 0 .2-.1.2-.2V35c0-.1-.1-.2-.2-.2l-15.6-9.1c-.1 0-.2-.1-.3-.1z" fill="#0066CC" />
+    <path d="M63.7 28.1L44.2 4.2c-.1-.1-.2-.1-.3 0L21.9 28c-.1.1-.2.1-.3.1-.3.1 0-.1L6.1 34.9c-.1 0-.2.1-.1.2v12.3c0 .1.1.2.2.2l15.6 9.1c.1 0 .2 0 .3-.1l11.9 6.8c.1 0 .2.1.3.1l11.9 6.8c.1 0 .2 0 .3-.1l11.9-6.8c.1 0-.2-.1-.3-.1l11.9-6.8c.1 0 .2 0 .3.1l15.6-9.1c.1 0 .2-.1.2-.2V35c0-.1-.1-.2-.2-.2l-15.6-9.1c-.1 0-.2-.1-.3-.1z" fill="#00AC47" />
   </svg>
 )
 
@@ -28,6 +29,7 @@ interface Video {
   id: string;
   title: string;
   description: string | null;
+  srt: string | null;
   created_at: string;
   youtube_url: string | null;
   shopee_product_url: string | null;
@@ -38,6 +40,7 @@ interface VideoRaw {
   id: string;
   title: string;
   description: string | null;
+  srt: string | null;
   created_at: string;
   youtube_url: string | null;
   shopee_product_url: string | null;
@@ -79,6 +82,7 @@ const transformVideoData = (raw: VideoRaw): Video => {
     id: raw.id,
     title: raw.title,
     description: raw.description,
+    srt: raw.srt,
     created_at: raw.created_at,
     youtube_url: raw.youtube_url,
     shopee_product_url: raw.shopee_product_url,
@@ -183,8 +187,10 @@ export default function BolReviewUpload() {
   const [snackbar, setSnackbar] = useState({ open: false, message: '' })
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [srt, setSrt] = useState('')
   const [createdAt, setCreatedAt] = useState('')
   const [shopeeProductUrl, setShopeeProductUrl] = useState('')
+  const [aiGenerating, setAiGenerating] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const todayDate = useMemo(() => getTodayDate(), [])
@@ -200,11 +206,11 @@ export default function BolReviewUpload() {
     const { data: todayUploads } = await supabase.from('bolreview_uploads')
       .select('id')
       .eq('upload_date', todayDate)
-    
+
     const { data: yesterdayUploads } = await supabase.from('bolreview_uploads')
       .select('id')
       .eq('upload_date', yesterdayDate)
-    
+
     const { data: rangeUploads } = await supabase.from('bolreview_uploads')
       .select('id')
       .in('upload_date', dates3to9)
@@ -216,26 +222,26 @@ export default function BolReviewUpload() {
 
   const fetchData = useCallback(async (page: number = 0, reset: boolean = false) => {
     if (page === 0) setLoading(true); else setLoadingMore(true)
-    
+
     // Build select query - use !inner when filtering by upload date to only return matching videos
     // Use !left otherwise to get all videos with their upload records
     const joinType = uploadDateFilter ? 'inner' : 'left'
-    const selectQuery = `id, title, description, created_at, youtube_url, shopee_product_url, bolreview_uploads!${joinType}(id, created_at, upload_date, facebook_url)`
-    
+    const selectQuery = `id, title, description, srt, created_at, youtube_url, shopee_product_url, bolreview_uploads!${joinType}(id, created_at, upload_date, facebook_url)`
+
     let q = supabase.from('videos')
       .select(selectQuery, { count: 'exact' })
-      
-    
+
+
     if (showNotUploadedOnly) {
       q = q.is('bolreview_uploads', null)
       q = q.order('created_at', { ascending: true })
     } else if (showUploadedOnly) {
       q = q.not('bolreview_uploads', 'is', null)
-      .order('upload_date', { ascending: true, foreignTable: 'bolreview_uploads' })
+        .order('upload_date', { ascending: true, foreignTable: 'bolreview_uploads' })
     } else {
       q = q.order('created_at', { ascending: true })
     }
-    
+
     // Add upload_date filter when a date filter is active
     if (uploadDateFilter === 'today') {
       q = q.eq('bolreview_uploads.upload_date', todayDate)
@@ -244,10 +250,10 @@ export default function BolReviewUpload() {
     } else if (uploadDateFilter === 'range-3-9') {
       q = q.in('bolreview_uploads.upload_date', dates3to9)
     }
-    
+
     if (activeSearchQuery) q = q.or(`title.ilike.%${activeSearchQuery}%`)
     q = q.range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
-    
+
     const { data: vData } = await q
 
     const transformedData = ((vData as VideoRaw[] | null) || []).map(transformVideoData)
@@ -257,7 +263,7 @@ export default function BolReviewUpload() {
     } else {
       setVideos(prev => [...prev, ...transformedData])
     }
-    
+
     setHasMore((vData?.length || 0) === ITEMS_PER_PAGE)
     setLoading(false); setLoadingMore(false)
     fetchStats()
@@ -314,7 +320,7 @@ export default function BolReviewUpload() {
   }
 
   const platformIcons: Record<string, React.ReactElement | null> = {
-    youtube: <svg width="20" height="20" viewBox="0 0 24 24" fill="#FF0000"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>,
+    youtube: <svg width="20" height="20" viewBox="0 0 24 24" fill="#FF0000"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" /></svg>,
   }
 
   const openVideoPlayer = (url: string) => {
@@ -360,6 +366,7 @@ export default function BolReviewUpload() {
     setEditingVideo(video)
     setTitle(video.title)
     setDescription(video.description || '')
+    setSrt(video.srt || '')
     setCreatedAt(video.created_at ? video.created_at.split('T')[0] : '')
     setShopeeProductUrl(video.shopee_product_url || '')
     setOpen(true)
@@ -377,6 +384,7 @@ export default function BolReviewUpload() {
     const { error } = await supabase.from('videos').update({
       title,
       description,
+      srt: srt || null,
       created_at: createdAt ? new Date(createdAt).toISOString() : null,
       shopee_product_url: shopeeProductUrl || null
     }).eq('id', editingVideo.id)
@@ -386,6 +394,41 @@ export default function BolReviewUpload() {
       setEditingVideo(null)
       fetchData(0, true)
       setSnackbar({ open: true, message: 'Video updated!' })
+    }
+  }
+
+  const handleGenerateDescription = async () => {
+    if (!editingVideo) return
+    setAiGenerating(true)
+    try {
+      const endpoint = import.meta.env.VITE_GENERATE_DESCRIPTION_URL || '/api/generate-description'
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video_id: editingVideo.id }),
+      })
+      const result = await response.json()
+      if (!response.ok) {
+        const errMsg = result?.error || 'Unknown error from server'
+        if (errMsg.includes('No SRT')) {
+          setSnackbar({ open: true, message: 'Sila tambah kandungan SRT/subtitle dahulu sebelum menggunakan AI.' })
+        } else {
+          setSnackbar({ open: true, message: `Gagal: ${errMsg}` })
+        }
+        return
+      }
+      if (result.success && result.description) {
+        setDescription(result.description)
+        setSnackbar({ open: true, message: '✅ Description berjaya dijana & disimpan!' })
+        fetchData(0, true)
+      } else {
+        setSnackbar({ open: true, message: 'Gagal: Response tidak lengkap dari server.' })
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Ralat rangkaian'
+      setSnackbar({ open: true, message: `Gagal menghubungi server: ${msg}` })
+    } finally {
+      setAiGenerating(false)
     }
   }
 
@@ -542,7 +585,7 @@ export default function BolReviewUpload() {
             const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
             const isUploaded = video.bolreview_uploads.length > 0
             const uploadCount = video.bolreview_uploads.length
-            
+
             return (
               <Card key={video.id}>
                 <CardContent sx={{ py: 2, px: { xs: 2, md: 2.5 } }}>
@@ -721,7 +764,7 @@ export default function BolReviewUpload() {
               </Card>
             )
           })}
-          
+
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
             {loadingMore ? (
               <CircularProgress size={28} />
@@ -755,6 +798,30 @@ export default function BolReviewUpload() {
             required
             size={isMobile ? 'small' : 'medium'}
           />
+          <TextField
+            label="SRT Content"
+            value={srt}
+            onChange={(e) => setSrt(e.target.value)}
+            fullWidth
+            margin="normal"
+            multiline
+            minRows={4}
+            maxRows={10}
+            size={isMobile ? 'small' : 'medium'}
+            placeholder="Paste SRT/subtitle content here..."
+          />
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={handleGenerateDescription}
+              disabled={aiGenerating}
+              sx={{ minWidth: 160, whiteSpace: 'nowrap' }}
+              startIcon={aiGenerating ? <CircularProgress size={16} /> : <AutoAwesomeIcon />}
+            >
+              {aiGenerating ? 'Sedang Jana...' : 'Jana Description (AI)'}
+            </Button>
+          </Box>
           <TextField
             label="Description"
             value={description}

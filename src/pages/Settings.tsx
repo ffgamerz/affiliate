@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -14,12 +14,14 @@ import {
 import {
   PersonAdd as PersonAddIcon,
   LockReset as LockResetIcon,
+  AutoAwesome as AutoAwesomeIcon,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.tsx'
+import type { User } from '@supabase/supabase-js'
 
 export default function Settings() {
-  const { isAdmin } = useAuth()
+  const { user, isAdmin } = useAuth()
   const navigate = useNavigate()
 
   // Redirect non-admin users
@@ -35,6 +37,7 @@ export default function Settings() {
       </Typography>
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <AiFormatRulesSection user={user!} />
         <AddUserSection />
         <ResetPasswordSection />
       </Box>
@@ -200,6 +203,115 @@ function ResetPasswordSection() {
       >
         <Alert severity="success" onClose={() => setSuccess(false)}>
           Password reset email sent successfully!
+        </Alert>
+      </Snackbar>
+    </Card>
+  )
+}
+
+function AiFormatRulesSection({ user }: { user: User }) {
+  const [rules, setRules] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
+
+  useEffect(() => {
+    const loadRules = async () => {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('ai_format_rules')
+        .eq('id', user.id)
+        .single()
+
+      if (error) {
+        console.error('Failed to load AI format rules:', error)
+      }
+      setRules(data?.ai_format_rules ?? '')
+      setLoading(false)
+    }
+    loadRules()
+  }, [user.id])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError(null)
+
+    const { error: err } = await supabase
+      .from('profiles')
+      .update({ ai_format_rules: rules })
+      .eq('id', user.id)
+
+    if (err) {
+      setError(err.message)
+    } else {
+      setSuccess(true)
+    }
+    setSaving(false)
+  }
+
+  return (
+    <Card>
+      <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <AutoAwesomeIcon color="primary" />
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            AI Format Rules (System Prompt)
+          </Typography>
+        </Box>
+        <Divider sx={{ mb: 2 }} />
+
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          These rules define how the AI generates video descriptions from SRT content.
+          Changes take effect immediately on the next generation.
+        </Typography>
+
+        <TextField
+          label="AI Format Rules"
+          value={rules}
+          onChange={(e) => setRules(e.target.value)}
+          fullWidth
+          multiline
+          minRows={15}
+          maxRows={30}
+          size="small"
+          disabled={loading}
+          slotProps={{
+            input: {
+              sx: { fontFamily: 'monospace', fontSize: 13 },
+            },
+          }}
+        />
+
+        <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={saving || loading}
+          >
+            {saving ? 'Saving...' : 'Save Rules'}
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => setRules('')}
+            disabled={loading}
+          >
+            Reset to Default
+          </Button>
+        </Box>
+      </CardContent>
+
+      <Snackbar
+        open={success}
+        autoHideDuration={4000}
+        onClose={() => setSuccess(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" onClose={() => setSuccess(false)}>
+          AI Format Rules saved successfully!
         </Alert>
       </Snackbar>
     </Card>

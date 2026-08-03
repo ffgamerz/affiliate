@@ -18,8 +18,8 @@ interface GenerateRequest {
     video_id: string
 }
 
-// System prompt / rules for the AI description generation
-const SYSTEM_RULES = `Ini ialah templat format jawapan SRT yang disusun ringkas dan jelas tanpa sebarang simbol Markdown (* atau ), supaya kau boleh copy-paste terus dan berikan kepada AI model lain sebagai panduan/instraksi:
+/** Default rules used if no ai_format_rules is saved in the profiles table */
+const DEFAULT_RULES = `Ini ialah templat format jawapan SRT yang disusun ringkas dan jelas tanpa sebarang simbol Markdown (* atau ), supaya kau boleh copy-paste terus dan berikan kepada AI model lain sebagai panduan/instraksi:
 
 ---
 
@@ -87,6 +87,20 @@ Beli Sekarang xxxlinkshopeexxx
 [Salin Hashtag TikTok]
 
 hanya output hasil yg diformat sahaja, tak perlu sebarang dialog`;
+
+/** Fetch the ai_format_rules from the profiles table, falling back to DEFAULT_RULES */
+async function fetchAiRules(supabaseUrl: string, serviceKey: string): Promise<string> {
+    const url = `${supabaseUrl}/rest/v1/profiles?select=ai_format_rules&is_admin=eq.true&limit=1`
+    const resp = await fetch(url, {
+        headers: {
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+        },
+    })
+    if (!resp.ok) return DEFAULT_RULES
+    const rows = await resp.json() as Array<{ ai_format_rules: string | null }>
+    return rows?.[0]?.ai_format_rules?.trim() || DEFAULT_RULES
+}
 
 export async function onRequest(context: { request: Request; env: Env }): Promise<Response> {
     const headers = {
@@ -170,8 +184,11 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
             })
         }
 
-        // ── Step 2: Call Gemini API ──
-        const prompt = `Video Title: ${video.title || 'Untitled'}\n\nSRT Content (subtitle/script):\n${video.srt}\n\n---\n\nBased on the SRT content above, generate a compelling video description following these rules:\n${SYSTEM_RULES}`
+        // ── Step 2: Fetch AI format rules from profiles table ──
+        const systemRules = await fetchAiRules(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+        // ── Step 3: Call Gemini API ──
+        const prompt = `Video Title: ${video.title || 'Untitled'}\n\nSRT Content (subtitle/script):\n${video.srt}\n\n---\n\nBased on the SRT content above, generate a compelling video description following these rules:\n${systemRules}`
 
         const geminiPayload = {
             contents: [{
@@ -179,14 +196,14 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
             }],
             generationConfig: {
                 temperature: 0.7,
-                maxOutputTokens: 300,
+                maxOutputTokens: 8192,
                 topP: 0.9,
                 topK: 40,
             },
         }
 
         const geminiResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:generateContent?key=${GEMINI_API_KEY}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
