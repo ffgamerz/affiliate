@@ -1,0 +1,13 @@
+{
+  "routes": [
+    {
+      "routePath": "/api/generate-description",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/generate-description.ts:onRequest"
+      ]
+    }
+  ],
+  "baseURL": "/"
+}

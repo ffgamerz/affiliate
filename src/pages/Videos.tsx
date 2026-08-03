@@ -5,7 +5,7 @@ import {
   Box, Typography, Card, CardContent, Button, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, IconButton, Chip, Snackbar, Alert, CircularProgress,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  Divider, useTheme, useMediaQuery, InputAdornment,
+  Divider, useTheme, useMediaQuery, InputAdornment, Switch,
 } from '@mui/material'
 import {
   Add, Edit, Delete, YouTube, Facebook, Instagram, Info, Upload,
@@ -341,6 +341,7 @@ export default function Videos() {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [pastCampaignsOpen, setPastCampaignsOpen] = useState(false)
   const [pastCampaignStats, setPastCampaignStats] = useState<Record<string, { bestTier: CampaignTier | null; maxTarget: number; bestCount: number }>>({})
+  const [hideCampaigns, setHideCampaigns] = useState(false)
   const [title, setTitle] = useState(''); const [description, setDescription] = useState(''); const [srt, setSrt] = useState('')
   const [descriptionFocused, setDescriptionFocused] = useState(false); const [createdAt, setCreatedAt] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState(''); const [youtubeUploadDate, setYoutubeUploadDate] = useState<string | null>(null)
@@ -1482,14 +1483,28 @@ export default function Videos() {
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
             Campaign
           </Typography>
-          {isAdmin && (
-            <Button size="small" variant="outlined" startIcon={<CampaignIcon />} onClick={() => navigate('/campaigns')}>
-              Manage Campaigns
-            </Button>
-          )}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {isMobile && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                  {hideCampaigns ? 'Hidden' : 'Show'}
+                </Typography>
+                <Switch
+                  size="small"
+                  checked={!hideCampaigns}
+                  onChange={(e) => setHideCampaigns(!e.target.checked)}
+                />
+              </Box>
+            )}
+            {isAdmin && (
+              <Button size="small" variant="outlined" startIcon={<CampaignIcon />} onClick={() => navigate('/campaigns')}>
+                Manage Campaigns
+              </Button>
+            )}
+          </Box>
         </Box>
 
-        {campaignLoading ? (
+        {(!isMobile || !hideCampaigns) && (campaignLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={28} /></Box>
         ) : campaigns.length === 0 ? (
           <Card sx={{ bgcolor: 'background.paper' }}>
@@ -1637,7 +1652,7 @@ export default function Videos() {
               </Card>
             </Box>
           </>
-        )}
+        ))}
       </Box>
     )
   }
