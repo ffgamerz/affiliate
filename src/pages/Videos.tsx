@@ -2004,7 +2004,11 @@ Hari ini kita nak tengok produk terbaru" />
                     }
                   }}
                 />
-                {editingVideo && <IconButton size="small" onClick={() => openReuploadDialog(p)} title={`Reupload ${p}`} color="warning" sx={{ flexShrink: 0 }}><ReplayIcon fontSize="small" /></IconButton>}
+                {editingVideo && !isMobile && (
+                  <IconButton size="small" onClick={() => openReuploadDialog(p)} title={`Reupload ${p}`} color="warning" sx={{ flexShrink: 0 }}>
+                    <ReplayIcon fontSize="small" />
+                  </IconButton>
+                )}
               </Box>)
             })}
           </Box>

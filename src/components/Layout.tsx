@@ -45,15 +45,17 @@ export default function Layout() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const navItems = [
+  // Reuploads nav item hidden on mobile
+  const fullNavItems = [
     { path: '/', label: 'Dashboard', icon: <DashboardIcon /> },
     { path: '/videos', label: 'Videos', icon: <VideoIcon /> },
     { path: '/bolreview-upload', label: 'BolReview', icon: <Facebook /> },
-    { path: '/reuploads', label: 'Reuploads', icon: <ReplayIcon /> },
+    { path: '/reuploads', label: 'Reuploads', icon: <ReplayIcon />, hideOnMobile: true },
     { path: '/random', label: 'Random', icon: <ShuffleIcon /> },
     { path: '/upload-calendar', label: 'Upload Calendar', icon: <CalendarViewIcon /> },
     ...(isAdmin ? [{ path: '/campaigns', label: 'Campaigns', icon: <CampaignIcon /> }, { path: '/settings', label: 'Settings', icon: <SettingsIcon /> }] : []),
   ]
+  const navItems = fullNavItems
 
   const handleSignOut = async () => {
     await signOut()
@@ -64,9 +66,6 @@ export default function Layout() {
     setMobileOpen(!mobileOpen)
   }
 
-  const currentTab = navItems.findIndex(
-    (item) => item.path === location.pathname
-  )
 
   const drawerContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -199,29 +198,43 @@ export default function Layout() {
         {isMobile && <Box sx={{ height: 56 }} />}
       </Box>
 
-      {/* Mobile Bottom Navigation */}
+      {/* Mobile Bottom Navigation (scrollable) */}
       {isMobile && (
         <Paper
-          sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: theme.zIndex.appBar }}
+          sx={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: theme.zIndex.appBar,
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            // Hide horizontal scrollbar but keep usability
+            '& ::-webkit-scrollbar': { display: 'none' },
+            '-ms-overflow-style': 'none',
+            scrollbarWidth: 'none',
+          }}
           elevation={3}
         >
           <BottomNavigation
-            value={currentTab >= 0 ? currentTab : 0}
+            value={navItems.findIndex(item => item.path === location.pathname)}
             onChange={(_event, newValue) => {
-              navigate(navItems[newValue].path)
+              const mobileNavItems = fullNavItems.filter(item => !item.hideOnMobile)
+              navigate(mobileNavItems[newValue].path)
             }}
             showLabels
+            sx={{ minWidth: '100%', justifyContent: 'flex-start' }}
           >
-            {navItems.map((item) => (
+            {fullNavItems.filter(item => !item.hideOnMobile).map((item) => (
               <BottomNavigationAction
                 key={item.path}
                 label={item.label}
                 icon={item.icon}
+                sx={{ minWidth: 80, px: 0.75 }}
               />
             ))}
           </BottomNavigation>
         </Paper>
-      )}
-    </Box>
+      )}    </Box>
   )
 }
