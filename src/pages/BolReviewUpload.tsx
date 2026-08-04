@@ -298,11 +298,21 @@ export default function BolReviewUpload() {
     setHasMore((vData?.length || 0) === ITEMS_PER_PAGE)
     setLoading(false); setLoadingMore(false)
     fetchStats()
-  }, [activeSearchQuery, showNotUploadedOnly, showUploadedOnly, uploadDateFilter, todayDate, yesterdayDate, dates3to9, fetchStats, showBookmarkedOnly, bookmarkedIds])
+  }, [activeSearchQuery, showNotUploadedOnly, showUploadedOnly, uploadDateFilter, todayDate, yesterdayDate, dates3to9, fetchStats, showBookmarkedOnly])
 
   useEffect(() => {
     fetchData(0, true)
   }, [fetchData])
+
+  // Refetch when showBookmarkedOnly state changes or when bookmarkedIds change while filter is active
+  const [prevBookmarkedCount, setPrevBookmarkedCount] = useState(bookmarkedIds.size)
+  useEffect(() => {
+    // Only refetch if bookmarked items changed AND we're in bookmarked-only mode
+    if (showBookmarkedOnly && bookmarkedIds.size !== prevBookmarkedCount) {
+      setPrevBookmarkedCount(bookmarkedIds.size)
+      fetchData(0, true)
+    }
+  }, [bookmarkedIds, showBookmarkedOnly, prevBookmarkedCount, fetchData])
 
   const handleStatCardClick = (filterKey: 'today' | 'yesterday' | 'range-3-9') => {
     if (uploadDateFilter === filterKey) {
