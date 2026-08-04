@@ -304,15 +304,23 @@ export default function BolReviewUpload() {
     fetchData(0, true)
   }, [fetchData])
 
-  // Refetch when showBookmarkedOnly state changes or when bookmarkedIds change while filter is active
-  const [prevBookmarkedCount, setPrevBookmarkedCount] = useState(bookmarkedIds.size)
+  // Refetch only when a new video is bookmarked (added to bookmarks), not when removing
+  const prevBookmarkedCountRef = useRef(bookmarkedIds.size)
   useEffect(() => {
-    // Only refetch if bookmarked items changed AND we're in bookmarked-only mode
-    if (showBookmarkedOnly && bookmarkedIds.size !== prevBookmarkedCount) {
-      setPrevBookmarkedCount(bookmarkedIds.size)
+    const currentCount = bookmarkedIds.size
+    const prevCount = prevBookmarkedCountRef.current
+
+    // Only refetch if bookmarks increased AND we're in bookmarked-only mode
+    // (new videos should appear; removing is handled client-side)
+    if (showBookmarkedOnly && currentCount > prevCount) {
+      prevBookmarkedCountRef.current = currentCount
       fetchData(0, true)
     }
-  }, [bookmarkedIds, showBookmarkedOnly, prevBookmarkedCount, fetchData])
+    // Update ref even for decreases so it tracks accurately
+    if (currentCount < prevCount) {
+      prevBookmarkedCountRef.current = currentCount
+    }
+  }, [bookmarkedIds, showBookmarkedOnly, fetchData])
 
   const handleStatCardClick = (filterKey: 'today' | 'yesterday' | 'range-3-9') => {
     if (uploadDateFilter === filterKey) {
@@ -642,6 +650,9 @@ export default function BolReviewUpload() {
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {videos.map((video) => {
+            // If in bookmarked-only mode, filter client-side as well to handle unbookmark
+            const isVisible = showBookmarkedOnly ? isBookmarked(video.id) : true
+            if (!isVisible) return null
             const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
             const isUploaded = video.bolreview_uploads.length > 0
             const uploadCount = video.bolreview_uploads.length
