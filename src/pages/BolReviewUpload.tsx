@@ -10,6 +10,11 @@ import {
   AutoAwesome as AutoAwesomeIcon,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
+import { useBookmarks } from '../hooks/useBookmarks'
+import {
+  Bookmark as BookmarkIcon,
+  BookmarkBorder as BookmarkBorderIcon,
+} from '@mui/icons-material'
 
 const GoogleDriveIcon = () => (
   <svg width="20" height="20" viewBox="0 0 87.3 76.6" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -181,6 +186,8 @@ export default function BolReviewUpload() {
   const [uploadDateFilter, setUploadDateFilter] = useState<'today' | 'yesterday' | 'range-3-9' | ''>('')
   const [showUploadedOnly, setShowUploadedOnly] = useState(false)
   const [showNotUploadedOnly, setShowNotUploadedOnly] = useState(true)
+  const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false)
+  const { isBookmarked, toggleBookmark } = useBookmarks()
   const [videoPlayerOpen, setVideoPlayerOpen] = useState(false)
   const [selectedVideoUrl, setSelectedVideoUrl] = useState('')
   const [videoLoading, setVideoLoading] = useState(false)
@@ -544,7 +551,17 @@ export default function BolReviewUpload() {
           <option value="not-uploaded">Not Uploaded</option>
         </TextField>
 
-        {(searchQuery || showUploadedOnly || showNotUploadedOnly || uploadDateFilter) && (
+        <Button
+          variant={showBookmarkedOnly ? 'contained' : 'outlined'}
+          size="small"
+          onClick={() => setShowBookmarkedOnly(!showBookmarkedOnly)}
+          startIcon={showBookmarkedOnly ? <BookmarkIcon /> : <BookmarkBorderIcon />}
+          sx={{ height: 40 }}
+        >
+          {showBookmarkedOnly ? 'Bookmarked Only' : 'Show Bookmarked'}
+        </Button>
+
+        {(searchQuery || showUploadedOnly || showNotUploadedOnly || uploadDateFilter || showBookmarkedOnly) && (
           <Button
             variant="outlined"
             size="small"
@@ -553,6 +570,7 @@ export default function BolReviewUpload() {
               setActiveSearchQuery('')
               setShowUploadedOnly(false)
               setShowNotUploadedOnly(false)
+              setShowBookmarkedOnly(false)
               setUploadDateFilter('')
               setCurrentPage(0)
               setVideos([])
@@ -568,6 +586,7 @@ export default function BolReviewUpload() {
       {uploadDateFilter && <Alert severity="info" sx={{ mb: 2 }}>Showing videos uploaded on {uploadDateFilter === 'today' ? 'today' : uploadDateFilter === 'yesterday' ? 'yesterday' : 'days 3-9'}</Alert>}
       {showUploadedOnly && <Alert severity="info" sx={{ mb: 2 }}>Showing uploaded videos only</Alert>}
       {showNotUploadedOnly && <Alert severity="info" sx={{ mb: 2 }}>Showing not uploaded videos only</Alert>}
+      {showBookmarkedOnly && <Alert severity="info" sx={{ mb: 2 }}>Showing bookmarked videos only</Alert>}
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
@@ -575,13 +594,13 @@ export default function BolReviewUpload() {
         </Box>
       ) : videos.length === 0 ? (
         <Typography color="text.secondary" align="center" sx={{ py: 6 }}>
-          {searchQuery || showUploadedOnly || showNotUploadedOnly || uploadDateFilter
+          {searchQuery || showUploadedOnly || showNotUploadedOnly || uploadDateFilter || showBookmarkedOnly
             ? 'No videos found matching your criteria'
             : 'No videos yet. Add videos from the Videos page.'}
         </Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {videos.map((video) => {
+          {(showBookmarkedOnly ? videos.filter(v => isBookmarked(v.id)) : videos).map((video) => {
             const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
             const isUploaded = video.bolreview_uploads.length > 0
             const uploadCount = video.bolreview_uploads.length
@@ -751,6 +770,24 @@ export default function BolReviewUpload() {
                       </Box>
                     </Box>
 
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0, mr: 0.5 }}>
+                      <IconButton 
+                        size="small" 
+                        onClick={() => toggleBookmark(video.id)} 
+                        title={isBookmarked(video.id) ? "Remove bookmark" : "Bookmark this video"}
+                        sx={{ 
+                          p: 0.5, 
+                          color: isBookmarked(video.id) ? 'primary.main' : 'text.secondary',
+                          bgcolor: isBookmarked(video.id) ? 'action.hover' : 'transparent'
+                        }}
+                      >
+                        {isBookmarked(video.id) ? (
+                          <BookmarkIcon fontSize="small" />
+                        ) : (
+                          <BookmarkBorderIcon fontSize="small" />
+                        )}
+                      </IconButton>
+                    </Box>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>
                       <IconButton size="small" onClick={() => openEditDialog(video)} title="Edit">
                         <Edit fontSize="small" />
