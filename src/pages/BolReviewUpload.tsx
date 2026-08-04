@@ -187,7 +187,7 @@ export default function BolReviewUpload() {
   const [showUploadedOnly, setShowUploadedOnly] = useState(false)
   const [showNotUploadedOnly, setShowNotUploadedOnly] = useState(true)
   const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false)
-  const { isBookmarked, toggleBookmark } = useBookmarks()
+  const { isBookmarked, toggleBookmark, bookmarkedIds } = useBookmarks()
   const [videoPlayerOpen, setVideoPlayerOpen] = useState(false)
   const [selectedVideoUrl, setSelectedVideoUrl] = useState('')
   const [videoLoading, setVideoLoading] = useState(false)
@@ -228,6 +228,28 @@ export default function BolReviewUpload() {
   }, [todayDate, yesterdayDate, dates3to9])
 
   const fetchData = useCallback(async (page: number = 0, reset: boolean = false) => {
+    // When showing only bookmarked videos, fetch by IDs directly from DB
+    if (showBookmarkedOnly) {
+      setLoading(true)
+      const bookmarkedIdArray = Array.from(bookmarkedIds)
+      if (bookmarkedIdArray.length === 0) {
+        setVideos([])
+        setHasMore(false)
+        setLoading(false)
+        return
+      }
+      const selectQuery = 'id, title, description, srt, created_at, youtube_url, shopee_product_url, bolreview_uploads!left(id, created_at, upload_date, facebook_url)'
+      const { data: vData } = await supabase.from('videos')
+        .select(selectQuery, { count: 'exact' })
+        .in('id', bookmarkedIdArray)
+        .order('created_at', { ascending: true })
+      const transformedData = ((vData as VideoRaw[] | null) || []).map(transformVideoData)
+      setVideos(transformedData)
+      setHasMore(false)
+      setLoading(false)
+      return
+    }
+
     if (page === 0) setLoading(true); else setLoadingMore(true)
 
     // Build select query - use !inner when filtering by upload date to only return matching videos
@@ -259,7 +281,9 @@ export default function BolReviewUpload() {
     }
 
     if (activeSearchQuery) q = q.or(`title.ilike.%${activeSearchQuery}%`)
-    q = q.range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
+    if (!showBookmarkedOnly) {
+      q = q.range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
+    }
 
     const { data: vData } = await q
 
@@ -274,7 +298,7 @@ export default function BolReviewUpload() {
     setHasMore((vData?.length || 0) === ITEMS_PER_PAGE)
     setLoading(false); setLoadingMore(false)
     fetchStats()
-  }, [activeSearchQuery, showNotUploadedOnly, showUploadedOnly, uploadDateFilter, todayDate, yesterdayDate, dates3to9, fetchStats])
+  }, [activeSearchQuery, showNotUploadedOnly, showUploadedOnly, uploadDateFilter, todayDate, yesterdayDate, dates3to9, fetchStats, showBookmarkedOnly, bookmarkedIds])
 
   useEffect(() => {
     fetchData(0, true)
@@ -287,6 +311,7 @@ export default function BolReviewUpload() {
       setActiveSearchQuery('')
       setShowUploadedOnly(false)
       setShowNotUploadedOnly(false)
+      setShowBookmarkedOnly(false)
       setCurrentPage(0)
       setVideos([])
       setHasMore(true)
@@ -296,6 +321,7 @@ export default function BolReviewUpload() {
       setActiveSearchQuery('')
       setShowUploadedOnly(false)
       setShowNotUploadedOnly(false)
+      setShowBookmarkedOnly(false)
       setCurrentPage(0)
       setVideos([])
       setHasMore(true)
@@ -554,7 +580,12 @@ export default function BolReviewUpload() {
         <Button
           variant={showBookmarkedOnly ? 'contained' : 'outlined'}
           size="small"
-          onClick={() => setShowBookmarkedOnly(!showBookmarkedOnly)}
+          onClick={() => {
+            setShowBookmarkedOnly(!showBookmarkedOnly)
+            setCurrentPage(0)
+            setVideos([])
+            setHasMore(true)
+          }}
           startIcon={showBookmarkedOnly ? <BookmarkIcon /> : <BookmarkBorderIcon />}
           sx={{ height: 40 }}
         >
@@ -600,7 +631,7 @@ export default function BolReviewUpload() {
         </Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {(showBookmarkedOnly ? videos.filter(v => isBookmarked(v.id)) : videos).map((video) => {
+          {videos.map((video) => {
             const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
             const isUploaded = video.bolreview_uploads.length > 0
             const uploadCount = video.bolreview_uploads.length
