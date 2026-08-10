@@ -69,6 +69,7 @@ export default function Dashboard() {
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set())
+  const [showAllPlatforms, setShowAllPlatforms] = useState(true)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -242,7 +243,26 @@ export default function Dashboard() {
           </Card>
         </Box>
 
-        {/* Platform Cards */}
+        {/* Show All Platforms Toggle */}
+        <Box sx={{ width: '100%', mb: 2 }}>
+          <Button
+            onClick={() => setShowAllPlatforms(!showAllPlatforms)}
+            sx={{
+              width: '100%',
+              py: 1,
+              color: 'text.secondary',
+              '&:hover': { backgroundColor: 'action.hover' }
+            }}
+          >
+            {showAllPlatforms ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            <Typography variant="body2" sx={{ ml: 0.5, fontWeight: 500 }}>
+              {showAllPlatforms ? 'Show Less Platforms' : 'Show All Platforms'}
+            </Typography>
+          </Button>
+        </Box>
+
+        {/* Platform Cards (Collapsible) */}
+        <Collapse in={showAllPlatforms} timeout="auto">
         {platforms.map((platform) => {
           const stats = platformStats[platform]
           const config = platformConfig[platform]
@@ -357,7 +377,8 @@ export default function Dashboard() {
               </Fade>
             </Box>
           )
-        })}
+        })}\
+        </Collapse>\
       </Box>
 
       {/* Upload Trend Chart */}
