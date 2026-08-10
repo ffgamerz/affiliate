@@ -5,19 +5,21 @@ import {
   Box, Typography, Card, CardContent, Button, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, IconButton, Chip, Snackbar, Alert, CircularProgress,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  Divider, useTheme, useMediaQuery, InputAdornment, Switch,
+  Divider, useTheme, useMediaQuery, InputAdornment,
 } from '@mui/material'
 import {
   Add, Edit, Delete, YouTube, Facebook, Instagram, Info, Upload,
   MusicNote as TikTokIcon, Shop, Forum as ThreadsIcon,
   Search as SearchIcon, Close as CloseIcon, ContentCopy as CopyIcon,
   Replay as ReplayIcon, Bookmark, BookmarkBorder,
-  ContentPaste as PasteIcon, AutoAwesome as AutoAwesomeIcon,
-  Cloud,
-  Campaign as CampaignIcon,
-  History as HistoryIcon,
-  CalendarMonth as CalendarMonthIcon,
-} from '@mui/icons-material'
+ ContentPaste as PasteIcon, AutoAwesome as AutoAwesomeIcon,
+ Cloud,
+ Campaign as CampaignIcon,
+ History as HistoryIcon,
+ CalendarMonth as CalendarMonthIcon,
+ KeyboardArrowDown as KeyboardArrowDownIcon,
+ KeyboardArrowUp as KeyboardArrowUpIcon,
+ } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 import {
   fetchCampaignsWithTiers,
@@ -28,8 +30,9 @@ import {
   maxTierTarget,
   periodLabel,
   todayStr,
+  computeTierProgresses,
 } from '../lib/campaigns'
-import type { CampaignWithTiers, CampaignTier } from '../lib/campaigns'
+import type { CampaignWithTiers, CampaignTier, TierProgress, TrackStatus } from '../lib/campaigns'
 
 const GoogleDriveIcon = () => <Cloud fontSize="small" />
 
@@ -335,13 +338,20 @@ export default function Videos() {
   // Campaign Day state
   const [campaigns, setCampaigns] = useState<CampaignWithTiers[]>([])
   const [campaignLoading, setCampaignLoading] = useState(false)
-  const [campaignStats, setCampaignStats] = useState<Record<string, { count: number; currentPeriod: { periodNumber: number; start: string; end: string } | null; tier: CampaignTier | null; maxTarget: number }>>({})
+  const [campaignStats, setCampaignStats] = useState<Record<string, { count: number; currentPeriod: { periodNumber: number; start: string; end: string } | null; tier: CampaignTier | null; maxTarget: number; tierProgresses: TierProgress[] }>>({})
   const [historyCampaign, setHistoryCampaign] = useState<CampaignWithTiers | null>(null)
   const [historyStats, setHistoryStats] = useState<Array<{ periodNumber: number; start: string; end: string; count: number; tier: CampaignTier | null; maxTarget: number }>>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [pastCampaignsOpen, setPastCampaignsOpen] = useState(false)
   const [pastCampaignStats, setPastCampaignStats] = useState<Record<string, { bestTier: CampaignTier | null; maxTarget: number; bestCount: number }>>({})
-  const [hideCampaigns, setHideCampaigns] = useState(false)
+  const [hideCampaigns, setHideCampaigns] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('videos.hideCampaigns') === '1'
+  })
+  const [hideStats, setHideStats] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('videos.hideStats') === '1'
+  })
   const [title, setTitle] = useState(''); const [description, setDescription] = useState(''); const [srt, setSrt] = useState('')
   const [descriptionFocused, setDescriptionFocused] = useState(false); const [createdAt, setCreatedAt] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState(''); const [youtubeUploadDate, setYoutubeUploadDate] = useState<string | null>(null)
@@ -622,19 +632,21 @@ export default function Videos() {
 
       const today = todayStr()
       const ongoing = data.filter((c) => !c.end_date || c.end_date >= today)
-      const stats: Record<string, { count: number; currentPeriod: { periodNumber: number; start: string; end: string } | null; tier: CampaignTier | null; maxTarget: number }> = {}
+      const stats: Record<string, { count: number; currentPeriod: { periodNumber: number; start: string; end: string } | null; tier: CampaignTier | null; maxTarget: number; tierProgresses: TierProgress[] }> = {}
       await Promise.all(ongoing.map(async (c) => {
         const period = computeCurrentPeriod(c, today)
         if (!period) {
-          stats[c.id] = { count: 0, currentPeriod: null, tier: null, maxTarget: maxTierTarget(c.tiers) }
+          stats[c.id] = { count: 0, currentPeriod: null, tier: null, maxTarget: maxTierTarget(c.tiers), tierProgresses: [] }
           return
         }
         const count = await computeUploadCount(c.platform, period.start, period.end)
+        const tierProgresses = computeTierProgresses(c, c.tiers, count)
         stats[c.id] = {
           count,
           currentPeriod: period,
           tier: resolveTier(count, c.tiers),
           maxTarget: maxTierTarget(c.tiers),
+          tierProgresses,
         }
       }))
       setCampaignStats(stats)
@@ -1477,34 +1489,94 @@ export default function Videos() {
       return '#ef5350'
     }
 
+    // Colors for track status label
+    const getTrackStatusColor = (status: TrackStatus): { bg: string; color: string } => {
+      if (status === 'ahead') return { bg: '#e8f5e9', color: '#2e7d32' } // green
+      if (status === 'on_track') return { bg: '#fff3e0', color: '#e65100' } // orange
+      return { bg: '#ffebee', color: '#c62828' } // red (behind)
+    }
+
+    // Render a single tier's progress row
+    // Labels show only the direction ("Ahead" / "Behind" / "On Track") on the status chip.
+    // The detail line below still shows surplus / needed / avg-per-day breakdown.
+    const trackStatusLabel = (tp: TierProgress): string => {
+      if (tp.trackStatus === 'ahead') return `Ahead · +${tp.count - tp.expectedByNow} surplus`
+      if (tp.trackStatus === 'on_track') return `On Track · Day ${tp.daysElapsed}/${tp.periodDays}`
+      return `Behind · ${tp.expectedByNow - tp.count} needed · avg ${tp.avgPerDay}/day to catch up`
+    }
+    const renderTierProgress = (tp: TierProgress) => {
+      const { bg, color } = getTrackStatusColor(tp.trackStatus)
+      const trackLabel = tp.trackStatus === 'ahead'
+        ? 'Ahead'
+        : tp.trackStatus === 'on_track'
+        ? 'On Track'
+        : 'Behind'
+      const isReached = tp.count >= tp.target_videos
+      return (
+        <Box key={tp.tier.id} sx={{ mb: 1.5 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary' }}>
+              T{tp.tier.tier_number} — {tp.target_videos} videos
+            </Typography>
+            <Chip
+              label={isReached ? `✓ Tier ${tp.tier.tier_number} reached` : trackLabel}
+              size="small"
+              sx={{ height: 18, fontSize: 10, bgcolor: bg, color, fontWeight: 600 }}
+            />
+          </Box>
+
+          <Box sx={{ width: '100%', height: 8, bgcolor: '#e0e0e0', borderRadius: 1, overflow: 'hidden', mb: 0.5 }}>
+            <Box sx={{ width: `${tp.percent}%`, height: '100%', bgcolor: getProgressColor(tp.count, tp.target_videos), transition: 'width 0.5s ease' }} />
+          </Box>
+
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 11 }}>
+              {tp.count} / {tp.target_videos}
+              {tp.tier.reward && isReached && ` · ${tp.tier.reward}`}
+              {!isReached && tp.remaining > 0 && ` · ${tp.remaining} more needed`}
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 11, fontWeight: 500 }}>
+              {trackStatusLabel(tp)}
+            </Typography>
+          </Box>
+
+          {/* Reward & location info — always show for every tier that has a reward. */}
+          {tp.tier.reward && (
+            <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5, alignItems: 'center' }}>
+              <Typography variant="caption" sx={{ color: '#7c4dff', fontSize: 11, fontWeight: 600 }}>
+                🎁 {tp.tier.reward}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 11 }}>
+                📍 T{tp.tier.tier_number} @ {tp.target_videos}v
+              </Typography>
+            </Box>
+          )}
+
+          {/* Days needed to reach this tier at current rate */}
+          {!isReached && tp.daysNeeded > 0 && (
+            <Box sx={{ mt: 0.5 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 11 }}>
+                ⏱ {tp.daysNeeded} day{tp.daysNeeded !== 1 ? 's' : ''} to reach T{tp.tier.tier_number} at current rate
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      )
+    }
+
     return (
       <Box sx={{ mt: 1, mb: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
             Campaign
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {isMobile && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  {hideCampaigns ? 'Hidden' : 'Show'}
-                </Typography>
-                <Switch
-                  size="small"
-                  checked={!hideCampaigns}
-                  onChange={(e) => setHideCampaigns(!e.target.checked)}
-                />
-              </Box>
-            )}
-            {isAdmin && (
-              <Button size="small" variant="outlined" startIcon={<CampaignIcon />} onClick={() => navigate('/campaigns')}>
-                Manage Campaigns
-              </Button>
-            )}
-          </Box>
+          <IconButton size="small" onClick={() => { const v = !hideCampaigns; setHideCampaigns(v); localStorage.setItem('videos.hideCampaigns', v ? '1' : '0') }} sx={{ p: 0.25 }}>
+            {hideCampaigns ? <KeyboardArrowDownIcon sx={{ fontSize: 16 }} /> : <KeyboardArrowUpIcon sx={{ fontSize: 16 }} />}
+          </IconButton>
+          {isAdmin && (<Button size="small" variant="outlined" startIcon={<CampaignIcon />} onClick={() => navigate('/campaigns')} sx={{ ml: 'auto' }}>Manage Campaigns</Button>)}
         </Box>
 
-        {(!isMobile || !hideCampaigns) && (campaignLoading ? (
+        {!hideCampaigns && (campaignLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={28} /></Box>
         ) : campaigns.length === 0 ? (
           <Card sx={{ bgcolor: 'background.paper' }}>
@@ -1523,13 +1595,6 @@ export default function Videos() {
                 const count = st?.count || 0
                 const maxTarget = st?.maxTarget || 1
                 const achieved = st?.tier || null
-                const progressPercent = Math.min((count / maxTarget) * 100, 100)
-                const periodDays = period ? Math.max(1, Math.round((new Date(period.end).getTime() - new Date(period.start).getTime()) / 86400000) + 1) : 0
-                const dayIndex = period ? Math.min(periodDays, Math.max(1, Math.round((new Date(today).getTime() - new Date(period.start).getTime()) / 86400000) + 1)) : 0
-                const daysLeft = period ? Math.max(1, periodDays - dayIndex + 1) : 0
-                const expectedNow = period ? Math.floor(maxTarget * (dayIndex / periodDays)) : 0
-                const neededPerDay = period && count < maxTarget ? Math.ceil((maxTarget - count) / daysLeft) : 0
-                const onTrack = period ? count >= expectedNow : false
                 return (
                   <Card key={c.id} sx={{ bgcolor: 'background.paper' }}>
                     <CardContent sx={{ p: 2.5 }}>
@@ -1569,23 +1634,7 @@ export default function Videos() {
                         </Typography>
                       </Box>
 
-                      {/* On-track status */}
-                      {period && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
-                          <Chip
-                            label={onTrack ? 'On Track ✓' : 'Behind'}
-                            size="small"
-                            sx={{ height: 20, fontSize: 11, bgcolor: onTrack ? '#e8f5e9' : '#fce4ec', color: onTrack ? '#2e7d32' : '#c62828', fontWeight: 600 }}
-                          />
-                          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 11 }}>
-                            {onTrack
-                              ? `Day ${dayIndex}/${periodDays} · need ${neededPerDay} more/day to reach target`
-                              : `Day ${dayIndex}/${periodDays} · need ${neededPerDay}/day to catch up`}
-                          </Typography>
-                        </Box>
-                      )}
-
-                      {/* Progress Section */}
+                      {/* Multi-Tier Progress Section */}
                       <Box sx={{ bgcolor: '#f9f9f9', borderRadius: 1, p: 1.5, mb: 1 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                           <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
@@ -1597,19 +1646,23 @@ export default function Videos() {
                             <Typography component="span" sx={{ color: '#7c4dff' }}>{maxTarget}</Typography>
                           </Typography>
                         </Box>
-                        <Box sx={{ width: '100%', height: 8, bgcolor: '#e0e0e0', borderRadius: 1, overflow: 'hidden', mb: 1 }}>
-                          <Box sx={{ width: `${progressPercent}%`, height: '100%', bgcolor: getProgressColor(count, maxTarget), transition: 'width 0.5s ease' }} />
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 11 }}>
-                            {achieved ? `Tier ${achieved.tier_number} reached 🎉${achieved.reward ? ` · ${achieved.reward}` : ''}` : `${maxTarget - count} more needed`}
+
+                        {/* Per-tier progress bars */}
+                        {st?.tierProgresses && st.tierProgresses.length > 0
+                          ? st.tierProgresses.map((tp) => renderTierProgress(tp))
+                          : (
+                            <Box sx={{ width: '100%', height: 8, bgcolor: '#e0e0e0', borderRadius: 1, overflow: 'hidden' }}>
+                              <Box sx={{ width: `${Math.min((count / maxTarget) * 100, 100)}%`, height: '100%', bgcolor: getProgressColor(count, maxTarget) }} />
+                            </Box>
+                          )
+                        }
+
+                        {/* Tiers summary */}
+                        {c.tiers.length > 0 && (
+                          <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, color: '#7c4dff', mt: 1, display: 'block' }}>
+                            {c.tiers.map((t) => `T${t.tier_number}: ${t.target_videos}`).join(' · ')}
                           </Typography>
-                          {c.tiers.length > 0 && (
-                            <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, color: '#7c4dff' }}>
-                              {c.tiers.map((t) => `T${t.tier_number}: ${t.target_videos}`).join(' · ')}
-                            </Typography>
-                          )}
-                        </Box>
+                        )}
                       </Box>
 
                       {/* History Button */}
@@ -1807,12 +1860,23 @@ export default function Videos() {
         </Box>
       </Box>
 
+      {/* Stats section - collapsible */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.primary' }}>
+          Upload Stats
+        </Typography>
+        <IconButton size="small" onClick={() => { const v = !hideStats; setHideStats(v); localStorage.setItem('videos.hideStats', v ? '1' : '0') }} sx={{ p: 0.25 }}>
+          {hideStats ? <KeyboardArrowDownIcon sx={{ fontSize: 16 }} /> : <KeyboardArrowUpIcon sx={{ fontSize: 16 }} />}
+        </IconButton>
+      </Box>
+      {!hideStats && (
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
         <StatCard filterKey="today" title="Total videos uploaded today" videoCount={todayStats.videoCount} platformUploadCount={todayStats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={todayStats.platformBreakdown} />
         <StatCard filterKey="yesterday" title="Total videos uploaded yesterday" videoCount={yesterdayStats.videoCount} platformUploadCount={yesterdayStats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={yesterdayStats.platformBreakdown} />
         <StatCard filterKey="range-3-9" title="Days 3-9 uploads" videoCount={range3to9Stats.videoCount} platformUploadCount={range3to9Stats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={range3to9Stats.platformBreakdown} />
         <OriginalCreatorCard />
       </Box>
+      )}
 
       {/* Campaign Day section */}
       <CampaignSection />

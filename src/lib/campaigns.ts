@@ -178,6 +178,98 @@ export function maxTierTarget(tiers: CampaignTier[]): number {
     return Math.max(...tiers.map((t) => t.target_videos))
 }
 
+/** Date difference in days between two YYYY-MM-DD strings (inclusive of start day). */
+export function dateDiffInDays(start: string, end: string): number {
+    return Math.round((toDate(end).getTime() - toDate(start).getTime()) / 86400000)
+}
+
+export type TrackStatus = 'on_track' | 'ahead' | 'behind'
+
+/**
+ * Per-tier progress snapshot for a given campaign period.
+ * - trackStatus: 'on_track' | 'ahead' | 'behind'
+ * - daysNeeded: how many days required to hit the tier target at the current average upload rate
+ * - avgPerDay: average uploads per day needed for the remainder of the period
+ * - expectedByNow: the expected count by today if pacing linearly from period start
+ */
+export interface TierProgress {
+    tier: CampaignTier
+    target_videos: number
+    count: number
+    percent: number // 0..100 clamped
+    expectedByNow: number
+    trackStatus: TrackStatus
+    daysElapsed: number   // days from period start to today (inclusive)
+    periodDays: number    // total days in the current period
+    daysLeft: number      // days remaining in the period (inclusive of today)
+    remaining: number     // videos left to hit this tier target
+    daysNeeded: number    // days needed at current avg rate to hit target (0 if already reached)
+    avgPerDay: number     // average uploads/day needed for the remainder
+}
+
+/**
+ * Compute per-tier tracking for an ongoing campaign period.
+ * Returns one TierProgress per tier (sorted by tier_number ascending).
+ */
+export function computeTierProgresses(
+    campaign: Pick<Campaign, 'start_date' | 'end_date' | 'repeat_interval'>,
+    tiers: CampaignTier[],
+    count: number,
+    todayStrFn: () => string = todayStr
+): TierProgress[] {
+    const today = todayStrFn()
+    const period = computeCurrentPeriod(campaign, today)
+    if (!period) return []
+
+    const periodDays = Math.max(1, dateDiffInDays(period.start, period.end) + 1)
+    const daysElapsed = Math.max(1, Math.min(periodDays, dateDiffInDays(period.start, today) + 1))
+    const daysLeft = Math.max(1, periodDays - daysElapsed + 1)
+
+    const sortedTiers = [...tiers].sort((a, b) => a.tier_number - b.tier_number)
+    const results: TierProgress[] = []
+
+    for (const tier of sortedTiers) {
+        const target = tier.target_videos
+        const percent = Math.min((count / target) * 100, 100)
+        const expectedByNow = Math.floor((target * daysElapsed) / periodDays)
+
+        // Track status: ahead if count > expected, on_track if equal (within rounding), behind if less
+        let trackStatus: TrackStatus
+        if (count > expectedByNow) trackStatus = 'ahead'
+        else if (count >= expectedByNow - 1) trackStatus = 'on_track' // toleransi ±1 untuk rounding
+        else trackStatus = 'behind'
+
+        // If already reached target → ahead / on track (target met)
+        if (count >= target) {
+            trackStatus = 'ahead'
+        }
+
+        const remaining = Math.max(0, target - count)
+        // Days needed at current average upload rate (videos uploaded per day elapsed)
+        const avgRate = daysElapsed > 0 ? count / daysElapsed : 0
+        const daysNeeded = avgRate > 0 ? Math.ceil(remaining / avgRate) : Infinity
+        // Average per day needed for the remainder to hit target by period end
+        const avgPerDay = remaining > 0 ? Math.ceil(remaining / daysLeft) : 0
+
+        results.push({
+            tier,
+            target_videos: target,
+            count,
+            percent,
+            expectedByNow,
+            trackStatus,
+            daysElapsed,
+            periodDays,
+            daysLeft,
+            remaining,
+            daysNeeded: Number.isFinite(daysNeeded) ? daysNeeded : 0,
+            avgPerDay,
+        })
+    }
+
+    return results
+}
+
 // ============ CRUD ============
 
 export async function fetchCampaignsWithTiers(): Promise<CampaignWithTiers[]> {

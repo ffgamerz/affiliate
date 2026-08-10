@@ -16,6 +16,7 @@ const UploadCalendar = lazy(() => import('./pages/UploadCalendar'))
 const Reuploads = lazy(() => import('./pages/Reuploads'))
 const BolReviewUpload = lazy(() => import('./pages/BolReviewUpload'))
 const Campaigns = lazy(() => import('./pages/Campaigns'))
+const UnsyncedDashboard = lazy(() => import('./pages/UnsyncedDashboard'))
 
 const theme = createTheme({
   palette: {
@@ -141,6 +142,7 @@ function AppContent() {
           <Route index element={<Dashboard />} />
           <Route path="videos" element={<Videos />} />
           <Route path="bolreview-upload" element={<BolReviewUpload />} />
+          <Route path="unsynced" element={<UnsyncedDashboard />} />
           <Route path="random" element={<RandomPicker />} />
           <Route path="upload-calendar" element={<UploadCalendar />} />
           <Route path="reuploads" element={<Reuploads />} />

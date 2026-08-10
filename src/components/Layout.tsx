@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, Link as RouterLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   AppBar,
@@ -19,6 +19,8 @@ import {
   useTheme,
   useMediaQuery,
   Divider,
+  Avatar,
+  Badge,
 } from '@mui/material'
 import {
   Dashboard as DashboardIcon,
@@ -34,20 +36,48 @@ import {
   Campaign as CampaignIcon,
 } from '@mui/icons-material'
 import { useAuth } from '../hooks/useAuth.tsx'
+import { supabase } from '../lib/supabase'
 
-const DRAWER_WIDTH = 240
+const DRAWER_WIDTH = 260
+
+// Premium gradient for active items
+const gradientActiveBg = 'linear-gradient(135deg, #6D4CFF 0%, #9B5CF8 100%)'
+
+const platforms = ['youtube', 'tiktok', 'facebook', 'instagram', 'threads', 'shopee']
 
 export default function Layout() {
-  const { signOut, isAdmin } = useAuth()
+  const { signOut, isAdmin, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [unsyncedCount, setUnsyncedCount] = useState(0)
+
+  useEffect(() => {
+    const fetchUnsyncedCount = async () => {
+      const { data: videosData } = await supabase
+        .from('videos')
+        .select('id, youtube_url, facebook_url, instagram_url, shopee_url, threads_url, tiktok_url')
+
+      if (!videosData) {
+        setUnsyncedCount(0)
+        return
+      }
+
+      const count = videosData.filter(video => 
+        !platforms.some(platform => video[`${platform}_url` as keyof typeof video] as string)
+      ).length
+
+      setUnsyncedCount(count)
+    }
+
+    fetchUnsyncedCount()
+  }, [])
 
   // Reuploads nav item hidden on mobile
   const fullNavItems = [
-    { path: '/', label: 'Dashboard', icon: <DashboardIcon /> },
+    { path: '/', label: 'Dashboard', icon: <DashboardIcon />, badge: unsyncedCount > 0 ? unsyncedCount : undefined },
     { path: '/videos', label: 'Videos', icon: <VideoIcon /> },
     { path: '/bolreview-upload', label: 'BolReview', icon: <Facebook /> },
     { path: '/reuploads', label: 'Reuploads', icon: <ReplayIcon />, hideOnMobile: true },
@@ -69,52 +99,182 @@ export default function Layout() {
 
   const drawerContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ p: 2.5, textAlign: 'center' }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-          BOL Affiliate
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
+      {/* Premium Header with Logo */}
+      <Box sx={{ p: 2.5, textAlign: 'center', background: 'linear-gradient(135deg, #6D4CFF 0%, #9B5CF8 100%)', color: 'white' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 0.5 }}>
+          <Box sx={{ 
+            width: 32, 
+            height: 32, 
+            borderRadius: '50%', 
+            bgcolor: 'rgba(255,255,255,0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <DashboardIcon sx={{ fontSize: 18 }} />
+          </Box>
+          <Typography variant="h6" sx={{ fontWeight: 700, fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+            BOL Affiliate
+          </Typography>
+        </Box>
+        <Typography variant="caption" sx={{ opacity: 0.9, fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
           Video Tracker
         </Typography>
       </Box>
       <Divider />
+      
+      {/* Navigation List */}
       <List sx={{ flex: 1, px: 1.5, pt: 1 }}>
         {navItems.map((item) => {
           const isActive = location.pathname === item.path
           return (
-            <ListItem key={item.path} disablePadding sx={{ mb: 0.5 }}>
+            <ListItem key={item.path} disablePadding sx={{ mb: 0.5, position: 'relative' }}>
               <ListItemButton
                 component={RouterLink}
                 to={item.path}
                 selected={isActive}
                 onClick={() => isMobile && setMobileOpen(false)}
                 sx={{
-                  borderRadius: 2,
-                  '&.Mui-selected': {
-                    bgcolor: 'primary.main',
-                    color: 'white',
-                    '&:hover': { bgcolor: 'primary.dark' },
-                    '& .MuiListItemIcon-root': { color: 'white' },
+                  borderRadius: 3,
+                  px: 2,
+                  py: 1,
+                  mx: 1,
+                  position: 'relative',
+                  overflow: 'hidden',
+                  '&::before': isActive ? {
+                    content: '""',
+                    position: 'absolute',
+                    top: 0,
+                    left: -40,
+                    width: '200%',
+                    height: '100%',
+                    background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+                    transform: 'translateX(20px)',
+                    animation: isActive ? 'shimmer 1.5s infinite' : 'none'
+                  } : {},
+                  '@keyframes shimmer': {
+                    '0%': { transform: 'translateX(-100%)' },
+                    '100%': { transform: 'translateX(100%)' }
                   },
+                  ...(isActive ? {
+                    background: gradientActiveBg,
+                    color: 'white',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #5a38e6 0%, #8a4de8 100%)',
+                      boxShadow: '0 4px 20px rgba(109, 76, 255, 0.3)'
+                    },
+                    '& .MuiListItemIcon-root': { color: 'white' },
+                    '& .MuiTypography-root': { color: 'white' }
+                  } : {
+                    '&:hover': {
+                      backgroundColor: 'action.hover',
+                      '& .MuiListItemIcon-root': { color: 'primary.main' }
+                    }
+                  })
                 }}
               >
                 <ListItemIcon sx={{ minWidth: 40 }}>
                   {item.icon}
+                  {item.badge && (
+                    <Badge 
+                      color="error" 
+                      badgeContent={item.badge} 
+                      sx={{ 
+                        position: 'absolute', 
+                        right: 16,
+                        '& .MuiBadge-badge': {
+                          fontSize: 11,
+                          minWidth: 18,
+                          height: 18
+                        }
+                      }}
+                    />
+                  )}
                 </ListItemIcon>
-                <ListItemText primary={item.label} />
+                <ListItemText 
+                  primary={
+                    <Typography 
+                      variant="body1"
+                      sx={{ 
+                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                        fontWeight: isActive ? 600 : 500
+                      }}
+                    >
+                      {item.label}
+                    </Typography>
+                  }
+                />
               </ListItemButton>
             </ListItem>
           )
         })}
       </List>
+      
       <Divider />
-      <List sx={{ px: 1.5, py: 1 }}>
+      
+      {/* Premium User Profile Card */}
+      <Box sx={{ px: 2, py: 2, pb: 1.5 }}>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 1.5, 
+          p: 1.5,
+          borderRadius: 3,
+          background: 'linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%)',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+          transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+          '&:hover': {
+            transform: 'translateY(-2px)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
+          }
+        }}>
+          <Avatar 
+            src={user?.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/initialism/svg?seed=${user?.email || 'user'}`}
+            sx={{ width: 40, height: 40, border: '2px solid', borderColor: 'primary.main' }}
+          />
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }} noWrap>
+              {user?.user_metadata?.full_name || user?.email || 'User'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+              {user?.email}
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
+      
+      <Divider />
+      <List sx={{ px: 2, py: 1 }}>
         <ListItem disablePadding>
-          <ListItemButton onClick={handleSignOut} sx={{ borderRadius: 2 }}>
+          <ListItemButton 
+            onClick={handleSignOut} 
+            sx={{ 
+              borderRadius: 3,
+              mx: 1,
+              '&:hover': {
+                backgroundColor: 'action.hover',
+                '& .MuiListItemIcon-root': { color: 'error.main' },
+                '& .MuiTypography-root': { color: 'error.main' }
+              },
+              '& .MuiListItemIcon-root': { color: 'text.secondary' }
+            }}
+          >
             <ListItemIcon sx={{ minWidth: 40 }}>
               <LogoutIcon />
             </ListItemIcon>
-            <ListItemText primary="Logout" />
+            <ListItemText 
+              primary={
+                <Typography 
+                  variant="body1"
+                  sx={{ 
+                    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    color: 'text.secondary'
+                  }}
+                >
+                  Logout
+                </Typography>
+              }
+            />
           </ListItemButton>
         </ListItem>
       </List>
@@ -135,6 +295,7 @@ export default function Layout() {
               boxSizing: 'border-box',
               borderRight: '1px solid',
               borderColor: 'divider',
+              transition: 'background-color 0.3s ease',
             },
           }}
         >
@@ -174,12 +335,12 @@ export default function Layout() {
                 <MenuIcon />
               </IconButton>
             )}
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 600 }}>
+            <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 600, fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
               {navItems.find((item) => item.path === location.pathname)?.label || 'BOL Affiliate Video'}
             </Typography>
             <IconButton
               color="inherit"
-              sx={{ mr: 1 }}
+              sx={{ mr: 1, '&:hover': { backgroundColor: 'action.hover' } }}
               onClick={() => {
                 navigate('/videos', { state: { focusSearch: true } })
               }}
@@ -198,7 +359,7 @@ export default function Layout() {
         {isMobile && <Box sx={{ height: 56 }} />}
       </Box>
 
-      {/* Mobile Bottom Navigation (scrollable) */}
+      {/* Mobile Bottom Navigation */}
       {isMobile && (
         <Paper
           sx={{
@@ -235,6 +396,7 @@ export default function Layout() {
             ))}
           </BottomNavigation>
         </Paper>
-      )}    </Box>
+      )}    
+    </Box>
   )
 }

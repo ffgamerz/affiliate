@@ -7,9 +7,16 @@ import {
   CardContent,
   CircularProgress,
   Button,
+  Chip,
+  Tooltip as MuiTooltip,
+  IconButton,
+  Collapse,
+  Fade,
 } from '@mui/material'
 import {
   Add as AddIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
   YouTube,
   MusicNote as TikTokIcon,
   Facebook,
@@ -19,7 +26,7 @@ import {
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
 } from 'recharts'
 
 interface Video {
@@ -52,9 +59,16 @@ const platformConfig: Record<string, { label: string; color: string; icon: React
   threads: { label: 'Threads', color: '#000000', icon: <ThreadsIcon /> },
 }
 
+export function calculateUnsyncedCount(videos: Video[]): number {
+  return videos.filter(video => 
+    !platforms.some(platform => video[`${platform}_url` as keyof Video] as string)
+  ).length
+}
+
 export default function Dashboard() {
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
+  const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set())
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -73,7 +87,7 @@ export default function Dashboard() {
 
   const getPlatformStats = () => {
     const totalVideos = videos.length
-    const stats: Record<string, { count: number; total: number }> = {}
+    const stats: Record<string, { count: number; total: number; unsynced: number }> = {}
 
     platforms.forEach((platform) => {
       const count = videos.filter((video) => {
@@ -81,7 +95,12 @@ export default function Dashboard() {
         return !!url
       }).length
 
-      stats[platform] = { count, total: totalVideos }
+      const unsynced = videos.filter((video) => {
+        const url = video[`${platform}_url` as keyof Video] as string | null
+        return !url
+      }).length
+
+      stats[platform] = { count, total: totalVideos, unsynced }
     })
 
     return stats
@@ -125,6 +144,24 @@ export default function Dashboard() {
     }
   }
 
+  const togglePlatformExpand = (platform: string) => {
+    const newSet = new Set(expandedPlatforms)
+    if (newSet.has(platform)) {
+      newSet.delete(platform)
+    } else {
+      newSet.add(platform)
+    }
+    setExpandedPlatforms(newSet)
+  }
+
+  // Get unsynced videos for expanded platform view
+  const getUnsyncedVideosForPlatform = (platform: string) => {
+    return videos.filter(video => {
+      const url = video[`${platform}_url` as keyof Video] as string | null
+      return !url
+    }).slice(0, 5) // Show only first 5
+  }
+
   // Helper to extract YouTube thumbnail
   const getYouTubeVideoId = (url: string): string | null => {
     if (!url) return null
@@ -146,6 +183,8 @@ export default function Dashboard() {
       return !!url
     })
   }
+
+  const totalUnsynced = calculateUnsyncedCount(videos)
 
   if (loading) {
     return (
@@ -170,7 +209,7 @@ export default function Dashboard() {
       {/* Stats Cards */}
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 4 }}>
         {/* Total Videos Card */}
-        <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(33.333% - 11px)', md: '1 1 calc(25% - 12px)' } }}>
+        <Box sx={{ flex: { xs: '1 1 100%', sm: '1  calc(33.333% - 11px)', md: '1 1 calc(25% - 12px)' } }}>
           <Card
             sx={{ cursor: 'pointer', bgcolor: 'primary.main', color: 'white' }}
             onClick={() => handlePlatformClick('total')}
@@ -186,11 +225,29 @@ export default function Dashboard() {
           </Card>
         </Box>
 
+        {/* Unsynced Videos Card */}
+        <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(33.333% - 11px)', md: '1 1 calc(25% - 12px)' } }}>
+          <Card
+            sx={{ cursor: 'pointer', bgcolor: 'warning.main', color: 'white' }}
+            onClick={() => navigate('/unsynced')}
+          >
+            <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <Typography variant="h3" sx={{ fontWeight: 700 }}>
+                {totalUnsynced}
+              </Typography>
+              <Typography variant="body1" sx={{ opacity: 0.9, mt: 0.5 }}>
+                Unsynced
+              </Typography>
+            </CardContent>
+          </Card>
+        </Box>
+
         {/* Platform Cards */}
         {platforms.map((platform) => {
           const stats = platformStats[platform]
           const config = platformConfig[platform]
           const percentage = stats.total > 0 ? Math.round((stats.count / stats.total) * 100) : 0
+          const isExpanded = expandedPlatforms.has(platform)
           
           return (
             <Box key={platform} sx={{ flex: { xs: '1 1 calc(50% - 8px)', sm: '1 1 calc(33.333% - 11px)', md: '1 1 calc(25% - 12px)' } }}>
@@ -206,6 +263,20 @@ export default function Dashboard() {
                     <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
                       {config.label}
                     </Typography>
+                    {stats.unsynced > 0 && (
+                      <MuiTooltip title={`${stats.unsynced} videos not uploaded to ${config.label}`}>
+                        <Chip 
+                          label={stats.unsynced} 
+                          size="small"
+                          sx={{ 
+                            bgcolor: isExpanded ? config.color : 'warning.main',
+                            color: 'white',
+                            fontWeight: 600,
+                            ml: 'auto'
+                          }} 
+                        />
+                      </MuiTooltip>
+                    )}
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
@@ -214,15 +285,76 @@ export default function Dashboard() {
                         /{stats.total}
                       </Typography>
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                      ({percentage}%)
-                    </Typography>
+                    <IconButton 
+                      size="small" 
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation()
+                        togglePlatformExpand(platform)
+                      }}
+                      sx={{ 
+                        color: isExpanded ? config.color : 'text.secondary',
+                        '&:hover': { bgcolor: 'action.hover' }
+                      }}
+                    >
+                      {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                    </IconButton>
                   </Box>
                   <Box sx={{ mt: 1, width: '100%', bgcolor: 'grey.200', borderRadius: 1, height: 6, overflow: 'hidden' }}>
                     <Box sx={{ width: `${percentage}%`, bgcolor: config.color, height: '100%', borderRadius: 1, transition: 'width 0.5s ease' }} />
                   </Box>
                 </CardContent>
               </Card>
+
+              {/* Expanded View - Show unsynced videos */}
+              <Fade in={isExpanded}>
+                <Box sx={{ px: 2, pb: 2 }}>
+                  <Collapse in={isExpanded}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
+                      {getUnsyncedVideosForPlatform(platform).map((video) => (
+                        <MuiTooltip key={video.id} title={video.title}>
+                          <Box 
+                            sx={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: 1, 
+                              p: 1, 
+                              bgcolor: `${config.color}10`,
+                              borderRadius: 1,
+                              cursor: 'pointer',
+                              '&:hover': { bgcolor: `${config.color}20` }
+                            }}
+                            onClick={() => {
+                              handlePlatformClick(platform)
+                            }}
+                          >
+                            {video.youtube_url && (
+                              <Box
+                                component="img"
+                                src={`https://img.youtube.com/vi/${getYouTubeVideoId(video.youtube_url)}/mqdefault.jpg`}
+                                alt={video.title}
+                                sx={{
+                                  width: 50,
+                                  height: 75,
+                                  objectFit: 'cover',
+                                  borderRadius: 0.5,
+                                }}
+                              />
+                            )}
+                            <Typography variant="caption" sx={{ flex: 1 }}>
+                              {video.title.length > 30 ? video.title.substring(0, 30) + '...' : video.title}
+                            </Typography>
+                          </Box>
+                        </MuiTooltip>
+                      ))}
+                      {getUnsyncedVideosForPlatform(platform).length > 5 && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
+                          +{getUnsyncedVideosForPlatform(platform).length - 5} more videos...
+                        </Typography>
+                      )}
+                    </Box>
+                  </Collapse>
+                </Box>
+              </Fade>
             </Box>
           )
         })}
@@ -241,21 +373,14 @@ export default function Dashboard() {
                 <XAxis 
                   dataKey="month" 
                   tick={{ fontSize: 11 }}
-                  tickFormatter={(val) => {
+                  tickFormatter={(val: string) => {
                     const [y, m] = val.split('-')
                     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
                     return `${months[parseInt(m)-1]} ${y.slice(2)}`
                   }}
                 />
                 <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: 8, border: '1px solid #e0e0e0', fontSize: 12 }}
-                  labelFormatter={(val) => {
-                    const [y, m] = val.split('-')
-                    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-                    return `${months[parseInt(m)-1]} ${y}`
-                  }}
-                />
+                <RechartsTooltip />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 {platforms.map((p) => (
                   <Bar
