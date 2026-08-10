@@ -8,10 +8,7 @@ import {
   CircularProgress,
   Button,
   Chip,
-  Tooltip as MuiTooltip,
-  IconButton,
   Collapse,
-  Fade,
 } from '@mui/material'
 import {
   Add as AddIcon,
@@ -68,7 +65,6 @@ export function calculateUnsyncedCount(videos: Video[]): number {
 export default function Dashboard() {
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
-  const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set())
   const [showAllPlatforms, setShowAllPlatforms] = useState(true)
   const navigate = useNavigate()
 
@@ -143,24 +139,6 @@ export default function Dashboard() {
     } else {
       navigate('/videos', { state: { filterEmptyPlatform: platform } })
     }
-  }
-
-  const togglePlatformExpand = (platform: string) => {
-    const newSet = new Set(expandedPlatforms)
-    if (newSet.has(platform)) {
-      newSet.delete(platform)
-    } else {
-      newSet.add(platform)
-    }
-    setExpandedPlatforms(newSet)
-  }
-
-  // Get unsynced videos for expanded platform view
-  const getUnsyncedVideosForPlatform = (platform: string) => {
-    return videos.filter(video => {
-      const url = video[`${platform}_url` as keyof Video] as string | null
-      return !url
-    }).slice(0, 5) // Show only first 5
   }
 
   // Helper to extract YouTube thumbnail
@@ -243,7 +221,7 @@ export default function Dashboard() {
           </Card>
         </Box>
 
-        {/* Show All Platforms Toggle */}
+        {/* Platform Cards Toggle */}
         <Box sx={{ width: '100%', mb: 2 }}>
           <Button
             onClick={() => setShowAllPlatforms(!showAllPlatforms)}
@@ -263,16 +241,16 @@ export default function Dashboard() {
 
         {/* Platform Cards (Collapsible) */}
         <Collapse in={showAllPlatforms} timeout="auto">
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
         {platforms.map((platform) => {
           const stats = platformStats[platform]
           const config = platformConfig[platform]
           const percentage = stats.total > 0 ? Math.round((stats.count / stats.total) * 100) : 0
-          const isExpanded = expandedPlatforms.has(platform)
-          
+
           return (
             <Box key={platform} sx={{ flex: { xs: '1 1 calc(50% - 8px)', sm: '1 1 calc(33.333% - 11px)', md: '1 1 calc(25% - 12px)' } }}>
               <Card
-                sx={{ cursor: 'pointer' }}
+                sx={{ cursor: 'pointer', '&:hover': { boxShadow: 2 } }}
                 onClick={() => handlePlatformClick(platform)}
               >
                 <CardContent>
@@ -284,18 +262,18 @@ export default function Dashboard() {
                       {config.label}
                     </Typography>
                     {stats.unsynced > 0 && (
-                      <MuiTooltip title={`${stats.unsynced} videos not uploaded to ${config.label}`}>
-                        <Chip 
-                          label={stats.unsynced} 
-                          size="small"
-                          sx={{ 
-                            bgcolor: isExpanded ? config.color : 'warning.main',
-                            color: 'white',
-                            fontWeight: 600,
-                            ml: 'auto'
-                          }} 
-                        />
-                      </MuiTooltip>
+                      <Chip
+                        label={stats.unsynced}
+                        size="small"
+                        sx={{
+                          bgcolor: config.color,
+                          color: 'white',
+                          fontWeight: 600,
+                          ml: 'auto',
+                          height: 20,
+                          fontSize: 10
+                        }}
+                      />
                     )}
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -305,80 +283,17 @@ export default function Dashboard() {
                         /{stats.total}
                       </Typography>
                     </Typography>
-                    <IconButton 
-                      size="small" 
-                      onClick={(e: React.MouseEvent) => {
-                        e.stopPropagation()
-                        togglePlatformExpand(platform)
-                      }}
-                      sx={{ 
-                        color: isExpanded ? config.color : 'text.secondary',
-                        '&:hover': { bgcolor: 'action.hover' }
-                      }}
-                    >
-                      {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                    </IconButton>
                   </Box>
                   <Box sx={{ mt: 1, width: '100%', bgcolor: 'grey.200', borderRadius: 1, height: 6, overflow: 'hidden' }}>
                     <Box sx={{ width: `${percentage}%`, bgcolor: config.color, height: '100%', borderRadius: 1, transition: 'width 0.5s ease' }} />
                   </Box>
                 </CardContent>
               </Card>
-
-              {/* Expanded View - Show unsynced videos */}
-              <Fade in={isExpanded}>
-                <Box sx={{ px: 2, pb: 2 }}>
-                  <Collapse in={isExpanded}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-                      {getUnsyncedVideosForPlatform(platform).map((video) => (
-                        <MuiTooltip key={video.id} title={video.title}>
-                          <Box 
-                            sx={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: 1, 
-                              p: 1, 
-                              bgcolor: `${config.color}10`,
-                              borderRadius: 1,
-                              cursor: 'pointer',
-                              '&:hover': { bgcolor: `${config.color}20` }
-                            }}
-                            onClick={() => {
-                              handlePlatformClick(platform)
-                            }}
-                          >
-                            {video.youtube_url && (
-                              <Box
-                                component="img"
-                                src={`https://img.youtube.com/vi/${getYouTubeVideoId(video.youtube_url)}/mqdefault.jpg`}
-                                alt={video.title}
-                                sx={{
-                                  width: 50,
-                                  height: 75,
-                                  objectFit: 'cover',
-                                  borderRadius: 0.5,
-                                }}
-                              />
-                            )}
-                            <Typography variant="caption" sx={{ flex: 1 }}>
-                              {video.title.length > 30 ? video.title.substring(0, 30) + '...' : video.title}
-                            </Typography>
-                          </Box>
-                        </MuiTooltip>
-                      ))}
-                      {getUnsyncedVideosForPlatform(platform).length > 5 && (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
-                          +{getUnsyncedVideosForPlatform(platform).length - 5} more videos...
-                        </Typography>
-                      )}
-                    </Box>
-                  </Collapse>
-                </Box>
-              </Fade>
             </Box>
           )
-        })}\
-        </Collapse>\
+        })}
+        </Box>
+        </Collapse>
       </Box>
 
       {/* Upload Trend Chart */}
