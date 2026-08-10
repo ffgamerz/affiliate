@@ -21,6 +21,7 @@ import {
   Divider,
   Avatar,
   Badge,
+  Collapse,
 } from '@mui/material'
 import {
   Dashboard as DashboardIcon,
@@ -34,6 +35,13 @@ import {
   Replay as ReplayIcon,
   Facebook,
   Campaign as CampaignIcon,
+  YouTube,
+  MusicNote as TikTokIcon,
+  Instagram,
+  Shop,
+  Forum as ThreadsIcon,
+  ExpandLess as ExpandLessIcon,
+  ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material'
 import { useAuth } from '../hooks/useAuth.tsx'
 import { supabase } from '../lib/supabase'
@@ -45,6 +53,15 @@ const gradientActiveBg = 'linear-gradient(135deg, #6D4CFF 0%, #9B5CF8 100%)'
 
 const platforms = ['youtube', 'tiktok', 'facebook', 'instagram', 'threads', 'shopee']
 
+const platformConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  youtube: { label: 'YouTube', color: '#FF0000', icon: <YouTube /> },
+  tiktok: { label: 'TikTok', color: '#000000', icon: <TikTokIcon /> },
+  facebook: { label: 'Facebook', color: '#1877F2', icon: <Facebook /> },
+  instagram: { label: 'Instagram', color: '#E4405F', icon: <Instagram /> },
+  shopee: { label: 'Shopee', color: '#EE4D2D', icon: <Shop /> },
+  threads: { label: 'Threads', color: '#000000', icon: <ThreadsIcon /> },
+}
+
 export default function Layout() {
   const { signOut, isAdmin, user } = useAuth()
   const navigate = useNavigate()
@@ -53,6 +70,8 @@ export default function Layout() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [mobileOpen, setMobileOpen] = useState(false)
   const [unsyncedCount, setUnsyncedCount] = useState(0)
+  const [platformCounts, setPlatformCounts] = useState<Record<string, number>>({})
+  const [expandedDashboard, setExpandedDashboard] = useState(true)
 
   useEffect(() => {
     const fetchUnsyncedCount = async () => {
@@ -70,14 +89,22 @@ export default function Layout() {
       ).length
 
       setUnsyncedCount(count)
+
+      // Count unsynced per platform
+      const counts: Record<string, number> = {}
+      platforms.forEach(platform => {
+        counts[platform] = videosData.filter(video =>
+          !(video[`${platform}_url` as keyof typeof video] as string)
+        ).length
+      })
+      setPlatformCounts(counts)
     }
 
     fetchUnsyncedCount()
   }, [])
 
-  // Reuploads nav item hidden on mobile
+  // Main nav items (Dashboard is handled separately with expand)
   const fullNavItems = [
-    { path: '/', label: 'Dashboard', icon: <DashboardIcon />, badge: unsyncedCount > 0 ? unsyncedCount : undefined },
     { path: '/videos', label: 'Videos', icon: <VideoIcon /> },
     { path: '/bolreview-upload', label: 'BolReview', icon: <Facebook /> },
     { path: '/reuploads', label: 'Reuploads', icon: <ReplayIcon />, hideOnMobile: true },
@@ -125,6 +152,145 @@ export default function Layout() {
       
       {/* Navigation List */}
       <List sx={{ flex: 1, px: 1.5, pt: 1 }}>
+        {/* Dashboard Expand Item */}
+        <ListItem disablePadding sx={{ mb: 0.5 }}>
+          <ListItemButton
+            component={RouterLink}
+            to="/"
+            selected={location.pathname === '/'}
+            onClick={() => setExpandedDashboard(!expandedDashboard)}
+            sx={{
+              borderRadius: 2,
+              px: 2,
+              py: 1,
+              mx: 1,
+              position: 'relative',
+              overflow: 'hidden',
+              ...(location.pathname === '/' ? {
+                background: gradientActiveBg,
+                color: 'white',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #5a38e6 0%, #8a4de8 100%)',
+                  boxShadow: '0 4px 20px rgba(109, 76, 255, 0.3)'
+                },
+                '& .MuiListItemIcon-root': { color: 'white' },
+                '& .MuiTypography-root': { color: 'white' }
+              } : {
+                '&:hover': {
+                  backgroundColor: 'action.hover',
+                  '& .MuiListItemIcon-root': { color: 'primary.main' }
+                }
+              })
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 40 }}>
+              <DashboardIcon />
+              {unsyncedCount > 0 && (
+                <Badge
+                  color="secondary"
+                  badgeContent={unsyncedCount}
+                  sx={{
+                    position: 'absolute',
+                    right: -8,
+                    top: -8,
+                    '& .MuiBadge-badge': {
+                      fontSize: 10,
+                      minWidth: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      backgroundColor: '#FF4444',
+                      color: 'white',
+                      fontWeight: 600,
+                      padding: 0,
+                    }
+                  }}
+                />
+              )}
+            </ListItemIcon>
+            <ListItemText
+              primary={
+                <Typography
+                  variant="body1"
+                  sx={{
+                    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    fontWeight: location.pathname === '/' ? 600 : 500
+                  }}
+                >
+                  Dashboard
+                </Typography>
+              }
+            />
+            {expandedDashboard ? (
+              <ExpandLessIcon sx={{ ml: 'auto', mr: 0.5, fontSize: 18 }} />
+            ) : (
+              <ExpandMoreIcon sx={{ ml: 'auto', mr: 0.5, fontSize: 18 }} />
+            )}
+          </ListItemButton>
+
+          {/* Platform Submenu */}
+          <Collapse in={expandedDashboard} timeout="auto" unmountOnExit>
+            <Box sx={{ ml: 1, pl: 1.5, borderLeft: '2px solid', borderColor: 'divider', mt: 0.5 }}>
+              {platforms.map((platform) => {
+                const config = platformConfig[platform]
+                const count = platformCounts[platform] || 0
+                return (
+                  <ListItem key={platform} disablePadding sx={{ py: 0.5 }}>
+                    <ListItemButton
+                      onClick={() => {
+                        navigate('/videos', { state: { filterEmptyPlatform: platform } })
+                        if (isMobile) setMobileOpen(false)
+                      }}
+                      sx={{
+                        borderRadius: 2,
+                        mx: 1,
+                        py: 0.75,
+                        '&:hover': { backgroundColor: 'action.hover' },
+                        '& .MuiListItemIcon-root': { color: config.color }
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        {config.icon}
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                            }}
+                          >
+                            {config.label}
+                          </Typography>
+                        }
+                      />
+                      {count > 0 && (
+                        <Badge
+                          color="secondary"
+                          badgeContent={count}
+                          sx={{
+                            ml: 'auto',
+                            '& .MuiBadge-badge': {
+                              fontSize: 10,
+                              minWidth: 20,
+                              height: 20,
+                              borderRadius: '50%',
+                              backgroundColor: config.color,
+                              color: 'white',
+                              fontWeight: 600,
+                              padding: 0,
+                              transform: 'scale(1)',
+                            }
+                          }}
+                        />
+                      )}
+                    </ListItemButton>
+                  </ListItem>
+                )
+              })}
+            </Box>
+          </Collapse>
+        </ListItem>
+
         {navItems.map((item) => {
           const isActive = location.pathname === item.path
           return (
@@ -175,27 +341,12 @@ export default function Layout() {
               >
                 <ListItemIcon sx={{ minWidth: 40 }}>
                   {item.icon}
-                  {item.badge && (
-                    <Badge 
-                      color="error" 
-                      badgeContent={item.badge} 
-                      sx={{ 
-                        position: 'absolute', 
-                        right: 16,
-                        '& .MuiBadge-badge': {
-                          fontSize: 11,
-                          minWidth: 18,
-                          height: 18
-                        }
-                      }}
-                    />
-                  )}
                 </ListItemIcon>
-                <ListItemText 
+                <ListItemText
                   primary={
-                    <Typography 
+                    <Typography
                       variant="body1"
-                      sx={{ 
+                      sx={{
                         fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                         fontWeight: isActive ? 600 : 500
                       }}
