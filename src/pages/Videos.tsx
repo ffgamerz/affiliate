@@ -3,9 +3,9 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.tsx'
 import {
   Box, Typography, Card, CardContent, Button, Dialog, DialogTitle, DialogContent,
-  DialogActions, TextField, IconButton, Chip, Snackbar, Alert, CircularProgress,
+  DialogActions, TextField, IconButton, Chip, Snackbar, Alert, CircularProgress, Collapse,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  Divider, useTheme, useMediaQuery, InputAdornment, Switch,
+  Divider, useTheme, useMediaQuery, InputAdornment,
 } from '@mui/material'
 import {
   Add, Edit, Delete, YouTube, Facebook, Instagram, Info, Upload,
@@ -13,6 +13,7 @@ import {
   Search as SearchIcon, Close as CloseIcon, ContentCopy as CopyIcon,
   Replay as ReplayIcon, Bookmark, BookmarkBorder,
   ContentPaste as PasteIcon, AutoAwesome as AutoAwesomeIcon,
+  ExpandLess, ExpandMore,
   Cloud,
   Campaign as CampaignIcon,
 } from '@mui/icons-material'
@@ -341,7 +342,17 @@ export default function Videos() {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [pastCampaignsOpen, setPastCampaignsOpen] = useState(false)
   const [pastCampaignStats, setPastCampaignStats] = useState<Record<string, { bestTier: CampaignTier | null; maxTarget: number; bestCount: number }>>({})
-  const [hideCampaigns, setHideCampaigns] = useState(false)
+  const [hideCampaigns, setHideCampaigns] = useState(() => localStorage.getItem('videos_hide_campaigns') === 'true')
+  const [hideStats, setHideStats] = useState(() => localStorage.getItem('videos_hide_stats') === 'true')
+
+  // Persist hide/show toggles locally so they survive page reloads
+  useEffect(() => {
+    localStorage.setItem('videos_hide_campaigns', String(hideCampaigns))
+  }, [hideCampaigns])
+
+  useEffect(() => {
+    localStorage.setItem('videos_hide_stats', String(hideStats))
+  }, [hideStats])
   const [title, setTitle] = useState(''); const [description, setDescription] = useState(''); const [srt, setSrt] = useState('')
   const [descriptionFocused, setDescriptionFocused] = useState(false); const [createdAt, setCreatedAt] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState(''); const [youtubeUploadDate, setYoutubeUploadDate] = useState<string | null>(null)
@@ -1473,22 +1484,15 @@ export default function Videos() {
     return (
       <Box sx={{ mt: 1, mb: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Campaign
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Campaign
+            </Typography>
+            <IconButton size="small" onClick={() => setHideCampaigns(!hideCampaigns)} sx={{ color: 'text.secondary', p: 0.5 }} aria-label="Toggle campaigns">
+              {hideCampaigns ? <ExpandMore /> : <ExpandLess />}
+            </IconButton>
+          </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {isMobile && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  {hideCampaigns ? 'Hidden' : 'Show'}
-                </Typography>
-                <Switch
-                  size="small"
-                  checked={!hideCampaigns}
-                  onChange={(e) => setHideCampaigns(!e.target.checked)}
-                />
-              </Box>
-            )}
             {isAdmin && (
               <Button size="small" variant="outlined" startIcon={<CampaignIcon />} onClick={() => navigate('/campaigns')}>
                 Manage Campaigns
@@ -1497,7 +1501,8 @@ export default function Videos() {
           </Box>
         </Box>
 
-        {(!isMobile || !hideCampaigns) && (campaignLoading ? (
+        <Collapse in={!hideCampaigns}>
+          {campaignLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={28} /></Box>
         ) : campaigns.length === 0 ? (
           <Card sx={{ bgcolor: 'background.paper' }}>
@@ -1548,7 +1553,8 @@ export default function Videos() {
               </Card>
             </CampaignTierGrid>
           </>
-        ))}
+          )}
+        </Collapse>
       </Box>
     )
   }
@@ -1703,12 +1709,23 @@ export default function Videos() {
         </Box>
       </Box>
 
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          Statistics
+        </Typography>
+        <IconButton size="small" onClick={() => setHideStats(!hideStats)} sx={{ color: 'text.secondary', p: 0.5 }} aria-label="Toggle statistics">
+          {hideStats ? <ExpandMore /> : <ExpandLess />}
+        </IconButton>
+      </Box>
+
+      <Collapse in={!hideStats}>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
         <StatCard filterKey="today" title="Total videos uploaded today" videoCount={todayStats.videoCount} platformUploadCount={todayStats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={todayStats.platformBreakdown} />
         <StatCard filterKey="yesterday" title="Total videos uploaded yesterday" videoCount={yesterdayStats.videoCount} platformUploadCount={yesterdayStats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={yesterdayStats.platformBreakdown} />
         <StatCard filterKey="range-3-9" title="Days 3-9 uploads" videoCount={range3to9Stats.videoCount} platformUploadCount={range3to9Stats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={range3to9Stats.platformBreakdown} />
         <OriginalCreatorCard />
       </Box>
+      </Collapse>
 
       {/* Campaign Day section */}
       <CampaignSection />
