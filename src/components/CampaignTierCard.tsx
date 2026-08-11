@@ -149,6 +149,7 @@ export function CampaignTierCard({
             {tierProgresses.map((tp) => {
               const meta = statusMeta(tp)
               const surplus = tp.count - tp.expectedByNow
+              const expectedPercent = Math.min(100, Math.max(0, (tp.expectedByNow / tp.target_videos) * 100))
               return (
                 <Box key={tp.tier.id}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
@@ -159,8 +160,16 @@ export function CampaignTierCard({
                       {meta.label}
                     </Box>
                   </Box>
-                  <Box sx={{ width: '100%', height: 6, bgcolor: '#e0e0e0', borderRadius: 1, overflow: 'hidden', mb: 0.5 }}>
+                  <Box sx={{ position: 'relative', width: '100%', height: 6, bgcolor: '#e0e0e0', borderRadius: 1, overflow: 'hidden', mb: 0.5 }}>
                     <Box sx={{ width: `${tp.percent}%`, height: '100%', bgcolor: getProgressColor(tp.count, tp.target_videos), transition: 'width 0.5s ease' }} />
+                    {/* Expected-by-now indicator (target day position) */}
+                    <Box
+                      title={`Expected by now: ${tp.expectedByNow} videos`}
+                      sx={{
+                        position: 'absolute', top: 0, left: `${expectedPercent}%`, width: 2, height: '100%',
+                        bgcolor: '#3f3f46', transform: 'translateX(-50%)', boxShadow: '0 0 2px rgba(0,0,0,0.3)',
+                      }}
+                    />
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 10 }}>
