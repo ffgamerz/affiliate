@@ -15,8 +15,6 @@ import {
   ContentPaste as PasteIcon, AutoAwesome as AutoAwesomeIcon,
   Cloud,
   Campaign as CampaignIcon,
-  History as HistoryIcon,
-  CalendarMonth as CalendarMonthIcon,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 import {
@@ -28,8 +26,10 @@ import {
   maxTierTarget,
   periodLabel,
   todayStr,
+  computeTierProgresses,
 } from '../lib/campaigns'
-import type { CampaignWithTiers, CampaignTier } from '../lib/campaigns'
+import type { CampaignWithTiers, CampaignTier, TierProgress } from '../lib/campaigns'
+import { CampaignTierGrid } from '../components/CampaignTierCard'
 
 const GoogleDriveIcon = () => <Cloud fontSize="small" />
 
@@ -335,7 +335,7 @@ export default function Videos() {
   // Campaign Day state
   const [campaigns, setCampaigns] = useState<CampaignWithTiers[]>([])
   const [campaignLoading, setCampaignLoading] = useState(false)
-  const [campaignStats, setCampaignStats] = useState<Record<string, { count: number; currentPeriod: { periodNumber: number; start: string; end: string } | null; tier: CampaignTier | null; maxTarget: number }>>({})
+  const [campaignStats, setCampaignStats] = useState<Record<string, { count: number; currentPeriod: { periodNumber: number; start: string; end: string } | null; tier: CampaignTier | null; maxTarget: number; tierProgresses: TierProgress[] }>>({})
   const [historyCampaign, setHistoryCampaign] = useState<CampaignWithTiers | null>(null)
   const [historyStats, setHistoryStats] = useState<Array<{ periodNumber: number; start: string; end: string; count: number; tier: CampaignTier | null; maxTarget: number }>>([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -622,11 +622,11 @@ export default function Videos() {
 
       const today = todayStr()
       const ongoing = data.filter((c) => !c.end_date || c.end_date >= today)
-      const stats: Record<string, { count: number; currentPeriod: { periodNumber: number; start: string; end: string } | null; tier: CampaignTier | null; maxTarget: number }> = {}
+      const stats: Record<string, { count: number; currentPeriod: { periodNumber: number; start: string; end: string } | null; tier: CampaignTier | null; maxTarget: number; tierProgresses: TierProgress[] }> = {}
       await Promise.all(ongoing.map(async (c) => {
         const period = computeCurrentPeriod(c, today)
         if (!period) {
-          stats[c.id] = { count: 0, currentPeriod: null, tier: null, maxTarget: maxTierTarget(c.tiers) }
+          stats[c.id] = { count: 0, currentPeriod: null, tier: null, maxTarget: maxTierTarget(c.tiers), tierProgresses: [] }
           return
         }
         const count = await computeUploadCount(c.platform, period.start, period.end)
@@ -635,6 +635,7 @@ export default function Videos() {
           currentPeriod: period,
           tier: resolveTier(count, c.tiers),
           maxTarget: maxTierTarget(c.tiers),
+          tierProgresses: c.tiers.length > 0 ? computeTierProgresses(c, count, period) : [],
         }
       }))
       setCampaignStats(stats)
@@ -1469,14 +1470,6 @@ export default function Videos() {
     const ongoing = campaigns.filter((c) => !c.end_date || c.end_date >= today)
     const ended = campaigns.filter((c) => c.end_date && c.end_date < today)
 
-    const getProgressColor = (count: number, max: number) => {
-      const pct = max > 0 ? count / max : 0
-      if (pct >= 1) return '#4caf50'
-      if (pct >= 0.66) return '#66bb6a'
-      if (pct >= 0.33) return '#ff9800'
-      return '#ef5350'
-    }
-
     return (
       <Box sx={{ mt: 1, mb: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
@@ -1516,118 +1509,21 @@ export default function Videos() {
           </Card>
         ) : (
           <>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
-              {ongoing.map((c) => {
+            <CampaignTierGrid
+              items={ongoing.map((c) => {
                 const st = campaignStats[c.id]
-                const period = st?.currentPeriod
-                const count = st?.count || 0
-                const maxTarget = st?.maxTarget || 1
-                const achieved = st?.tier || null
-                const progressPercent = Math.min((count / maxTarget) * 100, 100)
-                const periodDays = period ? Math.max(1, Math.round((new Date(period.end).getTime() - new Date(period.start).getTime()) / 86400000) + 1) : 0
-                const dayIndex = period ? Math.min(periodDays, Math.max(1, Math.round((new Date(today).getTime() - new Date(period.start).getTime()) / 86400000) + 1)) : 0
-                const daysLeft = period ? Math.max(1, periodDays - dayIndex + 1) : 0
-                const expectedNow = period ? Math.floor(maxTarget * (dayIndex / periodDays)) : 0
-                const neededPerDay = period && count < maxTarget ? Math.ceil((maxTarget - count) / daysLeft) : 0
-                const onTrack = period ? count >= expectedNow : false
-                return (
-                  <Card key={c.id} sx={{ bgcolor: 'background.paper' }}>
-                    <CardContent sx={{ p: 2.5 }}>
-                      {/* Period Badge */}
-                      <Box sx={{
-                        display: 'inline-flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.25,
-                        bgcolor: '#f3e5f5', borderRadius: 10, fontSize: 11, fontWeight: 600, color: '#7c4dff', mb: 1
-                      }}>
-                        <Box sx={{ bgcolor: '#7c4dff', color: 'white', borderRadius: '50%', width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>
-                          {c.repeat_interval === 'weekly' ? 'W' : c.repeat_interval === 'monthly' ? 'M' : 'D'}
-                        </Box>
-                        {period ? periodLabel(c.repeat_interval, period.periodNumber) : 'Not started'}
-                        <Typography component="span" sx={{ color: '#999', fontWeight: 400 }}>|</Typography>
-                        Repeat {c.repeat_interval}
-                      </Box>
-
-                      {/* Header */}
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-                          <Box sx={{ color: getPlatformColor(c.platform), display: 'flex', alignItems: 'center' }}>{platformIcons[c.platform]}</Box>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {c.name}
-                          </Typography>
-                        </Box>
-                        <Chip
-                          label={achieved ? `✓ Tier ${achieved.tier_number}` : count >= maxTarget ? '✓ Target Reached' : '⏳ In Progress'}
-                          size="small"
-                          sx={{ height: 20, fontSize: 11, bgcolor: achieved || count >= maxTarget ? '#e8f5e9' : '#fff3e0', color: achieved || count >= maxTarget ? '#2e7d32' : '#e65100', fontWeight: 600 }}
-                        />
-                      </Box>
-
-                      {/* Date: current period start–end (own prominent line) */}
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.25 }}>
-                        <CalendarMonthIcon sx={{ fontSize: 15, color: '#7c4dff' }} />
-                        <Typography variant="body2" sx={{ color: 'text.primary', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {period ? `${formatDateLabel(period.start)} – ${formatDateLabel(period.end)}` : `Starts ${formatDateLabel(c.start_date)}`}
-                        </Typography>
-                      </Box>
-
-                      {/* On-track status */}
-                      {period && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
-                          <Chip
-                            label={onTrack ? 'On Track ✓' : 'Behind'}
-                            size="small"
-                            sx={{ height: 20, fontSize: 11, bgcolor: onTrack ? '#e8f5e9' : '#fce4ec', color: onTrack ? '#2e7d32' : '#c62828', fontWeight: 600 }}
-                          />
-                          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 11 }}>
-                            {onTrack
-                              ? `Day ${dayIndex}/${periodDays} · need ${neededPerDay} more/day to reach target`
-                              : `Day ${dayIndex}/${periodDays} · need ${neededPerDay}/day to catch up`}
-                          </Typography>
-                        </Box>
-                      )}
-
-                      {/* Progress Section */}
-                      <Box sx={{ bgcolor: '#f9f9f9', borderRadius: 1, p: 1.5, mb: 1 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
-                            {c.platform.charAt(0).toUpperCase() + c.platform.slice(1)} Videos
-                          </Typography>
-                          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 16 }}>
-                            <Typography component="span" sx={{ color: 'text.primary' }}>{count}</Typography>
-                            <Typography component="span" sx={{ color: '#999', fontWeight: 400 }}> / </Typography>
-                            <Typography component="span" sx={{ color: '#7c4dff' }}>{maxTarget}</Typography>
-                          </Typography>
-                        </Box>
-                        <Box sx={{ width: '100%', height: 8, bgcolor: '#e0e0e0', borderRadius: 1, overflow: 'hidden', mb: 1 }}>
-                          <Box sx={{ width: `${progressPercent}%`, height: '100%', bgcolor: getProgressColor(count, maxTarget), transition: 'width 0.5s ease' }} />
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 11 }}>
-                            {achieved ? `Tier ${achieved.tier_number} reached 🎉${achieved.reward ? ` · ${achieved.reward}` : ''}` : `${maxTarget - count} more needed`}
-                          </Typography>
-                          {c.tiers.length > 0 && (
-                            <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, color: '#7c4dff' }}>
-                              {c.tiers.map((t) => `T${t.tier_number}: ${t.target_videos}`).join(' · ')}
-                            </Typography>
-                          )}
-                        </Box>
-                      </Box>
-
-                      {/* History Button */}
-                      {c.track_history && (
-                        <Button
-                          size="small"
-                          variant="text"
-                          startIcon={<HistoryIcon />}
-                          onClick={() => openCampaignHistory(c)}
-                          sx={{ mt: 0.5 }}
-                        >
-                          History
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                )
+                return {
+                  campaign: c,
+                  count: st?.count || 0,
+                  period: st?.currentPeriod || null,
+                  achievedTier: st?.tier || null,
+                  tierProgresses: st?.tierProgresses || [],
+                  platformIcon: platformIcons[c.platform],
+                  platformColor: getPlatformColor(c.platform),
+                }
               })}
+              onOpenHistory={openCampaignHistory}
+            >
 
               {/* Past Campaign Card */}
               <Card
@@ -1650,7 +1546,7 @@ export default function Videos() {
                   </Typography>
                 </CardContent>
               </Card>
-            </Box>
+            </CampaignTierGrid>
           </>
         ))}
       </Box>

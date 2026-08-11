@@ -27,6 +27,24 @@ export interface CampaignWithTiers extends Campaign {
     tiers: CampaignTier[]
 }
 
+// Tier progress types for displaying tier-level progress
+export type TrackStatus = 'ahead' | 'on_track' | 'behind'
+
+export interface TierProgress {
+    tier: CampaignTier
+    target_videos: number
+    count: number
+    percent: number
+    expectedByNow: number
+    trackStatus: TrackStatus
+    daysElapsed: number
+    periodDays: number
+    avgPerDay: number
+    remaining: number
+    daysNeeded: number
+    neededPerDay: number
+}
+
 export interface CampaignPeriod {
     periodNumber: number
     start: string // YYYY-MM-DD
@@ -176,6 +194,89 @@ export function resolveTier(count: number, tiers: CampaignTier[]): CampaignTier 
 export function maxTierTarget(tiers: CampaignTier[]): number {
     if (tiers.length === 0) return 1
     return Math.max(...tiers.map((t) => t.target_videos))
+}
+
+/**
+ * Compute tier progress for each tier in a campaign.
+ * Returns an array of TierProgress objects for rendering tier-based progress bars.
+ * Uses the campaign's current period to calculate progress expectations.
+ * 
+ * @param campaign The campaign with its tiers
+ * @param count Current video count
+ * @param period The current active period (Optional - if not provided, uses full campaign dates)
+ */
+export function computeTierProgresses(
+    campaign: CampaignWithTiers,
+    count: number,
+    period?: CampaignPeriod
+): TierProgress[] {
+    let tiers = [...campaign.tiers].sort((a, b) => a.target_videos - b.target_videos)
+
+    // If no tiers, create a default T1 tier
+    if (tiers.length === 0) {
+        tiers = [{
+            id: `default-${campaign.id}`,
+            campaign_id: campaign.id,
+            tier_number: 1,
+            target_videos: 100,
+            reward: null
+        }]
+    }
+
+    const today = toDate(todayStr())
+
+    // Use provided period or compute from campaign dates
+    let periodStart: string
+    let periodEnd: string
+    let daysElapsed: number
+    let totalDays: number
+
+    if (period) {
+        periodStart = period.start
+        periodEnd = period.end
+        const startDt = toDate(periodStart)
+        const endDt = toDate(periodEnd)
+        totalDays = Math.max(1, Math.round((endDt.getTime() - startDt.getTime()) / 86400000) + 1)
+        daysElapsed = Math.min(totalDays, Math.max(1, Math.round((today.getTime() - startDt.getTime()) / 86400000) + 1))
+    } else {
+        const startDt = campaign.start_date ? toDate(campaign.start_date) : today
+        const endDt = campaign.end_date ? toDate(campaign.end_date) : today
+        periodStart = campaign.start_date || todayStr()
+        periodEnd = campaign.end_date || todayStr()
+        totalDays = Math.max(1, Math.round((endDt.getTime() - startDt.getTime()) / 86400000) + 1)
+        daysElapsed = Math.min(totalDays, Math.max(1, Math.round((today.getTime() - startDt.getTime()) / 86400000) + 1))
+    }
+
+    return tiers.map((tier) => {
+        const target = tier.target_videos
+        const percent = Math.min((count / target) * 100, 100)
+        const expectedByNow = Math.floor(target * (daysElapsed / totalDays))
+        // Status logic:
+        // - ahead: count > expectedByNow (surplus, exceeding expected for today)
+        // - on_track: count === expectedByNow (exactly on target for today)
+        // - behind: count < expectedByNow (falling behind today)
+        const trackStatus: TrackStatus = count > expectedByNow ? 'ahead' : count === expectedByNow ? 'on_track' : 'behind'
+        const remaining = Math.max(0, target - count)
+        const avgPerDay = count > 0 ? Math.ceil(count / daysElapsed) : 0
+        const daysNeeded = avgPerDay > 0 ? Math.ceil(remaining / avgPerDay) : Math.max(0, totalDays - daysElapsed)
+        const daysLeft = Math.max(1, totalDays - daysElapsed + 1)
+        const neededPerDay = remaining > 0 ? Math.ceil(remaining / daysLeft) : 0
+
+        return {
+            tier,
+            target_videos: target,
+            count,
+            percent,
+            expectedByNow,
+            trackStatus,
+            daysElapsed,
+            periodDays: totalDays,
+            avgPerDay,
+            remaining,
+            daysNeeded,
+            neededPerDay
+        } as TierProgress
+    })
 }
 
 // ============ CRUD ============
