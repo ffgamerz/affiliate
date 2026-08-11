@@ -252,6 +252,116 @@ const parseSupabaseUrlToSql = (url: string, method: string, body: string | null)
   }
 }
 
+interface CampaignStatsEntry {
+  count: number
+  currentPeriod: { periodNumber: number; start: string; end: string } | null
+  tier: CampaignTier | null
+  maxTarget: number
+  tierProgresses: TierProgress[]
+}
+
+type CampaignStatsMap = Record<string, CampaignStatsEntry>
+
+interface CampaignSectionViewProps {
+  campaigns: CampaignWithTiers[]
+  campaignLoading: boolean
+  campaignStats: CampaignStatsMap
+  hideCampaigns: boolean
+  onToggleHide: () => void
+  isAdmin: boolean
+  onManage: () => void
+  onOpenHistory: (c: CampaignWithTiers) => void
+  onOpenPastCampaigns: () => void
+}
+
+// Top-level component (NOT nested inside Videos) so React doesn't remount the
+// subtree on every parent re-render — which would kill the Collapse animation.
+const CampaignSectionView = ({
+  campaigns, campaignLoading, campaignStats, hideCampaigns, onToggleHide,
+  isAdmin, onManage, onOpenHistory, onOpenPastCampaigns,
+}: CampaignSectionViewProps) => {
+  const today = todayStr()
+  const ongoing = campaigns.filter((c) => !c.end_date || c.end_date >= today)
+  const ended = campaigns.filter((c) => c.end_date && c.end_date < today)
+
+  return (
+    <Box sx={{ mt: 1, mb: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Campaign
+          </Typography>
+          <IconButton size="small" onClick={onToggleHide} sx={{ color: 'text.secondary', p: 0.5 }} aria-label="Toggle campaigns">
+            {hideCampaigns ? <ExpandMore /> : <ExpandLess />}
+          </IconButton>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {isAdmin && (
+            <Button size="small" variant="outlined" startIcon={<CampaignIcon />} onClick={onManage}>
+              Manage Campaigns
+            </Button>
+          )}
+        </Box>
+      </Box>
+
+      <Collapse in={!hideCampaigns}>
+        {campaignLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={28} /></Box>
+        ) : campaigns.length === 0 ? (
+          <Card sx={{ bgcolor: 'background.paper' }}>
+            <CardContent sx={{ p: 2.5, textAlign: 'center' }}>
+              <Typography color="text.secondary">
+                No campaigns yet. {isAdmin ? 'Manage campaigns to set up a campaign day.' : 'Check back later.'}
+              </Typography>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <CampaignTierGrid
+              items={ongoing.map((c) => {
+                const st = campaignStats[c.id]
+                return {
+                  campaign: c,
+                  count: st?.count || 0,
+                  period: st?.currentPeriod || null,
+                  achievedTier: st?.tier || null,
+                  tierProgresses: st?.tierProgresses || [],
+                  platformIcon: platformIcons[c.platform],
+                  platformColor: getPlatformColor(c.platform),
+                }
+              })}
+              onOpenHistory={onOpenHistory}
+            >
+
+              {/* Past Campaign Card */}
+              <Card
+                sx={{
+                  bgcolor: 'background.paper',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  border: '1px solid #f0f0f0',
+                  '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }
+                }}
+                onClick={onOpenPastCampaigns}
+              >
+                <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 140, textAlign: 'center' }}>
+                  <CampaignIcon sx={{ fontSize: 32, color: '#9e9e9e', mb: 1 }} />
+                  <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', letterSpacing: 0.5 }}>
+                    Past Campaigns
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', mt: 0.5 }}>
+                    View History ({ended.length})
+                  </Typography>
+                </CardContent>
+              </Card>
+            </CampaignTierGrid>
+          </>
+        )}
+      </Collapse>
+    </Box>
+  )
+}
+
 export default function Videos() {
   const location = useLocation(); const theme = useTheme(); const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const navigate = useNavigate(); const { isAdmin } = useAuth()
@@ -336,7 +446,7 @@ export default function Videos() {
   // Campaign Day state
   const [campaigns, setCampaigns] = useState<CampaignWithTiers[]>([])
   const [campaignLoading, setCampaignLoading] = useState(false)
-  const [campaignStats, setCampaignStats] = useState<Record<string, { count: number; currentPeriod: { periodNumber: number; start: string; end: string } | null; tier: CampaignTier | null; maxTarget: number; tierProgresses: TierProgress[] }>>({})
+  const [campaignStats, setCampaignStats] = useState<CampaignStatsMap>({})
   const [historyCampaign, setHistoryCampaign] = useState<CampaignWithTiers | null>(null)
   const [historyStats, setHistoryStats] = useState<Array<{ periodNumber: number; start: string; end: string; count: number; tier: CampaignTier | null; maxTarget: number }>>([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -633,7 +743,7 @@ export default function Videos() {
 
       const today = todayStr()
       const ongoing = data.filter((c) => !c.end_date || c.end_date >= today)
-      const stats: Record<string, { count: number; currentPeriod: { periodNumber: number; start: string; end: string } | null; tier: CampaignTier | null; maxTarget: number; tierProgresses: TierProgress[] }> = {}
+      const stats: CampaignStatsMap = {}
       await Promise.all(ongoing.map(async (c) => {
         const period = computeCurrentPeriod(c, today)
         if (!period) {
@@ -1475,90 +1585,6 @@ export default function Videos() {
     )
   }
 
-  // Campaign Day: render components
-  const CampaignSection = () => {
-    const today = todayStr()
-    const ongoing = campaigns.filter((c) => !c.end_date || c.end_date >= today)
-    const ended = campaigns.filter((c) => c.end_date && c.end_date < today)
-
-    return (
-      <Box sx={{ mt: 1, mb: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Campaign
-            </Typography>
-            <IconButton size="small" onClick={() => setHideCampaigns(!hideCampaigns)} sx={{ color: 'text.secondary', p: 0.5 }} aria-label="Toggle campaigns">
-              {hideCampaigns ? <ExpandMore /> : <ExpandLess />}
-            </IconButton>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {isAdmin && (
-              <Button size="small" variant="outlined" startIcon={<CampaignIcon />} onClick={() => navigate('/campaigns')}>
-                Manage Campaigns
-              </Button>
-            )}
-          </Box>
-        </Box>
-
-        <Collapse in={!hideCampaigns}>
-          {campaignLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={28} /></Box>
-        ) : campaigns.length === 0 ? (
-          <Card sx={{ bgcolor: 'background.paper' }}>
-            <CardContent sx={{ p: 2.5, textAlign: 'center' }}>
-              <Typography color="text.secondary">
-                No campaigns yet. {isAdmin ? 'Manage campaigns to set up a campaign day.' : 'Check back later.'}
-              </Typography>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <CampaignTierGrid
-              items={ongoing.map((c) => {
-                const st = campaignStats[c.id]
-                return {
-                  campaign: c,
-                  count: st?.count || 0,
-                  period: st?.currentPeriod || null,
-                  achievedTier: st?.tier || null,
-                  tierProgresses: st?.tierProgresses || [],
-                  platformIcon: platformIcons[c.platform],
-                  platformColor: getPlatformColor(c.platform),
-                }
-              })}
-              onOpenHistory={openCampaignHistory}
-            >
-
-              {/* Past Campaign Card */}
-              <Card
-                sx={{
-                  bgcolor: 'background.paper',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  border: '1px solid #f0f0f0',
-                  '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }
-                }}
-                onClick={() => openPastCampaigns()}
-              >
-                <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 140, textAlign: 'center' }}>
-                  <CampaignIcon sx={{ fontSize: 32, color: '#9e9e9e', mb: 1 }} />
-                  <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', letterSpacing: 0.5 }}>
-                    Past Campaigns
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', mt: 0.5 }}>
-                    View History ({ended.length})
-                  </Typography>
-                </CardContent>
-              </Card>
-            </CampaignTierGrid>
-          </>
-          )}
-        </Collapse>
-      </Box>
-    )
-  }
-
   // Campaign Day: History dialog
   const CampaignHistoryDialog = () => {
     const getProgressColor = (count: number, max: number) => {
@@ -1728,7 +1754,17 @@ export default function Videos() {
       </Collapse>
 
       {/* Campaign Day section */}
-      <CampaignSection />
+      <CampaignSectionView
+        campaigns={campaigns}
+        campaignLoading={campaignLoading}
+        campaignStats={campaignStats}
+        hideCampaigns={hideCampaigns}
+        onToggleHide={() => setHideCampaigns(!hideCampaigns)}
+        isAdmin={isAdmin}
+        onManage={() => navigate('/campaigns')}
+        onOpenHistory={openCampaignHistory}
+        onOpenPastCampaigns={openPastCampaigns}
+      />
 
       <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1, mb: 2, display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
         <Box sx={{ flex: 1, minWidth: 200, position: 'relative', display: 'flex', gap: 1 }}>
