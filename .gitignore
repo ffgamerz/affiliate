@@ -21,6 +21,11 @@ dist-ssr
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?supabase/.temp/
+*.swp
+
+supabase/.temp/
 .dev.vars
 .aider*
+
+# Wrangler (Cloudflare Pages) local temp artifacts
+.wrangler/
