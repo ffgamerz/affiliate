@@ -16,6 +16,7 @@ import {
   ExpandLess, ExpandMore,
   Cloud,
   Campaign as CampaignIcon,
+  Star, StarOutlined
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 import {
@@ -476,6 +477,36 @@ export default function Videos() {
   const [bookmarkedVideoIds, setBookmarkedVideoIds] = useState<Set<string>>(new Set())
   const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false)
 
+  // Focus video state - derived from localStorage, only one video can be focused
+  const [focusedVideoId, setFocusedVideoId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('videos_focused_video_id')
+    }
+    return null
+  })
+  // Separate toggle for filter - allows showing focused video or not without clearing the focused ID
+  const [filterFocusActive, setFilterFocusActive] = useState(false)
+
+  // Helper: toggle focus on a video (update localStorage + state, auto-activate filter)
+  const toggleFocusVideo = (videoId: string) => {
+    if (focusedVideoId === videoId) {
+      // Clicking the same focused video = clear focus entirely
+      setFocusedVideoId(null)
+      localStorage.removeItem('videos_focused_video_id')
+      setFilterFocusActive(false)
+    } else {
+      // Set new focus (overwrites any previous) and auto-activate filter
+      setFocusedVideoId(videoId)
+      localStorage.setItem('videos_focused_video_id', videoId)
+      setFilterFocusActive(true)
+    }
+  }
+
+  // Button "Focus" click handler - toggle filter only, preserve focusedVideoId in localStorage
+  const toggleFocusFilter = () => {
+    setFilterFocusActive(!filterFocusActive)
+  }
+
   const prevYoutubeUrlRef = useRef('')
   const prevFacebookUrlRef = useRef('')
   const prevInstagramUrlRef = useRef('')
@@ -912,8 +943,20 @@ export default function Videos() {
     let vData: Video[] = []
     let rData: Reupload[] = []
 
+    // IF - focus mode active (filter on + focused video exists)
+    if (focusedVideoId && filterFocusActive) {
+      const vR = await supabase.from('videos').select('*, reuploads!left(platform, upload_date)')
+        .eq('id', focusedVideoId)
+        .order('created_at', { ascending: false })
+        .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
+      vData = (vR.data as Video[]) || []
+      const rR = await supabase.from('reuploads').select('*').eq('video_id', focusedVideoId)
+      rData = (rR.data as Reupload[]) || []
+      setVideos(vData)
+      setHasMore(false) // Only one video when focused
+
     // IF - ada search query, date filter, platform filter, atau custom upload date
-    if (activeSearchQuery || dateFilter || platformFilter || customUploadDateFilter) {
+    } else if (activeSearchQuery || dateFilter || platformFilter || customUploadDateFilter) {
       const vR = await buildFilteredQuery(page)
       vData = (vR.data as Video[]) || []
       const rR = await supabase.from('reuploads').select('*')
@@ -1067,13 +1110,13 @@ export default function Videos() {
     // For ELSE branch: reuploads already in join via buildFilteredQuery
     // For default ELSE branch: reuploads fetched inline above
     // Only fetch fallback if actually needed for other branches
-    if (rData.length === 0 && !showBookmarkedOnly && !filterEmptyPlatform && !shopeeWeekFilter && !shopeeWeekDateRange && !uploadDateFilter) {
+    if (rData.length === 0 && !showBookmarkedOnly && !filterEmptyPlatform && !shopeeWeekFilter && !shopeeWeekDateRange && !uploadDateFilter && !(focusedVideoId && filterFocusActive)) {
       const rR = await supabase.from('reuploads').select('*')
       rData = (rR.data as Reupload[]) || []
     }
     setReuploads(rData)
     setLoading(false); setLoadingMore(false); fetchStats()
-  }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, shopeeWeekFilter, shopeeWeekDateRange, activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, showBookmarkedOnly])
+  }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, shopeeWeekFilter, shopeeWeekDateRange, activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, showBookmarkedOnly, focusedVideoId, filterFocusActive])
 
   // Fetch bookmarks (for bookmark icons display)
   const fetchBookmarks = useCallback(async () => {
@@ -1101,7 +1144,7 @@ export default function Videos() {
     hasLocationState.current = true
     setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSearchQuery, dateFilter, customUploadDateFilter, platformFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange])
+  }, [activeSearchQuery, dateFilter, customUploadDateFilter, platformFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange, filterFocusActive])
 
   // Fetch creator stats - single query for ALL weeks, filter client-side
   const fetchCreatorStats = useCallback(async () => {
@@ -1803,17 +1846,30 @@ export default function Videos() {
           variant={showBookmarkedOnly ? 'filled' : 'outlined'}
           sx={{ cursor: 'pointer', height: 36 }}
         />
-        {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter || showBookmarkedOnly || shopeeWeekFilter || shopeeWeekDateRange) && (
-          <Button variant="outlined" size="small" onClick={() => {
-            setSearchQuery(''); setActiveSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter('');
-            const hadFilter = !!filterEmptyPlatform
-            setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter('');
-            setShowBookmarkedOnly(false); setShopeeWeekFilter(false); setShopeeWeekDateRange(null)
-            if (hadFilter) setTimeout(() => { setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true) }, 0)
-          }} startIcon={<CloseIcon />}>Clear</Button>
-        )}
+        {focusedVideoId && (
+        <Chip
+          label="Focus"
+          size="small"
+          onClick={toggleFocusFilter}
+          color={filterFocusActive ? 'primary' : 'default'}
+          variant={filterFocusActive ? 'filled' : 'outlined'}
+          sx={{ cursor: 'pointer', height: 36 }}
+        />
+      )}
+      {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter || showBookmarkedOnly || shopeeWeekFilter || shopeeWeekDateRange || focusedVideoId || filterFocusActive) && (
+        <Button variant="outlined" size="small" onClick={() => {
+          setSearchQuery(''); setActiveSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter('');
+          const hadFilter = !!filterEmptyPlatform
+          setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter('');
+          setShowBookmarkedOnly(false); setShopeeWeekFilter(false); setShopeeWeekDateRange(null)
+          setFocusedVideoId(null); localStorage.removeItem('videos_focused_video_id')
+          setFilterFocusActive(false)
+          if (hadFilter) setTimeout(() => { setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true) }, 0)
+        }} startIcon={<CloseIcon />}>Clear</Button>
+      )}
       </Box>
 
+      {focusedVideoId && filterFocusActive && <Alert severity="info" sx={{ mb: 2 }}>Showing focused video only. Click the star ⭐ on any video to change focus or Clear button.</Alert>}
       {filterEmptyPlatform && <Alert severity="info" sx={{ mb: 2 }}>Showing videos without {filterEmptyPlatform} URL</Alert>}
       {showBookmarkedOnly && <Alert severity="info" sx={{ mb: 2 }}>Showing only bookmarked videos</Alert>}
       {shopeeWeekFilter && <Alert severity="info" sx={{ mb: 2 }}>Showing Shopee videos uploaded this week (Wed-Tue)</Alert>}
@@ -1822,13 +1878,14 @@ export default function Videos() {
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}><CircularProgress /></Box>
       ) : displayedVideos.length === 0 ? (
-        <Typography color="text.secondary" align="center" sx={{ py: 6 }}>{showBookmarkedOnly ? 'No bookmarked videos found. Click the bookmark icon on videos to bookmark them.' : searchQuery || dateFilter ? 'No videos found matching your criteria' : 'No videos yet. Click "Add Video" to create one!'}</Typography>
+        <Typography color="text.secondary" align="center" sx={{ py: 6 }}>{focusedVideoId ? 'Focused video saved. Click the star ⭐ on another video to change focus or Clear button.' : showBookmarkedOnly ? 'No bookmarked videos found. Click the bookmark icon on videos to bookmark them.' : 'No videos found matching your criteria'}</Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {displayedVideos.map((video) => {
             const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
+            const isFocused = focusedVideoId === video.id
             return (
-              <Card key={video.id}>
+              <Card key={video.id} sx={{ border: isFocused ? '2px solid' : '1px solid', borderColor: isFocused ? 'warning.main' : '#f0f0f0', '&:hover': { transform: isFocused ? 'translateY(0)' : 'translateY(-2px)', boxShadow: isFocused ? '0 2px 8px rgba(0,0,0,0.15)' : '0 4px 12px rgba(0,0,0,0.1)' } }}>
                 <CardContent sx={{ py: 2, px: { xs: 2, md: 2.5 } }}>
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
                     {videoId ? (
@@ -1844,6 +1901,14 @@ export default function Videos() {
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mb: 0.5 }}>
                         <Typography variant="h6" sx={{ fontWeight: 600, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', flex: 1 }}>{video.title}</Typography>
                         {video.description && (<IconButton size="small" onClick={() => { setSelectedDescription(video.description || ''); setSelectedDescriptionVideo(video); setDescriptionOpen(true) }} sx={{ p: 0.5 }} title="View description"><Info fontSize="small" /></IconButton>)}
+                        <IconButton
+                          size="small"
+                          onClick={() => toggleFocusVideo(video.id)}
+                          sx={{ p: 0.5, color: focusedVideoId === video.id ? 'warning.main' : 'text.secondary' }}
+                          title={focusedVideoId === video.id ? 'Clear focus (click again)' : 'Set as focused video (only 1 video can be focused)'}
+                        >
+                          {focusedVideoId === video.id ? <Star fontSize="small" /> : <StarOutlined fontSize="small" />}
+                        </IconButton>
                         <IconButton
                           size="small"
                           onClick={() => toggleBookmark(video.id)}
