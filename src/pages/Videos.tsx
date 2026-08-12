@@ -1653,35 +1653,30 @@ export default function Videos() {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-          {p.tierProgresses.map((tp) => {
-            const achieved = tp.count >= tp.target_videos
-            // Find the highest tier_number that is NOT achieved (the "active" tier)
-            const highestIncompleteTier = p.tierProgresses
-              .filter(t => t.count < t.target_videos)
-              .sort((a, b) => b.tier.tier_number - a.tier.tier_number)[0]
-            const isActiveTier = highestIncompleteTier && tp.tier.tier_number === highestIncompleteTier.tier.tier_number
-            // Color: hijau untuk achieved, merah untuk active tier (paling tinggi yang belum complete), abu-abu untuk yang lain
-            const badgeColor = achieved
-              ? '#2e7d32'
-              : isActiveTier
-                ? '#c62828'
-                : '#9e9e9e'
-            const badgeBg = achieved ? '#e8f5e9' : isActiveTier ? '#ffebee' : '#e0e0e0'
-            const badgeLabel = achieved ? `✔ Tier ${tp.tier.tier_number}` : `✘ Tier ${tp.tier.tier_number}`
-            // Only show badges for achieved tiers + the single active tier (highest incomplete)
-            if (!achieved && !isActiveTier) return null
-            return (
-              <Box key={tp.tier.id} sx={{
-                display: 'inline-flex', alignItems: 'center', gap: 0.25,
-                px: 0.75, py: 0.25, borderRadius: 8,
-                fontSize: 10, fontWeight: 700,
-                bgcolor: badgeBg, color: badgeColor, whiteSpace: 'nowrap',
-              }}>
-                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: badgeColor, flexShrink: 0 }} />
-                {badgeLabel}
-              </Box>
-            )
-          })}
+          {p.tierProgresses.filter(tp => {
+              // Find highest tier that is INCOMPLETE; if all complete, show all tiers
+              const incomplete = p.tierProgresses.filter(t => t.count < t.target_videos)
+              const maxIncomplete = incomplete.length > 0
+                ? Math.max(...incomplete.map(t => t.tier.tier_number))
+                : Math.max(...p.tierProgresses.map(t => t.tier.tier_number))
+              return tp.tier.tier_number <= maxIncomplete
+            }).map((tp) => {
+                const achieved = tp.count >= tp.target_videos
+                const badgeColor = achieved ? '#2e7d32' : '#c62828'
+                const badgeBg = achieved ? '#e8f5e9' : '#ffebee'
+                const badgeLabel = achieved ? `✔ Tier ${tp.tier.tier_number}` : `✘ Tier ${tp.tier.tier_number}`
+                return (
+                  <Box key={tp.tier.id} sx={{
+                    display: 'inline-flex', alignItems: 'center', gap: 0.25,
+                    px: 0.75, py: 0.25, borderRadius: 8,
+                    fontSize: 10, fontWeight: 700,
+                    bgcolor: badgeBg, color: badgeColor, whiteSpace: 'nowrap',
+                  }}>
+                    <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: badgeColor, flexShrink: 0 }} />
+                    {badgeLabel}
+                  </Box>
+                )
+              })}
         </Box>
       </Box>
       <Box sx={{ width: '100%', height: 8, bgcolor: '#e0e0e0', borderRadius: 1, overflow: 'hidden' }}>
