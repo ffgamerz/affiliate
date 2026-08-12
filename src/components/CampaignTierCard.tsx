@@ -197,7 +197,7 @@ export function CampaignTierCard({
               ? campaign.tiers.map((t) => `T${t.tier_number}: ${t.target_videos}${t.reward ? ` (${t.reward})` : ''}`).join(' · ')
               : 'No tiers set'}
           </Typography>
-          {campaign.track_history && onOpenHistory && campaign.end_date && campaign.end_date < todayStr() && (
+          {campaign.track_history && onOpenHistory && (
             <Button size="small" variant="text" startIcon={<HistoryIcon />} onClick={onOpenHistory} sx={{ color: '#1976d2', fontWeight: 600, fontSize: 12 }}>
               History
             </Button>

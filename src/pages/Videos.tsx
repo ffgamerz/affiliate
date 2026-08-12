@@ -813,7 +813,14 @@ export default function Videos() {
     try {
       const today = todayStr()
       const periods = computePeriods(c, today)
-      const rows = await Promise.all(periods.map(async (p) => {
+      // Only show periods that have ENDED (end date is in the past)
+      const completedPeriods = periods.filter(p => p.end < today)
+      if (completedPeriods.length === 0) {
+        setHistoryStats([])
+        setHistoryLoading(false)
+        return
+      }
+      const rows = await Promise.all(completedPeriods.map(async (p) => {
         const count = await computeUploadCount(c.platform, p.start, p.end)
         const tp = c.tiers.length > 0 ? computeTierProgresses(c, count, p) : []
         return { ...p, count, tier: resolveTier(count, c.tiers), maxTarget: maxTierTarget(c.tiers), tierProgresses: tp }
