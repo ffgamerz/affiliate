@@ -1654,12 +1654,15 @@ export default function Videos() {
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
           {p.tierProgresses.filter(tp => {
-              // Find highest tier that is INCOMPLETE; if all complete, show all tiers
+              // Find the LOWEST incomplete tier = the first tier that hasn't been achieved
               const incomplete = p.tierProgresses.filter(t => t.count < t.target_videos)
-              const maxIncomplete = incomplete.length > 0
-                ? Math.max(...incomplete.map(t => t.tier.tier_number))
+              const minIncomplete = incomplete.length > 0
+                ? Math.min(...incomplete.map(t => t.tier.tier_number))
                 : Math.max(...p.tierProgresses.map(t => t.tier.tier_number))
-              return tp.tier.tier_number <= maxIncomplete
+              // Show all completed tiers + the FIRST incomplete tier only
+              const achieved = tp.count >= tp.target_videos
+              const isFirstIncomplete = incomplete.length > 0 && tp.tier.tier_number === minIncomplete
+              return achieved || isFirstIncomplete
             }).map((tp) => {
                 const achieved = tp.count >= tp.target_videos
                 const badgeColor = achieved ? '#2e7d32' : '#c62828'
