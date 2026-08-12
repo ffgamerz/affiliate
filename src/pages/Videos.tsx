@@ -1655,17 +1655,21 @@ export default function Videos() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
           {p.tierProgresses.map((tp) => {
             const achieved = tp.count >= tp.target_videos
-            const isLast = tp.tier.tier_number === p.tierProgresses[p.tierProgresses.length - 1].tier.tier_number
-            const isCurrentTier = p.tier !== null && tp.tier.tier_number === p.tier.tier_number
+            // Find the highest tier_number that is NOT achieved (the "active" tier)
+            const highestIncompleteTier = p.tierProgresses
+              .filter(t => t.count < t.target_videos)
+              .sort((a, b) => b.tier.tier_number - a.tier.tier_number)[0]
+            const isActiveTier = highestIncompleteTier && tp.tier.tier_number === highestIncompleteTier.tier.tier_number
+            // Color: hijau untuk achieved, merah untuk active tier (paling tinggi yang belum complete), abu-abu untuk yang lain
             const badgeColor = achieved
               ? '#2e7d32'
-              : isCurrentTier && !achieved
+              : isActiveTier
                 ? '#c62828'
-                : isLast && !achieved
-                  ? '#c62828'
-                  : '#9e9e9e'
-            const badgeBg = achieved ? '#e8f5e9' : isCurrentTier || (isLast && !achieved) ? '#ffebee' : '#e0e0e0'
+                : '#9e9e9e'
+            const badgeBg = achieved ? '#e8f5e9' : isActiveTier ? '#ffebee' : '#e0e0e0'
             const badgeLabel = achieved ? `✔ Tier ${tp.tier.tier_number}` : `✘ Tier ${tp.tier.tier_number}`
+            // Only show badges for achieved tiers + the single active tier (highest incomplete)
+            if (!achieved && !isActiveTier) return null
             return (
               <Box key={tp.tier.id} sx={{
                 display: 'inline-flex', alignItems: 'center', gap: 0.25,
