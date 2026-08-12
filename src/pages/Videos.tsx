@@ -1633,6 +1633,59 @@ export default function Videos() {
     )
   }
 
+  // Campaign Day: History dialog — row helper
+  const CampaignHistoryRow = ({ p, campaign, getProgressColor }: {
+    p: { periodNumber: number; start: string; end: string; count: number; tier: CampaignTier | null; maxTarget: number; tierProgresses: TierProgress[] }
+    campaign: CampaignWithTiers | null
+    getProgressColor: (count: number, max: number) => string
+  }) => (
+    <Box key={p.periodNumber}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, flexShrink: 0 }}>
+            {campaign ? periodLabel(campaign.repeat_interval, p.periodNumber) : `P${p.periodNumber}`}
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary', flexShrink: 0 }}>
+            {formatDateLabel(p.start)} - {formatDateLabel(p.end)}
+          </Typography>
+          <Typography variant="caption" sx={{ fontWeight: 600, flexShrink: 0 }}>
+            {p.count} / {p.maxTarget}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+          {p.tierProgresses.map((tp) => {
+            const achieved = tp.count >= tp.target_videos
+            const isLast = tp.tier.tier_number === p.tierProgresses[p.tierProgresses.length - 1].tier.tier_number
+            const isCurrentTier = p.tier !== null && tp.tier.tier_number === p.tier.tier_number
+            const badgeColor = achieved
+              ? '#2e7d32'
+              : isCurrentTier && !achieved
+                ? '#c62828'
+                : isLast && !achieved
+                  ? '#c62828'
+                  : '#9e9e9e'
+            const badgeBg = achieved ? '#e8f5e9' : isCurrentTier || (isLast && !achieved) ? '#ffebee' : '#e0e0e0'
+            const badgeLabel = achieved ? `✔ Tier ${tp.tier.tier_number}` : `✘ Tier ${tp.tier.tier_number}`
+            return (
+              <Box key={tp.tier.id} sx={{
+                display: 'inline-flex', alignItems: 'center', gap: 0.25,
+                px: 0.75, py: 0.25, borderRadius: 8,
+                fontSize: 10, fontWeight: 700,
+                bgcolor: badgeBg, color: badgeColor, whiteSpace: 'nowrap',
+              }}>
+                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: badgeColor, flexShrink: 0 }} />
+                {badgeLabel}
+              </Box>
+            )
+          })}
+        </Box>
+      </Box>
+      <Box sx={{ width: '100%', height: 8, bgcolor: '#e0e0e0', borderRadius: 1, overflow: 'hidden' }}>
+        <Box sx={{ width: `${Math.min((p.count / p.maxTarget) * 100, 100)}%`, height: '100%', bgcolor: getProgressColor(p.count, p.maxTarget), transition: 'width 0.5s ease' }} />
+      </Box>
+    </Box>
+  )
+
   // Campaign Day: History dialog
   const CampaignHistoryDialog = () => {
     const getProgressColor = (count: number, max: number) => {
@@ -1663,59 +1716,14 @@ export default function Videos() {
             <Typography color="text.secondary" align="center" sx={{ py: 4 }}>No period history yet.</Typography>
           ) : (
             <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-              {historyStats.map((p, index) => {
-                const achievedTiers = p.tierProgresses.filter((tp) => tp.count >= tp.target_videos)
-                return (
-                  <Box key={index}>
-                      {/* Top row: period info + tier badges */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                        <Typography variant="caption" sx={{ fontWeight: 700, flexShrink: 0 }}>
-                          {historyCampaign ? periodLabel(historyCampaign.repeat_interval, p.periodNumber) : `P${p.periodNumber}`}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: 'text.secondary', flexShrink: 0 }}>
-                          {formatDateLabel(p.start)} - {formatDateLabel(p.end)}
-                        </Typography>
-                        <Typography variant="caption" sx={{ fontWeight: 600, flexShrink: 0 }}>
-                          {p.count} / {p.maxTarget}
-                        </Typography>
-                      </Box>
-                      {/* Tier badges: hijau jika achieved, merah untuk current/last tier jika tak achieved */}
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-                        {p.tierProgresses.map((tp) => {
-                          const achieved = tp.count >= tp.target_videos
-                          const isLast = tp.tier.tier_number === p.tierProgresses[p.tierProgresses.length - 1].tier.tier_number
-                          const isCurrentTier = p.tier !== null && tp.tier.tier_number === p.tier.tier_number
-                          const badgeColor = achieved
-                            ? '#2e7d32' // hijau
-                            : isCurrentTier && !achieved
-                              ? '#c62828' // merah — current tier belum complete
-                              : isLast && !achieved
-                                ? '#c62828' // merah — last tier belum complete
-                                : '#9e9e9e' // abu-abu untuk tier yang belum dicapai tapi bukan current
-                          const badgeBg = achieved ? '#e8f5e9' : isCurrentTier || (isLast && !achieved) ? '#ffebee' : '#e0e0e0'
-                          const badgeLabel = achieved ? `✔ Tier ${tp.tier.tier_number}` : `✘ Tier ${tp.tier.tier_number}`
-                          return (
-                            <Box key={tp.tier.id} sx={{
-                              display: 'inline-flex', alignItems: 'center', gap: 0.25,
-                              px: 0.75, py: 0.25, borderRadius: 8,
-                              fontSize: 10, fontWeight: 700,
-                              bgcolor: badgeBg, color: badgeColor, whiteSpace: 'nowrap',
-                            }}>
-                              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: badgeColor, flexShrink: 0 }} />
-                              {badgeLabel}
-                            </Box>
-                          )
-                        })}
-                      </Box>
-                    </Box>
-                    {/* Progress bar penuh di bawah */}
-                    <Box sx={{ width: '100%', height: 8, bgcolor: '#e0e0e0', borderRadius: 1, overflow: 'hidden' }}>
-                      <Box sx={{ width: `${Math.min((p.count / p.maxTarget) * 100, 100)}%`, height: '100%', bgcolor: getProgressColor(p.count, p.maxTarget), transition: 'width 0.5s ease' }} />
-                    </Box>
-                  </Box>
-                )
-              }))}
+              {historyStats.map((p) => (
+                <CampaignHistoryRow
+                  key={p.periodNumber}
+                  p={p}
+                  campaign={historyCampaign}
+                  getProgressColor={getProgressColor}
+                />
+              ))}
             </Box>
           )}
         </DialogContent>
