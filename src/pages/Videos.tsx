@@ -13,7 +13,7 @@ import {
   Search as SearchIcon, Close as CloseIcon, ContentCopy as CopyIcon,
   Replay as ReplayIcon, Bookmark, BookmarkBorder,
   ContentPaste as PasteIcon, AutoAwesome as AutoAwesomeIcon,
-  ExpandLess, ExpandMore,
+  ExpandLess, ExpandMore, ArrowUpward, ArrowDownward,
   Cloud,
   Campaign as CampaignIcon,
   Star, StarOutlined
@@ -443,6 +443,20 @@ export default function Videos() {
   const [reuploadNotes, setReuploadNotes] = useState(''); const searchInputRef = useRef<HTMLInputElement>(null)
   const processedLocationStateRef = useRef<string | null>(null)
   const [snackbar, setSnackbar] = useState({ open: false, message: '' })
+
+  // Sorting order state (desc = latest data on top) - with localStorage persistence
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('videos_sort_order')
+      return saved === 'asc' ? 'asc' : 'desc'
+    }
+    return 'desc'
+  })
+
+  // Persist sort order to localStorage
+  useEffect(() => {
+    localStorage.setItem('videos_sort_order', sortOrder)
+  }, [sortOrder])
 
   // Campaign Day state
   const [campaigns, setCampaigns] = useState<CampaignWithTiers[]>([])
@@ -892,7 +906,7 @@ export default function Videos() {
       setCurrentPage(0); setVideos([]); setHasMore(true); setLoading(true);
       (async () => {
         const vR = await supabase.from('videos').select('*', { count: 'exact' })
-          .order('created_at', { ascending: false })
+          .order('created_at', { ascending: sortOrder === 'asc' })
           .range(0, ITEMS_PER_PAGE - 1)
           .is(`${platform}_url`, null)
         setVideos((vR.data as Video[]) || [])
@@ -940,14 +954,14 @@ export default function Videos() {
   // Build query for videos with search/filter params - WITH pagination + reuploads join
   const buildFilteredQuery = useCallback((page: number) => {
     let q = supabase.from('videos').select('*, reuploads!left(platform, upload_date)', { count: 'exact' })
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: sortOrder === 'asc' })
       .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
     if (activeSearchQuery) q = q.or(`title.ilike.%${activeSearchQuery}%`)
     if (dateFilter) q = q.eq('created_at', `${dateFilter}T00:00:00.000Z`)
     if (platformFilter) q = q.not(`${platformFilter}_url`, 'is', null)
     if (customUploadDateFilter) q = q.or(buildUploadDateOrFilter(customUploadDateFilter))
     return q
-  }, [activeSearchQuery, dateFilter, platformFilter, customUploadDateFilter])
+  }, [activeSearchQuery, dateFilter, platformFilter, customUploadDateFilter, sortOrder])
 
   const fetchData = useCallback(async (page: number = 0, reset: boolean = false) => {
     if (page === 0) setLoading(true); else setLoadingMore(true)
@@ -959,7 +973,7 @@ export default function Videos() {
     if (focusedVideoId && filterFocusActive) {
       const vR = await supabase.from('videos').select('*, reuploads!left(platform, upload_date)')
         .eq('id', focusedVideoId)
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: sortOrder === 'asc' })
         .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
       vData = (vR.data as Video[]) || []
       const rR = await supabase.from('reuploads').select('*').eq('video_id', focusedVideoId)
@@ -985,7 +999,7 @@ export default function Videos() {
       // Tak perlu fetch reuploads - platform tanpa URL confirm tiada reupload
     } else if (filterEmptyPlatform) {
       const q = supabase.from('videos').select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: sortOrder === 'asc' })
         .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
         .is(`${filterEmptyPlatform}_url`, null)
       const vR = await q
@@ -1011,7 +1025,7 @@ export default function Videos() {
 
       const vR = await supabase.from('videos').select('*, reuploads!left(platform, upload_date)')
         .or(uploadDateOrFilter)
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: sortOrder === 'asc' })
         .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
 
       const vDataRaw = (vR.data as any[]) || []
@@ -1034,7 +1048,7 @@ export default function Videos() {
           const { data: reupVideos } = await supabase.from('videos')
             .select('*, reuploads!left(platform, upload_date)')
             .in('id', missingIds)
-            .order('created_at', { ascending: false })
+            .order('created_at', { ascending: sortOrder === 'asc' })
           if (reupVideos) {
             for (const v of reupVideos) {
               const { reuploads, ...rest } = v
@@ -1090,7 +1104,7 @@ export default function Videos() {
       const { data: videoData } = await supabase.from('videos').select('*', { count: 'exact' })
         .gte('shopee_upload_date', range[0])
         .lte('shopee_upload_date', range[6])
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: sortOrder === 'asc' })
         .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
       vData = (videoData as Video[]) || []
 
@@ -1104,7 +1118,7 @@ export default function Videos() {
       // ELSE - default load video page, tanpa filter
     } else {
       const vR = await supabase.from('videos').select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: sortOrder === 'asc' })
         .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
       vData = (vR.data as Video[]) || []
 
@@ -1156,7 +1170,7 @@ export default function Videos() {
     hasLocationState.current = true
     setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSearchQuery, dateFilter, customUploadDateFilter, platformFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange, filterFocusActive])
+  }, [activeSearchQuery, dateFilter, customUploadDateFilter, platformFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange, filterFocusActive, sortOrder])
 
   // Fetch creator stats - single query for ALL weeks, filter client-side
   const fetchCreatorStats = useCallback(async () => {
@@ -1918,6 +1932,22 @@ export default function Videos() {
           sx={{ cursor: 'pointer', height: 36 }}
         />
       )}
+      {/* Sort Order Button - Toggle between Asc and Desc */}
+      <IconButton
+        onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+        sx={{
+          bgcolor: sortOrder === 'asc' ? 'primary.light' : 'background.paper',
+          '&:hover': { bgcolor: sortOrder === 'asc' ? 'primary.main' : 'action.hover' },
+          border: '1px solid',
+          borderColor: sortOrder === 'asc' ? 'primary.main' : 'divider',
+          height: 40,
+          width: 40
+        }}
+        title={`Sort: ${sortOrder === 'asc' ? 'Newest first' : 'Oldest first'}`}
+        aria-label={`Sort ${sortOrder === 'asc' ? 'descending' : 'ascending'}`}
+      >
+        {sortOrder === 'asc' ? <ArrowUpward /> : <ArrowDownward />}
+      </IconButton>
       {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter || showBookmarkedOnly || shopeeWeekFilter || shopeeWeekDateRange || focusedVideoId || filterFocusActive) && (
         <Button variant="outlined" size="small" onClick={() => {
           setSearchQuery(''); setActiveSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter('');
