@@ -1738,7 +1738,7 @@ export default function Videos() {
             {/* Legend: tier targets + rewards */}
             <Box sx={{ mt: 2, p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
               <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'block' }}>Tier Targets</Typography>
-              {historyCampaign && historyCampaign.tiers.slice(0, 3).map((t) => (
+              {historyCampaign && historyCampaign.tiers.map((t) => (
                 <Typography key={t.id} variant="caption" sx={{ color: 'text.secondary', fontSize: 11, display: 'block', pl: 1 }}>
                   T{t.tier_number}: {t.target_videos} video{t.target_videos > 1 ? 's' : ''}{t.reward ? ` (${t.reward})` : ''}
                 </Typography>
