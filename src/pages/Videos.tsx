@@ -1692,14 +1692,6 @@ export default function Videos() {
       <Box sx={{ width: '100%', height: 8, bgcolor: '#e0e0e0', borderRadius: 1, overflow: 'hidden' }}>
         <Box sx={{ width: `${Math.min((p.count / p.maxTarget) * 100, 100)}%`, height: '100%', bgcolor: getProgressColor(p.count, p.maxTarget), transition: 'width 0.5s ease' }} />
       </Box>
-      {/* Legend: show tier targets + rewards */}
-      <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
-        {p.tierProgresses.slice(0, 3).map((tp) => (
-          <Typography key={tp.tier.id} variant="caption" sx={{ color: 'text.secondary', fontSize: 10 }}>
-            T{tp.tier.tier_number}: {tp.tier.target_videos} video{tp.tier.target_videos > 1 ? 's' : ''}{tp.tier.reward ? ` (${tp.tier.reward})` : ''}
-          </Typography>
-        ))}
-      </Box>
     </Box>
   )
 
