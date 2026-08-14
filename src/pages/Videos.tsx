@@ -1842,25 +1842,19 @@ export default function Videos() {
           </Box>
         </Box>
       )}
-
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Box><Typography variant="h4" sx={{ fontWeight: 700 }}>Videos</Typography><Typography variant="body2" color="text.secondary">Track video uploads across platforms with quick search and smart filters.</Typography></Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button variant="outlined" startIcon={<ReplayIcon />} onClick={() => {
-            localStorage.removeItem(`stats_${getTodayDate()}`)
-            fetchStats()
-          }} size="medium">Refresh Stats</Button>
           <Button variant="contained" startIcon={<Add />} onClick={openAddDialog} size="medium">Add Video</Button>
         </Box>
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>
-          Statistics
-        </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>Statistics</Typography>
         <IconButton size="small" onClick={() => setHideStats(!hideStats)} sx={{ color: 'text.secondary', p: 0.5 }} aria-label="Toggle statistics">
           {hideStats ? <ExpandMore /> : <ExpandLess />}
         </IconButton>
+        <Button variant="outlined" startIcon={<ReplayIcon />} onClick={() => { localStorage.removeItem(`stats_${getTodayDate()}`); fetchStats() }} size="medium">Refresh Stats</Button>
       </Box>
 
       <Collapse in={!hideStats}>
