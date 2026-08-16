@@ -147,3 +147,4 @@ git push -u origin main
 - ✅ Track platform URLs (YouTube, TikTok, Shopee, Facebook, Instagram, Threads)
 - ✅ Status tracking (draft/published)
 - ✅ Dashboard statistik
+<!-- test: Sun Aug 16 14:32:35 +08 2026 -->
