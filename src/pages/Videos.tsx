@@ -255,6 +255,7 @@ const parseSupabaseUrlToSql = (url: string, method: string, body: string | null)
 
 interface CampaignStatsEntry {
   count: number
+  tierCounts: Record<string, number> // Key: tier.id, Value: count for that tier
   currentPeriod: { periodNumber: number; start: string; end: string } | null
   tier: CampaignTier | null
   maxTarget: number
@@ -287,25 +288,21 @@ const CampaignSectionView = ({
 
   return (
     <Box sx={{ mt: 1, mb: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Campaign
-          </Typography>
-          <IconButton size="small" onClick={onToggleHide} sx={{ color: 'text.secondary', p: 0.5 }} aria-label="Toggle campaigns">
-            {hideCampaigns ? <ExpandMore /> : <ExpandLess />}
-          </IconButton>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>Campaign</Typography>
+        <IconButton size="small" onClick={onToggleHide} sx={{ color: 'text.secondary', p: 0.5 }} aria-label="Toggle campaigns">
+          {hideCampaigns ? <ExpandMore /> : <ExpandLess />}
+        </IconButton>
+      </Box>
+
+      <Collapse in={!hideCampaigns}>
+        <Box sx={{ display: 'flex', gap: 1, mb: 2, justifyContent: 'flex-end' }}>
           {isAdmin && (
             <Button size="small" variant="outlined" startIcon={<CampaignIcon />} onClick={onManage}>
               Manage Campaigns
             </Button>
           )}
         </Box>
-      </Box>
-
-      <Collapse in={!hideCampaigns}>
         {campaignLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={28} /></Box>
         ) : campaigns.length === 0 ? (
@@ -796,16 +793,20 @@ export default function Videos() {
       await Promise.all(ongoing.map(async (c) => {
         const period = computeCurrentPeriod(c, today)
         if (!period) {
-          stats[c.id] = { count: 0, currentPeriod: null, tier: null, maxTarget: maxTierTarget(c.tiers), tierProgresses: [] }
+          stats[c.id] = { count: 0, currentPeriod: null, tier: null, maxTarget: maxTierTarget(c.tiers), tierProgresses: [], tierCounts: {} }
           return
         }
         const count = await computeUploadCount(c.platform, period.start, period.end)
+        const tierProgresses = c.tiers.length > 0 ? computeTierProgresses(c, count, period) : []
+        const tierCounts: Record<string, number> = {}
+        tierProgresses.forEach(tp => { tierCounts[tp.tier.id] = tp.count })
         stats[c.id] = {
           count,
           currentPeriod: period,
           tier: resolveTier(count, c.tiers),
           maxTarget: maxTierTarget(c.tiers),
-          tierProgresses: c.tiers.length > 0 ? computeTierProgresses(c, count, period) : [],
+          tierProgresses,
+          tierCounts,
         }
       }))
       setCampaignStats(stats)
@@ -1849,16 +1850,18 @@ export default function Videos() {
         </Box>
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
         <Typography variant="h6" sx={{ fontWeight: 700 }}>Statistics</Typography>
         <IconButton size="small" onClick={() => setHideStats(!hideStats)} sx={{ color: 'text.secondary', p: 0.5 }} aria-label="Toggle statistics">
           {hideStats ? <ExpandMore /> : <ExpandLess />}
         </IconButton>
-        <Button variant="outlined" startIcon={<ReplayIcon />} onClick={() => { localStorage.removeItem(`stats_${getTodayDate()}`); fetchStats() }} size="medium">Refresh Stats</Button>
       </Box>
 
       <Collapse in={!hideStats}>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
+        <Box sx={{ display: 'flex', gap: 1, mb: 2, justifyContent: 'flex-end' }}>
+          <Button variant="outlined" startIcon={<ReplayIcon />} onClick={() => { localStorage.removeItem(`stats_${getTodayDate()}`); fetchStats() }} size="medium">Refresh Stats</Button>
+        </Box>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
         <StatCard filterKey="today" title="Total videos uploaded today" videoCount={todayStats.videoCount} platformUploadCount={todayStats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={todayStats.platformBreakdown} />
         <StatCard filterKey="yesterday" title="Total videos uploaded yesterday" videoCount={yesterdayStats.videoCount} platformUploadCount={yesterdayStats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={yesterdayStats.platformBreakdown} />
         <StatCard filterKey="range-3-9" title="Days 3-9 uploads" videoCount={range3to9Stats.videoCount} platformUploadCount={range3to9Stats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={range3to9Stats.platformBreakdown} />

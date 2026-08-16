@@ -14,6 +14,18 @@ export interface CampaignCardItem {
   platformColor?: string
 }
 
+// For tier-specific display: shows count for specific tier
+export interface TierCardItem {
+  campaign: CampaignWithTiers
+  tier: CampaignTier
+  count: number
+  period: CampaignPeriod | null
+  tierProgresses: TierProgress[]
+  platformIcon?: ReactNode
+  platformColor?: string
+  onOpenHistory?: (campaign: CampaignWithTiers) => void
+}
+
 export interface CampaignTierCardProps extends CampaignCardItem {
   onOpenHistory?: () => void
 }
@@ -142,6 +154,22 @@ export function CampaignTierCard({
           <Box sx={{ width: '100%', height: 8, bgcolor: '#e0e0e0', borderRadius: 1, overflow: 'hidden' }}>
             <Box sx={{ width: `${Math.min((count / maxTarget) * 100, 100)}%`, height: '100%', bgcolor: getProgressColor(count, maxTarget), transition: 'width 0.5s ease' }} />
           </Box>
+          {/* Tier breakdown - show count for each tier */}
+          {campaign.tiers.length > 0 && (
+            <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+              {campaign.tiers.map((t) => {
+                const tierProgress = tierProgresses.find(tp => tp.tier.id === t.id)
+                const tierCount = tierProgress?.count || 0
+                return (
+                  <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.25, fontSize: 10, color: '#666' }}>
+                    <Box sx={{ bgcolor: getProgressColor(tierCount, t.target_videos), color: 'white', px: 0.5, py: 0.1, borderRadius: 0.5, fontWeight: 600, fontSize: 10 }}>
+                      T{t.tier_number}: {tierCount}
+                    </Box>
+                  </Box>
+                )
+              })}
+            </Box>
+          )}
         </Box>
         {/* Tier progress bars */}
         {tierProgresses.length > 0 && (
