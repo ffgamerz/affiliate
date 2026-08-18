@@ -7,14 +7,10 @@ import {
 import {
   Edit, Delete, Facebook, Info,
   Search as SearchIcon, Close as CloseIcon, ContentCopy as CopyIcon, Shop,
-  AutoAwesome as AutoAwesomeIcon,
+  AutoAwesome as AutoAwesomeIcon, Star, StarOutlined, Bookmark, BookmarkBorder,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 import { useBookmarks } from '../hooks/useBookmarks'
-import {
-  Bookmark as BookmarkIcon,
-  BookmarkBorder as BookmarkBorderIcon,
-} from '@mui/icons-material'
 
 const GoogleDriveIcon = () => (
   <svg width="20" height="20" viewBox="0 0 87.3 76.6" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -188,6 +184,39 @@ export default function BolReviewUpload() {
   const [showNotUploadedOnly, setShowNotUploadedOnly] = useState(true)
   const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false)
   const { isBookmarked, toggleBookmark, bookmarkedIds } = useBookmarks()
+  
+  // Star/Focus feature for BolReview (singular video focused at a time)
+  // Similar to Videos.tsx - one focused video, used for creator stats context
+  const [focusedVideoId, setFocusedVideoId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('bolreview_focused_video')
+    }
+    return null
+  })
+  
+  const toggleStar = (videoId: string) => {
+    if (focusedVideoId === videoId) {
+      // Remove focus
+      setFocusedVideoId(null)
+      localStorage.removeItem('bolreview_focused_video')
+      setShowStarredOnly(false)
+      setSnackbar({ open: true, message: 'Focus removed' })
+    } else {
+      // Set new focus (only one video can be focused at a time)
+      // Also enable starred filter to show only this video
+      setFocusedVideoId(videoId)
+      localStorage.setItem('bolreview_focused_video', videoId)
+      setShowStarredOnly(true)
+      setCurrentPage(0)
+      setVideos([])
+      setHasMore(true)
+      setSnackbar({ open: true, message: 'Video starred (focused)!' })
+    }
+  }
+  const isStarred = (videoId: string) => focusedVideoId === videoId
+  
+  const [showStarredOnly, setShowStarredOnly] = useState(false)
+  
   const [videoPlayerOpen, setVideoPlayerOpen] = useState(false)
   const [selectedVideoUrl, setSelectedVideoUrl] = useState('')
   const [videoLoading, setVideoLoading] = useState(false)
@@ -228,6 +257,26 @@ export default function BolReviewUpload() {
   }, [todayDate, yesterdayDate, dates3to9])
 
   const fetchData = useCallback(async (page: number = 0, reset: boolean = false) => {
+    // When showing only focused/starred videos, fetch by video ID directly from DB
+    if (showStarredOnly) {
+      if (!focusedVideoId) {
+        setVideos([])
+        setHasMore(false)
+        setLoading(false)
+        return
+      }
+      const selectQuery = 'id, title, description, srt, created_at, youtube_url, shopee_product_url, bolreview_uploads!left(id, created_at, upload_date, facebook_url)'
+      const { data: vData } = await supabase.from('videos')
+        .select(selectQuery, { count: 'exact' })
+        .eq('id', focusedVideoId)
+        .order('created_at', { ascending: true })
+      const transformedData = ((vData as VideoRaw[] | null) || []).map(transformVideoData)
+      setVideos(transformedData)
+      setHasMore(false)
+      setLoading(false)
+      return
+    }
+    
     // When showing only bookmarked videos, fetch by IDs directly from DB
     if (showBookmarkedOnly) {
       setLoading(true)
@@ -298,7 +347,7 @@ export default function BolReviewUpload() {
     setHasMore((vData?.length || 0) === ITEMS_PER_PAGE)
     setLoading(false); setLoadingMore(false)
     fetchStats()
-  }, [activeSearchQuery, showNotUploadedOnly, showUploadedOnly, uploadDateFilter, todayDate, yesterdayDate, dates3to9, fetchStats, showBookmarkedOnly])
+  }, [activeSearchQuery, showNotUploadedOnly, showUploadedOnly, uploadDateFilter, todayDate, yesterdayDate, dates3to9, fetchStats, showBookmarkedOnly, showStarredOnly, focusedVideoId])
 
   useEffect(() => {
     fetchData(0, true)
@@ -604,13 +653,28 @@ export default function BolReviewUpload() {
             setVideos([])
             setHasMore(true)
           }}
-          startIcon={showBookmarkedOnly ? <BookmarkIcon /> : <BookmarkBorderIcon />}
+          startIcon={showBookmarkedOnly ? <Bookmark /> : <BookmarkBorder />}
           sx={{ height: 40 }}
         >
           {showBookmarkedOnly ? 'Bookmarked Only' : 'Show Bookmarked'}
         </Button>
 
-        {(searchQuery || showUploadedOnly || showNotUploadedOnly || uploadDateFilter || showBookmarkedOnly) && (
+        <Button
+          variant={showStarredOnly ? 'contained' : 'outlined'}
+          size="small"
+          onClick={() => {
+            setShowStarredOnly(!showStarredOnly)
+            setCurrentPage(0)
+            setVideos([])
+            setHasMore(true)
+          }}
+          startIcon={showStarredOnly ? <Star /> : <StarOutlined />}
+          sx={{ height: 40 }}
+        >
+          {showStarredOnly ? 'Starred Only' : 'Show Starred'}
+        </Button>
+
+        {(searchQuery || showUploadedOnly || showNotUploadedOnly || uploadDateFilter || showBookmarkedOnly || showStarredOnly) && (
           <Button
             variant="outlined"
             size="small"
@@ -620,6 +684,7 @@ export default function BolReviewUpload() {
               setShowUploadedOnly(false)
               setShowNotUploadedOnly(false)
               setShowBookmarkedOnly(false)
+              setShowStarredOnly(false)
               setUploadDateFilter('')
               setCurrentPage(0)
               setVideos([])
@@ -636,6 +701,7 @@ export default function BolReviewUpload() {
       {showUploadedOnly && <Alert severity="info" sx={{ mb: 2 }}>Showing uploaded videos only</Alert>}
       {showNotUploadedOnly && <Alert severity="info" sx={{ mb: 2 }}>Showing not uploaded videos only</Alert>}
       {showBookmarkedOnly && <Alert severity="info" sx={{ mb: 2 }}>Showing bookmarked videos only</Alert>}
+      {showStarredOnly && <Alert severity="info" sx={{ mb: 2 }}>Showing starred videos only</Alert>}
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
@@ -643,16 +709,17 @@ export default function BolReviewUpload() {
         </Box>
       ) : videos.length === 0 ? (
         <Typography color="text.secondary" align="center" sx={{ py: 6 }}>
-          {searchQuery || showUploadedOnly || showNotUploadedOnly || uploadDateFilter || showBookmarkedOnly
+          {searchQuery || showUploadedOnly || showNotUploadedOnly || uploadDateFilter || showBookmarkedOnly || showStarredOnly
             ? 'No videos found matching your criteria'
             : 'No videos yet. Add videos from the Videos page.'}
         </Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {videos.map((video) => {
-            // If in bookmarked-only mode, filter client-side as well to handle unbookmark
-            const isVisible = showBookmarkedOnly ? isBookmarked(video.id) : true
-            if (!isVisible) return null
+            // If in bookmarked-only mode or starred-only mode, filter client-side
+            if ((showBookmarkedOnly && !isBookmarked(video.id)) || (showStarredOnly && !isStarred(video.id))) {
+              return null
+            }
             const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
             const isUploaded = video.bolreview_uploads.length > 0
             const uploadCount = video.bolreview_uploads.length
@@ -825,6 +892,22 @@ export default function BolReviewUpload() {
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0, mr: 0.5 }}>
                       <IconButton 
                         size="small" 
+                        onClick={() => toggleStar(video.id)} 
+                        title={isStarred(video.id) ? "Clear focus" : "Set as focused video"}
+                        sx={{ 
+                          p: 0.5, 
+                          color: isStarred(video.id) ? 'warning.main' : 'text.secondary',
+                          bgcolor: isStarred(video.id) ? 'action.hover' : 'transparent'
+                        }}
+                      >
+                        {isStarred(video.id) ? (
+                          <Star fontSize="small" />
+                        ) : (
+                          <StarOutlined fontSize="small" />
+                        )}
+                      </IconButton>
+                      <IconButton 
+                        size="small" 
                         onClick={() => toggleBookmark(video.id)} 
                         title={isBookmarked(video.id) ? "Remove bookmark" : "Bookmark this video"}
                         sx={{ 
@@ -834,9 +917,9 @@ export default function BolReviewUpload() {
                         }}
                       >
                         {isBookmarked(video.id) ? (
-                          <BookmarkIcon fontSize="small" />
+                          <Bookmark fontSize="small" />
                         ) : (
-                          <BookmarkBorderIcon fontSize="small" />
+                          <BookmarkBorder fontSize="small" />
                         )}
                       </IconButton>
                     </Box>
