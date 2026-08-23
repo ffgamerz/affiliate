@@ -29,3 +29,5 @@ supabase/.temp/
 
 # Wrangler (Cloudflare Pages) local temp artifacts
 .wrangler/
+
+dist
