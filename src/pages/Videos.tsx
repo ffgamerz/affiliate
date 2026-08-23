@@ -2143,9 +2143,9 @@ Hari ini kita nak tengok produk terbaru" />
           )}
           <Typography variant="subtitle1" sx={{ mt: 1, mb: 0.5, fontWeight: 600 }}>Description (AI Output)</Typography>
           <TextField label="Description" value={description} onChange={(e) => setDescription(e.target.value)} fullWidth margin="normal" multiline
-            minRows={isMobile ? (descriptionFocused ? undefined : 3) : 6} maxRows={isMobile ? (descriptionFocused ? undefined : 3) : undefined}
-            size={isMobile ? 'small' : 'medium'} onFocus={() => isMobile && setDescriptionFocused(true)} onBlur={() => isMobile && setDescriptionFocused(false)}
-            sx={isMobile && descriptionFocused ? { '& .MuiInputBase-root': { minHeight: '75vh', alignItems: 'flex-start' } } : {}} />
+            minRows={descriptionFocused ? undefined : (isMobile ? 3 : 6)} maxRows={descriptionFocused ? undefined : (isMobile ? 3 : 6)}
+            size={isMobile ? 'small' : 'medium'} onFocus={() => setDescriptionFocused(true)} onBlur={() => setDescriptionFocused(false)}
+            sx={descriptionFocused ? { '& .MuiInputBase-root': { minHeight: '75vh', alignItems: 'flex-start' } } : {}} />
           {editingVideo && <TextField label="Created At" type="date" value={createdAt} onChange={(e) => setCreatedAt(e.target.value)} fullWidth margin="normal" size={isMobile ? 'small' : 'medium'} slotProps={{ inputLabel: { shrink: true } }} />}
           <Typography variant="subtitle1" sx={{ mt: 2, mb: 1, fontWeight: 600 }}>Platform Links</Typography>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
