@@ -5,7 +5,7 @@ import {
   Box, Typography, Card, CardContent, Button, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, IconButton, Chip, Snackbar, Alert, CircularProgress, Collapse,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  Divider, useTheme, useMediaQuery, InputAdornment,
+  Divider, useTheme, useMediaQuery, InputAdornment, Checkbox, Menu, MenuItem, ListItemText,
 } from '@mui/material'
 import {
   Add, Edit, Delete, YouTube, Facebook, Instagram, Info, Upload,
@@ -16,7 +16,7 @@ import {
   ExpandLess, ExpandMore, ArrowUpward, ArrowDownward,
   Cloud,
   Campaign as CampaignIcon,
-  Star, StarOutlined
+  Star, StarOutlined, ArrowDropDown
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
 import {
@@ -410,6 +410,9 @@ export default function Videos() {
   const [searchQuery, setSearchQuery] = useState(''); const [activeSearchQuery, setActiveSearchQuery] = useState('')
   const [dateFilter, setDateFilter] = useState(''); const [filterEmptyPlatform, setFilterEmptyPlatform] = useState<string | null>(null)
   const [platformFilter, setPlatformFilter] = useState<string>('')
+  const [pendingUploadFilter, setPendingUploadFilter] = useState<string[]>([]) // applied (drives query/fetch)
+  const [notUploadedAnchorEl, setNotUploadedAnchorEl] = useState<null | HTMLElement>(null)
+  const [notUploadedDraft, setNotUploadedDraft] = useState<string[]>([])
   const [uploadDateFilter, setUploadDateFilter] = useState<'today' | 'yesterday' | 'range-3-9' | ''>('')
   const [customUploadDateFilter, setCustomUploadDateFilter] = useState('')
   const dflt = () => platforms.map(p => ({ key: p.key, original: 0, reupload: 0 }))
@@ -889,6 +892,7 @@ export default function Videos() {
       setActiveSearchQuery('');
       setPlatformFilter('');
       setFilterEmptyPlatform(null);
+      setPendingUploadFilter([]);
       return
     }
     if (state?.searchQuery) {
@@ -899,6 +903,7 @@ export default function Videos() {
       setDateFilter('');
       setCustomUploadDateFilter('');
       setFilterEmptyPlatform(null);
+      setPendingUploadFilter([]);
       return
     }
     if (state?.filterEmptyPlatform) {
@@ -907,7 +912,7 @@ export default function Videos() {
       setCurrentPage(0); setVideos([]); setHasMore(true); setLoading(true);
       (async () => {
         const vR = await supabase.from('videos').select('*', { count: 'exact' })
-          .order('created_at', { ascending: sortOrder === 'asc' })
+          .order('created_at', { ascending: sortOrder === 'asc' }).order('id', { ascending: sortOrder === 'asc' })
           .range(0, ITEMS_PER_PAGE - 1)
           .is(`${platform}_url`, null)
         setVideos((vR.data as Video[]) || [])
@@ -931,6 +936,7 @@ export default function Videos() {
       setDateFilter('')
       setPlatformFilter('')
       setFilterEmptyPlatform(null)
+      setPendingUploadFilter([])
       setCustomUploadDateFilter('')
       // Don't fetch - data is already loaded, just reset filter
       // Reset loading state to false since we're not fetching
@@ -943,6 +949,7 @@ export default function Videos() {
       setDateFilter('')
       setPlatformFilter('')
       setFilterEmptyPlatform(null)
+      setPendingUploadFilter([])
       setCustomUploadDateFilter('')
     }
   }
@@ -955,14 +962,22 @@ export default function Videos() {
   // Build query for videos with search/filter params - WITH pagination + reuploads join
   const buildFilteredQuery = useCallback((page: number) => {
     let q = supabase.from('videos').select('*, reuploads!left(platform, upload_date)', { count: 'exact' })
-      .order('created_at', { ascending: sortOrder === 'asc' })
+      .order('created_at', { ascending: sortOrder === 'asc' }).order('id', { ascending: sortOrder === 'asc' })
       .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
     if (activeSearchQuery) q = q.or(`title.ilike.%${activeSearchQuery}%`)
     if (dateFilter) q = q.eq('created_at', `${dateFilter}T00:00:00.000Z`)
     if (platformFilter) q = q.not(`${platformFilter}_url`, 'is', null)
+    if (pendingUploadFilter.length > 0) {
+      // platform terpilih: belum upload (upload_date IS NULL)
+      pendingUploadFilter.forEach(p => { q = q.is(`${p}_upload_date`, null) })
+      // platform tidak terpilih: sudah upload (upload_date IS NOT NULL)
+      platforms.forEach(p => {
+        if (!pendingUploadFilter.includes(p.key)) q = q.not(`${p}_upload_date`, 'is', null)
+      })
+    }
     if (customUploadDateFilter) q = q.or(buildUploadDateOrFilter(customUploadDateFilter))
     return q
-  }, [activeSearchQuery, dateFilter, platformFilter, customUploadDateFilter, sortOrder])
+  }, [activeSearchQuery, dateFilter, platformFilter, pendingUploadFilter, customUploadDateFilter, sortOrder])
 
   const fetchData = useCallback(async (page: number = 0, reset: boolean = false) => {
     if (page === 0) setLoading(true); else setLoadingMore(true)
@@ -974,7 +989,7 @@ export default function Videos() {
     if (focusedVideoId && filterFocusActive) {
       const vR = await supabase.from('videos').select('*, reuploads!left(platform, upload_date)')
         .eq('id', focusedVideoId)
-        .order('created_at', { ascending: sortOrder === 'asc' })
+        .order('created_at', { ascending: sortOrder === 'asc' }).order('id', { ascending: sortOrder === 'asc' })
         .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
       vData = (vR.data as Video[]) || []
       const rR = await supabase.from('reuploads').select('*').eq('video_id', focusedVideoId)
@@ -983,7 +998,7 @@ export default function Videos() {
       setHasMore(false) // Only one video when focused
 
     // IF - ada search query, date filter, platform filter, atau custom upload date
-    } else if (activeSearchQuery || dateFilter || platformFilter || customUploadDateFilter) {
+    } else if (activeSearchQuery || dateFilter || platformFilter || customUploadDateFilter || pendingUploadFilter.length > 0) {
       const vR = await buildFilteredQuery(page)
       vData = (vR.data as Video[]) || []
       const rR = await supabase.from('reuploads').select('*')
@@ -994,13 +1009,13 @@ export default function Videos() {
       } else {
         setVideos(prev => [...prev, ...vData])
       }
-      setHasMore(vData.length === ITEMS_PER_PAGE)
+      setHasMore((vR.count ?? 0) > (page + 1) * ITEMS_PER_PAGE)
 
       // ELSEIF - tekan card platform dari dashboard (youtube, tiktok, facebook, dll)
       // Tak perlu fetch reuploads - platform tanpa URL confirm tiada reupload
     } else if (filterEmptyPlatform) {
       const q = supabase.from('videos').select('*', { count: 'exact' })
-        .order('created_at', { ascending: sortOrder === 'asc' })
+        .order('created_at', { ascending: sortOrder === 'asc' }).order('id', { ascending: sortOrder === 'asc' })
         .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
         .is(`${filterEmptyPlatform}_url`, null)
       const vR = await q
@@ -1026,7 +1041,7 @@ export default function Videos() {
 
       const vR = await supabase.from('videos').select('*, reuploads!left(platform, upload_date)')
         .or(uploadDateOrFilter)
-        .order('created_at', { ascending: sortOrder === 'asc' })
+        .order('created_at', { ascending: sortOrder === 'asc' }).order('id', { ascending: sortOrder === 'asc' })
         .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
 
       const vDataRaw = (vR.data as any[]) || []
@@ -1049,7 +1064,7 @@ export default function Videos() {
           const { data: reupVideos } = await supabase.from('videos')
             .select('*, reuploads!left(platform, upload_date)')
             .in('id', missingIds)
-            .order('created_at', { ascending: sortOrder === 'asc' })
+            .order('created_at', { ascending: sortOrder === 'asc' }).order('id', { ascending: sortOrder === 'asc' })
           if (reupVideos) {
             for (const v of reupVideos) {
               const { reuploads, ...rest } = v
@@ -1105,7 +1120,7 @@ export default function Videos() {
       const { data: videoData } = await supabase.from('videos').select('*', { count: 'exact' })
         .gte('shopee_upload_date', range[0])
         .lte('shopee_upload_date', range[6])
-        .order('created_at', { ascending: sortOrder === 'asc' })
+        .order('created_at', { ascending: sortOrder === 'asc' }).order('id', { ascending: sortOrder === 'asc' })
         .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
       vData = (videoData as Video[]) || []
 
@@ -1119,7 +1134,7 @@ export default function Videos() {
       // ELSE - default load video page, tanpa filter
     } else {
       const vR = await supabase.from('videos').select('*', { count: 'exact' })
-        .order('created_at', { ascending: sortOrder === 'asc' })
+        .order('created_at', { ascending: sortOrder === 'asc' }).order('id', { ascending: sortOrder === 'asc' })
         .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
       vData = (vR.data as Video[]) || []
 
@@ -1143,7 +1158,7 @@ export default function Videos() {
     }
     setReuploads(rData)
     setLoading(false); setLoadingMore(false); fetchStats()
-  }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, shopeeWeekFilter, shopeeWeekDateRange, activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, showBookmarkedOnly, focusedVideoId, filterFocusActive])
+  }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, shopeeWeekFilter, shopeeWeekDateRange, activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, pendingUploadFilter, showBookmarkedOnly, focusedVideoId, filterFocusActive])
 
   // Fetch bookmarks (for bookmark icons display)
   const fetchBookmarks = useCallback(async () => {
@@ -1171,7 +1186,7 @@ export default function Videos() {
     hasLocationState.current = true
     setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSearchQuery, dateFilter, customUploadDateFilter, platformFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange, filterFocusActive, sortOrder])
+  }, [activeSearchQuery, dateFilter, customUploadDateFilter, platformFilter, pendingUploadFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange, filterFocusActive, sortOrder])
 
   // Fetch creator stats - single query for ALL weeks, filter client-side
   const fetchCreatorStats = useCallback(async () => {
@@ -1476,6 +1491,7 @@ export default function Videos() {
             setActiveSearchQuery('')
             setDateFilter('')
             setFilterEmptyPlatform(null)
+            setPendingUploadFilter([])
             setShopeeWeekFilter(true)
             setShopeeWeekDateRange(null)
           }
@@ -1622,6 +1638,7 @@ export default function Videos() {
                   setActiveSearchQuery('')
                   setDateFilter('')
                   setFilterEmptyPlatform(null)
+                  setPendingUploadFilter([])
                   setShopeeWeekFilter(false)
                   setShopeeWeekDateRange(week.dates)
                   setWeeklyHistoryOpen(false)
@@ -1911,6 +1928,42 @@ export default function Videos() {
           <option value="">Platform</option>
           {platforms.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
         </TextField>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={(e) => { setNotUploadedDraft(pendingUploadFilter); setNotUploadedAnchorEl(e.currentTarget) }}
+          sx={{ minWidth: { xs: '100%', sm: 240 }, height: 40, justifyContent: 'space-between' }}
+          endIcon={<ArrowDropDown />}
+        >
+          {pendingUploadFilter.length === 0
+            ? <span style={{ opacity: 0.5 }}>Not uploaded</span>
+            : pendingUploadFilter.map(k => platforms.find(p => p.key === k)?.label).filter(Boolean).join(', ')}
+        </Button>
+        <Menu
+          anchorEl={notUploadedAnchorEl}
+          open={Boolean(notUploadedAnchorEl)}
+          onClose={() => { setNotUploadedAnchorEl(null); setNotUploadedDraft(pendingUploadFilter) }}
+        >
+          {platforms.map(p => {
+            const toggle = () => setNotUploadedDraft(prev => prev.includes(p.key) ? prev.filter(x => x !== p.key) : [...prev, p.key])
+            return (
+              <MenuItem key={p.key} dense onClick={toggle}>
+                <Checkbox
+                  checked={notUploadedDraft.includes(p.key)}
+                  onChange={e => { e.stopPropagation(); toggle() }}
+                />
+                <ListItemText primary={p.label} />
+              </MenuItem>
+            )
+          })}
+          <Divider />
+          <MenuItem
+            onClick={() => { setPendingUploadFilter(notUploadedDraft); setNotUploadedAnchorEl(null) }}
+            sx={{ justifyContent: 'center', fontWeight: 600 }}
+          >
+            Apply
+          </MenuItem>
+        </Menu>
         <Chip
           label="Bookmarked"
           size="small"
@@ -1945,11 +1998,11 @@ export default function Videos() {
       >
         {sortOrder === 'asc' ? <ArrowUpward /> : <ArrowDownward />}
       </IconButton>
-      {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter || showBookmarkedOnly || shopeeWeekFilter || shopeeWeekDateRange || focusedVideoId || filterFocusActive) && (
+      {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter || showBookmarkedOnly || shopeeWeekFilter || shopeeWeekDateRange || focusedVideoId || filterFocusActive || pendingUploadFilter.length > 0) && (
         <Button variant="outlined" size="small" onClick={() => {
           setSearchQuery(''); setActiveSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter('');
           const hadFilter = !!filterEmptyPlatform
-          setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter('');
+          setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter(''); setPendingUploadFilter([]);
           setShowBookmarkedOnly(false); setShopeeWeekFilter(false); setShopeeWeekDateRange(null)
           setFocusedVideoId(null); localStorage.removeItem('videos_focused_video_id')
           setFilterFocusActive(false)
@@ -1963,6 +2016,12 @@ export default function Videos() {
       {showBookmarkedOnly && <Alert severity="info" sx={{ mb: 2 }}>Showing only bookmarked videos</Alert>}
       {shopeeWeekFilter && <Alert severity="info" sx={{ mb: 2 }}>Showing Shopee videos uploaded this week (Wed-Tue)</Alert>}
       {shopeeWeekDateRange && <Alert severity="info" sx={{ mb: 2 }}>Showing Shopee videos for selected week</Alert>}
+      {pendingUploadFilter.length > 0 && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Showing videos not uploaded to: {pendingUploadFilter.map(k => platforms.find(p => p.key === k)?.label).filter(Boolean).join(', ')}
+          {pendingUploadFilter.length < platforms.length ? ' (already uploaded to the other platforms)' : ''}
+        </Alert>
+      )}
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}><CircularProgress /></Box>
