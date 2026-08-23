@@ -968,12 +968,8 @@ export default function Videos() {
     if (dateFilter) q = q.eq('created_at', `${dateFilter}T00:00:00.000Z`)
     if (platformFilter) q = q.not(`${platformFilter}_url`, 'is', null)
     if (pendingUploadFilter.length > 0) {
-      // platform terpilih: belum upload (upload_date IS NULL)
-      pendingUploadFilter.forEach(p => { q = q.is(`${p}_upload_date`, null) })
-      // platform tidak terpilih: sudah upload (upload_date IS NOT NULL)
-      platforms.forEach(p => {
-        if (!pendingUploadFilter.includes(p.key)) q = q.not(`${p}_upload_date`, 'is', null)
-      })
+      // platform terpilih: belum upload (tiada URL — selaras dengan status "Not Uploaded" di UI)
+      pendingUploadFilter.forEach(p => { q = q.is(`${p}_url`, null) })
     }
     if (customUploadDateFilter) q = q.or(buildUploadDateOrFilter(customUploadDateFilter))
     return q
@@ -1944,6 +1940,14 @@ export default function Videos() {
           open={Boolean(notUploadedAnchorEl)}
           onClose={() => { setNotUploadedAnchorEl(null); setNotUploadedDraft(pendingUploadFilter) }}
         >
+          <MenuItem
+            dense
+            onClick={() => setNotUploadedDraft(prev => prev.length === platforms.length ? [] : platforms.map(p => p.key))}
+            sx={{ justifyContent: 'center', fontWeight: 600 }}
+          >
+            {notUploadedDraft.length === platforms.length ? 'Deselect All' : 'Select All'}
+          </MenuItem>
+          <Divider />
           {platforms.map(p => {
             const toggle = () => setNotUploadedDraft(prev => prev.includes(p.key) ? prev.filter(x => x !== p.key) : [...prev, p.key])
             return (
@@ -2019,7 +2023,6 @@ export default function Videos() {
       {pendingUploadFilter.length > 0 && (
         <Alert severity="info" sx={{ mb: 2 }}>
           Showing videos not uploaded to: {pendingUploadFilter.map(k => platforms.find(p => p.key === k)?.label).filter(Boolean).join(', ')}
-          {pendingUploadFilter.length < platforms.length ? ' (already uploaded to the other platforms)' : ''}
         </Alert>
       )}
 
