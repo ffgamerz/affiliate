@@ -147,3 +147,11 @@ git push -u origin main
 - ✅ Track platform URLs (YouTube, TikTok, Shopee, Facebook, Instagram, Threads)
 - ✅ Status tracking (draft/published)
 - ✅ Dashboard statistik
+
+## 📝 Project Notes (Obsidian)
+
+Maklumat penuh projek ni — status, deployment, warnings & sejarah kerja — disimpan dalam Obsidian vault:
+
+```
+~/Obsidian/01_Projects/affiliate.md
+```
