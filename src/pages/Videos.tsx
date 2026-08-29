@@ -362,7 +362,7 @@ const CampaignSectionView = ({
 
 export default function Videos() {
   const location = useLocation(); const theme = useTheme(); const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const navigate = useNavigate(); const { isAdmin } = useAuth()
+  const navigate = useNavigate(); const { isAdmin, loading: authLoading } = useAuth()
   const [debugQueries, setDebugQueries] = useState<{ sql: string; purpose: string; time: number; ts: number }[]>([])
   // Enable debug via: ?sql-debug in URL or localStorage set 'sql-debug' = '1'
   const debugEnabled = import.meta.env.DEV || new URLSearchParams(window.location.search).has('sql-debug') || localStorage.getItem('sql-debug') === '1'
@@ -878,6 +878,9 @@ export default function Videos() {
   // Handle location state for navigation from other pages
   // Processed BEFORE the main fetch effect to avoid double-fetch
   useEffect(() => {
+    // Wait for auth session to restore first — otherwise queries run without
+    // token and RLS returns 0 rows (filter appears broken/empty)
+    if (authLoading) return
     const state = location.state as any
     const stateKey = state ? JSON.stringify(state) : null
     // Only process if this is a new state (not same as before)
@@ -914,9 +917,28 @@ export default function Videos() {
         const vR = await supabase.from('videos').select('*', { count: 'exact' })
           .order('created_at', { ascending: sortOrder === 'asc' }).order('id', { ascending: sortOrder === 'asc' })
           .range(0, ITEMS_PER_PAGE - 1)
-          .is(`${platform}_url`, null)
+          .or(`${platform}_url.is.null,${platform}_url.eq.`)
         setVideos((vR.data as Video[]) || [])
         setHasMore((vR.data?.length || 0) === ITEMS_PER_PAGE)
+        setLoading(false)
+      })()
+      return
+    }
+    if (state?.focusVideoId) {
+      // Coming from Dashboard Cross-Post: focus the chosen video (existing focus feature)
+      const fid = state.focusVideoId as string
+      setFocusedVideoId(fid)
+      localStorage.setItem('videos_focused_video_id', fid)
+      setFilterFocusActive(true)
+      setCurrentPage(0); setVideos([]); setHasMore(true); setLoading(true)
+      // Fetch directly by id — avoid stale-closure in fetchData (focusedVideoId not yet updated)
+      ;(async () => {
+        const vR = await supabase.from('videos').select('*, reuploads!left(platform, upload_date)')
+          .eq('id', fid).order('created_at', { ascending: sortOrder === 'asc' }).order('id', { ascending: sortOrder === 'asc' })
+          .range(0, ITEMS_PER_PAGE - 1)
+        setVideos((vR.data as Video[]) || [])
+        await supabase.from('reuploads').select('*').eq('video_id', fid)
+        setHasMore(false)
         setLoading(false)
       })()
       return
@@ -924,7 +946,7 @@ export default function Videos() {
     if (state?.openAddDialog) {
       openAddDialog()
     }
-  }, [location.key])
+  }, [location.key, authLoading])
 
   // Handle stat card click - reset other filters when clicking stat card
   const handleStatCardClick = (filterKey: 'today' | 'yesterday' | 'range-3-9') => {
@@ -969,11 +991,12 @@ export default function Videos() {
     if (platformFilter) q = q.not(`${platformFilter}_url`, 'is', null)
     if (pendingUploadFilter.length > 0) {
       // platform terpilih: belum upload (tiada URL — selaras dengan status "Not Uploaded" di UI)
-      pendingUploadFilter.forEach(p => { q = q.is(`${p}_url`, null) })
+      pendingUploadFilter.forEach(p => { q = q.or(`${p}_url.is.null,${p}_url.eq.`) })
     }
     if (customUploadDateFilter) q = q.or(buildUploadDateOrFilter(customUploadDateFilter))
+    if (filterEmptyPlatform) q = q.or(`${filterEmptyPlatform}_url.is.null,${filterEmptyPlatform}_url.eq.`)
     return q
-  }, [activeSearchQuery, dateFilter, platformFilter, pendingUploadFilter, customUploadDateFilter, sortOrder])
+  }, [activeSearchQuery, dateFilter, platformFilter, pendingUploadFilter, customUploadDateFilter, sortOrder, filterEmptyPlatform])
 
   const fetchData = useCallback(async (page: number = 0, reset: boolean = false) => {
     if (page === 0) setLoading(true); else setLoadingMore(true)
@@ -1013,7 +1036,7 @@ export default function Videos() {
       const q = supabase.from('videos').select('*', { count: 'exact' })
         .order('created_at', { ascending: sortOrder === 'asc' }).order('id', { ascending: sortOrder === 'asc' })
         .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
-        .is(`${filterEmptyPlatform}_url`, null)
+        .or(`${filterEmptyPlatform}_url.is.null,${filterEmptyPlatform}_url.eq.`)
       const vR = await q
       vData = (vR.data as Video[]) || []
 
@@ -1173,6 +1196,8 @@ export default function Videos() {
   // Effect to trigger fetch when filters change
   // Note: filterEmptyPlatform excluded - handled manually by location effect and Clear button
   useEffect(() => {
+    // Wait for auth session to restore before fetching (RLS needs the token)
+    if (authLoading) return
     // If there's location state pending, skip mount fetch (location handler will trigger it)
     if (location.state && !hasLocationState.current) {
       hasLocationState.current = true
@@ -1182,7 +1207,7 @@ export default function Videos() {
     hasLocationState.current = true
     setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSearchQuery, dateFilter, customUploadDateFilter, platformFilter, pendingUploadFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange, filterFocusActive, sortOrder])
+  }, [activeSearchQuery, dateFilter, customUploadDateFilter, platformFilter, pendingUploadFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange, filterFocusActive, sortOrder, authLoading, filterEmptyPlatform])
 
   // Fetch creator stats - single query for ALL weeks, filter client-side
   const fetchCreatorStats = useCallback(async () => {

@@ -7,6 +7,7 @@ import {
   CardContent,
   CircularProgress,
   Button,
+  Chip,
 } from '@mui/material'
 import {
   Add as AddIcon,
@@ -18,6 +19,7 @@ import {
   Forum as ThreadsIcon,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth.tsx'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
@@ -43,7 +45,7 @@ interface Video {
 
 const platforms = ['youtube', 'tiktok', 'facebook', 'instagram', 'threads', 'shopee']
 
-const platformConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+const platformConfig: Record<string, { label: string; color: string; icon: React.ReactElement }> = {
   youtube: { label: 'YouTube', color: '#FF0000', icon: <YouTube /> },
   tiktok: { label: 'TikTok', color: '#000000', icon: <TikTokIcon /> },
   facebook: { label: 'Facebook', color: '#1877F2', icon: <Facebook /> },
@@ -56,8 +58,16 @@ export default function Dashboard() {
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
+  const { user, loading: authLoading } = useAuth()
 
   useEffect(() => {
+    // Wait for auth session to restore before fetching, otherwise RLS returns 0 rows
+    if (authLoading) return
+    if (!user) {
+      navigate('/login')
+      return
+    }
+
     const fetchData = async () => {
       const { data: videosData } = await supabase
         .from('videos')
@@ -69,7 +79,7 @@ export default function Dashboard() {
     }
 
     fetchData()
-  }, [])
+  }, [authLoading, user, navigate])
 
   const getPlatformStats = () => {
     const totalVideos = videos.length
@@ -147,7 +157,50 @@ export default function Dashboard() {
     })
   }
 
-  if (loading) {
+  // Gap Finder: videos uploaded to >=1 platform but missing others (cross-post opportunities)
+  const gapVideos = videos
+    .map((video) => {
+      const available = getAvailablePlatforms(video)
+      const missing = platforms.filter((p) => !available.includes(p))
+      return { video, available, missing }
+    })
+    .filter(({ available, missing }) => available.length > 0 && missing.length > 0)
+    .sort((a, b) => {
+      // most complete first, then oldest first (longest waiting)
+      if (a.available.length !== b.available.length) return b.available.length - a.available.length
+      return (a.video.created_at || '').localeCompare(b.video.created_at || '')
+    })
+
+  const missingCounts = platforms
+    .map((p) => ({ platform: p, count: gapVideos.filter(({ missing }) => missing.includes(p)).length }))
+    .filter(({ count }) => count > 0)
+    .sort((a, b) => b.count - a.count)
+
+  // Cross-Post: selected platform toggle + shuffled (random) result list
+  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null)
+  const [shuffled, setShuffled] = useState<Video[]>([])
+  useEffect(() => {
+    if (!selectedPlatform) { setShuffled([]); return }
+    const pool = videos.filter((v) => {
+      const url = v[`${selectedPlatform}_url` as keyof Video] as string | null
+      return !url || url === ''
+    })
+    // Fisher-Yates shuffle so results are random, not in creation order
+    const arr = [...pool]
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+    }
+    setShuffled(arr.slice(0, 5))
+  }, [selectedPlatform, videos])
+
+  // Focus a video on the Videos page (uses existing focus feature)
+  const focusVideo = (videoId: string) => {
+    localStorage.setItem('videos_focused_video_id', videoId)
+    navigate('/videos', { state: { focusVideoId: videoId } })
+  }
+
+  if (loading || authLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
         <CircularProgress />
@@ -270,6 +323,100 @@ export default function Dashboard() {
               </BarChart>
             </ResponsiveContainer>
           </Box>
+        </Card>
+      )}
+
+      {/* Cross-Post Opportunities (Gap Finder) */}
+      {gapVideos.length > 0 && (
+        <Card sx={{ mb: 4, p: { xs: 2, md: 3 } }}>
+          <Typography variant="h5" gutterBottom sx={{ mb: 0.5 }}>
+            🔍 Cross-Post Opportunities
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {gapVideos.length} video{gapVideos.length !== 1 ? 's' : ''} uploaded to at least one platform but still missing others. Tap a platform to filter videos that need it.
+          </Typography>
+
+          {/* Platform toggle — pick a platform to see shuffled cross-post candidates */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2.5 }}>
+            {missingCounts.map(({ platform, count }) => {
+              const selected = selectedPlatform === platform
+              return (
+                <Chip
+                  key={platform}
+                  icon={platformConfig[platform].icon}
+                  label={`${platformConfig[platform].label} · ${count}`}
+                  color={selected ? 'primary' : 'default'}
+                  variant={selected ? 'filled' : 'outlined'}
+                  size="small"
+                  onClick={() => setSelectedPlatform(selected ? null : platform)}
+                  sx={{ '& .MuiChip-icon': { color: selected ? undefined : platformConfig[platform].color } }}
+                />
+              )
+            })}
+          </Box>
+
+          {/* Shuffled candidate videos for the selected platform */}
+          {selectedPlatform ? (
+            shuffled.length > 0 ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Typography variant="caption" color="text.secondary">
+                  {shuffled.length} cadangan rawak untuk {platformConfig[selectedPlatform].label} — klik untuk fokus
+                </Typography>
+                {shuffled.map((video) => {
+                  const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
+                  const available = getAvailablePlatforms(video)
+                  return (
+                    <Box
+                      key={video.id}
+                      sx={{
+                        display: 'flex',
+                        gap: 1.5,
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        p: 1,
+                        borderRadius: 1.5,
+                        transition: 'background-color 0.2s',
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
+                      onClick={() => focusVideo(video.id)}
+                    >
+                      {videoId && (
+                        <Box
+                          component="img"
+                          src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
+                          alt={video.title}
+                          sx={{ width: 48, height: 84, objectFit: 'cover', borderRadius: 1, flexShrink: 0 }}
+                        />
+                      )}
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5, lineHeight: 1.2 }} noWrap>
+                          {video.title}
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
+                            posted →
+                          </Typography>
+                          {available.map((p) => (
+                            <Box key={p} sx={{ color: platformConfig[p].color, display: 'flex' }}>
+                              {platformConfig[p].icon}
+                            </Box>
+                          ))}
+                        </Box>
+                      </Box>
+                    </Box>
+                  )
+                })}
+              </Box>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                ✅ Semua video dah ada di {platformConfig[selectedPlatform].label}.
+              </Typography>
+            )
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Pilih platform di atas untuk lihat cadangan cross-post secara rawak.
+            </Typography>
+          )}
         </Card>
       )}
 
