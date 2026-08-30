@@ -132,13 +132,8 @@ export default function Dashboard() {
   const allYears = [...new Set(videos.map(v => new Date(v.created_at).getFullYear()))].sort((a, b) => b - a)
   const [selectedYear, setSelectedYear] = useState<number | 'all'>('all')
 
-  // Custom hover tooltip state (fast, follows cursor)
-  const [tip, setTip] = useState<{ show: boolean; x: number; y: number; text: string }>({
-    show: false,
-    x: 0,
-    y: 0,
-    text: '',
-  })
+  // Selected heatmap cell (tap to highlight, info panel shows above graph)
+  const [selectedCell, setSelectedCell] = useState<{ videoId: string; platform: string } | null>(null)
 
   // Filter videos by selected year
   const filteredVideos = selectedYear === 'all' 
@@ -405,9 +400,8 @@ export default function Dashboard() {
             </Box>
 
             {/* Scrollable heatmap grid: one column per video (1fr = definite width → scrolls on mobile) */}
-            <Box sx={{ overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', overscrollBehaviorX: 'contain', pb: 1, minWidth: 0, width: '100%', maxWidth: '100%' }} onScroll={() => setTip((s) => ({ ...s, show: false }))}>
+            <Box sx={{ overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', overscrollBehaviorX: 'contain', pb: 1, minWidth: 0, width: '100%', maxWidth: '100%' }}>
               <Box
-                onMouseLeave={() => setTip((s) => ({ ...s, show: false }))}
                 sx={{
                   display: 'grid',
                   gridTemplateRows: `repeat(${platforms.length}, 22px)`,
@@ -421,37 +415,20 @@ export default function Dashboard() {
                   platforms.map((platform) => {
                     const url = video[`${platform}_url` as keyof Video] as string | null
                     const uploaded = !!url
+                    const isSelected = selectedCell?.videoId === video.id && selectedCell?.platform === platform
                     return (
                       <Box
                         key={`${video.id}-${platform}`}
-                        data-v={video.id}
-                        data-p={platform}
-                        data-title={video.title}
-                        data-uploaded={uploaded ? '1' : '0'}
-                        onMouseEnter={(e) => {
-                          const r = e.currentTarget.getBoundingClientRect()
-                          setTip({
-                            show: true,
-                            x: r.left + r.width / 2,
-                            y: r.top,
-                            text: `${video.title} — ${platformConfig[platform].label}: ${uploaded ? 'Uploaded' : 'Gap'}`,
-                          })
-                        }}
-                        onTouchStart={(e) => {
-                          const r = e.currentTarget.getBoundingClientRect()
-                          setTip({
-                            show: true,
-                            x: r.left + r.width / 2,
-                            y: r.top,
-                            text: `${video.title} — ${platformConfig[platform].label}: ${uploaded ? 'Uploaded' : 'Gap'}`,
-                          })
-                        }}
+                        onClick={() => setSelectedCell({ videoId: video.id, platform })}
                         sx={{
                           width: 10,
                           height: 22,
                           borderRadius: '2px',
                           bgcolor: uploaded ? '#4CAF50' : '#F44336',
                           cursor: 'pointer',
+                          outline: isSelected ? '2px solid #1976d2' : 'none',
+                          outlineOffset: '1px',
+                          boxShadow: isSelected ? '0 0 0 2px #1976d2' : 'none',
                         }}
                       />
                     )
@@ -461,27 +438,52 @@ export default function Dashboard() {
             </Box>
           </Box>
 
-          {tip.show && (
-            <Box
-              sx={{
-                position: 'fixed',
-                left: tip.x,
-                top: tip.y + 14,
-                transform: 'translateX(-50%)',
-                bgcolor: 'rgba(0,0,0,0.85)',
-                color: '#fff',
-                fontSize: 11,
-                px: 1,
-                py: 0.5,
-                borderRadius: 1,
-                whiteSpace: 'nowrap',
-                pointerEvents: 'none',
-                zIndex: 9999,
-              }}
-            >
-              {tip.text}
-            </Box>
-          )}
+          {/* Selected cell info panel (above the graph) */}
+          {selectedCell && (() => {
+            const v = filteredVideos.find((vid) => vid.id === selectedCell.videoId)
+            if (!v) return null
+            const uploaded = !!v[`${selectedCell.platform}_url` as keyof Video]
+            return (
+              <Box
+                sx={{
+                  mt: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  flexWrap: 'wrap',
+                  p: 1.5,
+                  borderRadius: 1,
+                  bgcolor: 'action.hover',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: '2px',
+                    bgcolor: uploaded ? '#4CAF50' : '#F44336',
+                    flexShrink: 0,
+                  }}
+                />
+                <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main', cursor: 'pointer' }} onClick={() => focusVideo(v.id)}>
+                  {v.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  — {platformConfig[selectedCell.platform].label}: {uploaded ? 'Uploaded' : 'Gap'}
+                </Typography>
+                <Box sx={{ flexGrow: 1 }} />
+                <Typography
+                  variant="caption"
+                  sx={{ color: 'primary.main', cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => setSelectedCell(null)}
+                >
+                  clear ✕
+                </Typography>
+              </Box>
+            )
+          })()}
 
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
             {filteredVideos.length} video · kotak hijau = di-upload, merah = belum. Tarik ke kanan untuk lihat lebih.
