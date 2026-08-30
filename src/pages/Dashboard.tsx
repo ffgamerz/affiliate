@@ -295,6 +295,33 @@ export default function Dashboard() {
     navigate('/videos', { state: { focusVideoId: videoId } })
   }
 
+  // Keyboard arrow navigation across heatmap cells when one is selected
+  useEffect(() => {
+    if (!selectedCell) return
+    const onKey = (e: KeyboardEvent) => {
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return
+      e.preventDefault()
+      const vIdx = filteredVideos.findIndex((v) => v.id === selectedCell.videoId)
+      const pIdx = platforms.indexOf(selectedCell.platform)
+      if (vIdx === -1 || pIdx === -1) return
+      let nv = vIdx, np = pIdx
+      if (e.key === 'ArrowLeft') nv = Math.max(0, vIdx - 1)
+      else if (e.key === 'ArrowRight') nv = Math.min(filteredVideos.length - 1, vIdx + 1)
+      else if (e.key === 'ArrowUp') np = Math.max(0, pIdx - 1)
+      else if (e.key === 'ArrowDown') np = Math.min(platforms.length - 1, pIdx + 1)
+      const nextVideo = filteredVideos[nv]
+      const nextPlatform = platforms[np]
+      setSelectedCell({ videoId: nextVideo.id, platform: nextPlatform })
+      // scroll the newly selected cell into view
+      setTimeout(() => {
+        const el = document.getElementById(`hg-${nextVideo.id}-${nextPlatform}`)
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+      }, 0)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedCell, filteredVideos])
+
   if (loading || authLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
@@ -455,6 +482,7 @@ export default function Dashboard() {
                     const isSelected = selectedCell?.videoId === video.id && selectedCell?.platform === platform
                     return (
                       <Box
+                        id={`hg-${video.id}-${platform}`}
                         key={`${video.id}-${platform}`}
                         onClick={() => setSelectedCell({ videoId: video.id, platform })}
                         sx={{
@@ -508,7 +536,7 @@ export default function Dashboard() {
                   {v.title}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  — {platformConfig[selectedCell.platform].label}: {uploaded ? 'Uploaded' : 'Gap'}
+                  — {platformConfig[selectedCell.platform].label}: {uploaded ? `Uploaded${v[`${selectedCell.platform}_upload_date` as keyof Video] ? ` (${new Date(v[`${selectedCell.platform}_upload_date` as keyof Video] as string).toLocaleDateString('ms-MY')})` : ''}` : 'Gap'}
                 </Typography>
                 <Box sx={{ flexGrow: 1 }} />
                 <Typography
