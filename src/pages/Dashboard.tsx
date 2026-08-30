@@ -405,19 +405,8 @@ export default function Dashboard() {
             </Box>
 
             {/* Scrollable heatmap grid: one column per video (1fr = definite width → scrolls on mobile) */}
-            <Box sx={{ overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', overscrollBehaviorX: 'contain', pb: 1, minWidth: 0, width: '100%', maxWidth: '100%' }}>
+            <Box sx={{ overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', overscrollBehaviorX: 'contain', pb: 1, minWidth: 0, width: '100%', maxWidth: '100%' }} onScroll={() => setTip((s) => ({ ...s, show: false }))}>
               <Box
-                onMouseMove={(e) => {
-                  const t = e.target as HTMLElement
-                  if (t.dataset && t.dataset.p) {
-                    setTip({
-                      show: true,
-                      x: e.clientX,
-                      y: e.clientY,
-                      text: `${t.dataset.title} — ${platformConfig[t.dataset.p as keyof typeof platformConfig]?.label}: ${t.dataset.uploaded === '1' ? 'Uploaded' : 'Gap'}`,
-                    })
-                  }
-                }}
                 onMouseLeave={() => setTip((s) => ({ ...s, show: false }))}
                 sx={{
                   display: 'grid',
@@ -439,6 +428,24 @@ export default function Dashboard() {
                         data-p={platform}
                         data-title={video.title}
                         data-uploaded={uploaded ? '1' : '0'}
+                        onMouseEnter={(e) => {
+                          const r = e.currentTarget.getBoundingClientRect()
+                          setTip({
+                            show: true,
+                            x: r.left + r.width / 2,
+                            y: r.top,
+                            text: `${video.title} — ${platformConfig[platform].label}: ${uploaded ? 'Uploaded' : 'Gap'}`,
+                          })
+                        }}
+                        onTouchStart={(e) => {
+                          const r = e.currentTarget.getBoundingClientRect()
+                          setTip({
+                            show: true,
+                            x: r.left + r.width / 2,
+                            y: r.top,
+                            text: `${video.title} — ${platformConfig[platform].label}: ${uploaded ? 'Uploaded' : 'Gap'}`,
+                          })
+                        }}
                         sx={{
                           width: 10,
                           height: 22,
