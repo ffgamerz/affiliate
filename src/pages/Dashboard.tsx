@@ -376,6 +376,158 @@ export default function Dashboard() {
         })}
       </Box>
 
+      {/* Content Gap Heatmap (moved to top) */}
+
+      {filteredVideos.length > 0 && (
+        <Card sx={{ mb: 4, p: { xs: 2, md: 3 } }}>
+          <Typography variant="h5" gutterBottom sx={{ mb: 2 }}>
+            📉 Content Gap Analysis
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Heatmap menunjukkan status upload setiap video ke setiap platform. Hijau = sudah di-upload, Merah = belum di-upload.
+          </Typography>
+
+          {/* Year selector - only show if more than 1 year of data */}
+          {allYears.length > 1 && (
+            <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
+                Filter by year:
+              </Typography>
+              <Chip
+                label="All Years"
+                size="small"
+                color={selectedYear === 'all' ? 'primary' : 'default'}
+                onClick={() => setSelectedYear('all')}
+                variant={selectedYear === 'all' ? 'filled' : 'outlined'}
+              />
+              {allYears.map((year) => (
+                <Chip
+                  key={year}
+                  label={year.toString()}
+                  size="small"
+                  color={selectedYear === year ? 'primary' : 'default'}
+                  onClick={() => setSelectedYear(year)}
+                  variant={selectedYear === year ? 'filled' : 'outlined'}
+                />
+              ))}
+            </Box>
+          )}
+
+          {/* CSS-grid heatmap - proper cell alignment, scrollable for many videos */}
+          {/* grid 90px 1fr: the 1fr track gets a definite width so overflow-x:auto scrolls on mobile too (flex min-width:0 fails on mobile Safari/Chrome) */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: 1, alignItems: 'flex-start', width: '100%', maxWidth: '100%' }}>
+            {/* Y-axis: platform labels (sticky, NOT inside scroll area) */}
+            <Box sx={{ display: 'grid', gridTemplateRows: `repeat(${platforms.length}, 22px)`, gap: '2px', width: 90, overflow: 'hidden' }}>
+              {platforms.map((p) => (
+                <Box
+                  key={p}
+                  sx={{
+                    height: 22,
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: '#333',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {platformConfig[p].label}
+                </Box>
+              ))}
+            </Box>
+
+            {/* Scrollable heatmap grid: one column per video (1fr = definite width → scrolls on mobile) */}
+            <Box sx={{ overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', overscrollBehaviorX: 'contain', pb: 1, minWidth: 0, width: '100%', maxWidth: '100%' }}>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateRows: `repeat(${platforms.length}, 22px)`,
+                  gridAutoFlow: 'column',
+                  gridAutoColumns: '10px',
+                  gap: '2px',
+                  width: 'max-content',
+                }}
+              >
+                {filteredVideos.map((video) =>
+                  platforms.map((platform) => {
+                    const url = video[`${platform}_url` as keyof Video] as string | null
+                    const uploaded = !!url
+                    const isSelected = selectedCell?.videoId === video.id && selectedCell?.platform === platform
+                    return (
+                      <Box
+                        key={`${video.id}-${platform}`}
+                        onClick={() => setSelectedCell({ videoId: video.id, platform })}
+                        sx={{
+                          width: 10,
+                          height: 22,
+                          borderRadius: '2px',
+                          bgcolor: uploaded ? '#4CAF50' : '#F44336',
+                          cursor: 'pointer',
+                          outline: isSelected ? '2px solid #1976d2' : 'none',
+                          outlineOffset: '1px',
+                          boxShadow: isSelected ? '0 0 0 2px #1976d2' : 'none',
+                        }}
+                      />
+                    )
+                  })
+                )}
+              </Box>
+            </Box>
+          </Box>
+
+          {/* Selected cell info panel (above the graph) */}
+          {selectedCell && (() => {
+            const v = filteredVideos.find((vid) => vid.id === selectedCell.videoId)
+            if (!v) return null
+            const uploaded = !!v[`${selectedCell.platform}_url` as keyof Video]
+            return (
+              <Box
+                sx={{
+                  mt: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  flexWrap: 'wrap',
+                  p: 1.5,
+                  borderRadius: 1,
+                  bgcolor: 'action.hover',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: '2px',
+                    bgcolor: uploaded ? '#4CAF50' : '#F44336',
+                    flexShrink: 0,
+                  }}
+                />
+                <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main', cursor: 'pointer' }} onClick={() => focusVideo(v.id)}>
+                  {v.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  — {platformConfig[selectedCell.platform].label}: {uploaded ? 'Uploaded' : 'Gap'}
+                </Typography>
+                <Box sx={{ flexGrow: 1 }} />
+                <Typography
+                  variant="caption"
+                  sx={{ color: 'primary.main', cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => setSelectedCell(null)}
+                >
+                  clear ✕
+                </Typography>
+              </Box>
+            )
+          })()}
+
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            {filteredVideos.length} video · kotak hijau = di-upload, merah = belum. Tarik ke kanan untuk lihat lebih.
+          </Typography>
+        </Card>
+      )}
+
       {/* Platform Balance Donut */}
       {platformBalance.length > 0 && (
         <Card sx={{ mb: 4, p: { xs: 2, md: 3 } }}>
@@ -602,158 +754,6 @@ export default function Dashboard() {
               </AreaChart>
             </ResponsiveContainer>
           </Box>
-        </Card>
-      )}
-
-      {/* Content Gap Heatmap */}
-
-      {filteredVideos.length > 0 && (
-        <Card sx={{ mb: 4, p: { xs: 2, md: 3 } }}>
-          <Typography variant="h5" gutterBottom sx={{ mb: 2 }}>
-            📉 Content Gap Analysis
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Heatmap menunjukkan status upload setiap video ke setiap platform. Hijau = sudah di-upload, Merah = belum di-upload.
-          </Typography>
-
-          {/* Year selector - only show if more than 1 year of data */}
-          {allYears.length > 1 && (
-            <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
-                Filter by year:
-              </Typography>
-              <Chip
-                label="All Years"
-                size="small"
-                color={selectedYear === 'all' ? 'primary' : 'default'}
-                onClick={() => setSelectedYear('all')}
-                variant={selectedYear === 'all' ? 'filled' : 'outlined'}
-              />
-              {allYears.map((year) => (
-                <Chip
-                  key={year}
-                  label={year.toString()}
-                  size="small"
-                  color={selectedYear === year ? 'primary' : 'default'}
-                  onClick={() => setSelectedYear(year)}
-                  variant={selectedYear === year ? 'filled' : 'outlined'}
-                />
-              ))}
-            </Box>
-          )}
-
-          {/* CSS-grid heatmap - proper cell alignment, scrollable for many videos */}
-          {/* grid 90px 1fr: the 1fr track gets a definite width so overflow-x:auto scrolls on mobile too (flex min-width:0 fails on mobile Safari/Chrome) */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: 1, alignItems: 'flex-start', width: '100%', maxWidth: '100%' }}>
-            {/* Y-axis: platform labels (sticky, NOT inside scroll area) */}
-            <Box sx={{ display: 'grid', gridTemplateRows: `repeat(${platforms.length}, 22px)`, gap: '2px', width: 90, overflow: 'hidden' }}>
-              {platforms.map((p) => (
-                <Box
-                  key={p}
-                  sx={{
-                    height: 22,
-                    display: 'flex',
-                    alignItems: 'center',
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: '#333',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {platformConfig[p].label}
-                </Box>
-              ))}
-            </Box>
-
-            {/* Scrollable heatmap grid: one column per video (1fr = definite width → scrolls on mobile) */}
-            <Box sx={{ overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', overscrollBehaviorX: 'contain', pb: 1, minWidth: 0, width: '100%', maxWidth: '100%' }}>
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateRows: `repeat(${platforms.length}, 22px)`,
-                  gridAutoFlow: 'column',
-                  gridAutoColumns: '10px',
-                  gap: '2px',
-                  width: 'max-content',
-                }}
-              >
-                {filteredVideos.map((video) =>
-                  platforms.map((platform) => {
-                    const url = video[`${platform}_url` as keyof Video] as string | null
-                    const uploaded = !!url
-                    const isSelected = selectedCell?.videoId === video.id && selectedCell?.platform === platform
-                    return (
-                      <Box
-                        key={`${video.id}-${platform}`}
-                        onClick={() => setSelectedCell({ videoId: video.id, platform })}
-                        sx={{
-                          width: 10,
-                          height: 22,
-                          borderRadius: '2px',
-                          bgcolor: uploaded ? '#4CAF50' : '#F44336',
-                          cursor: 'pointer',
-                          outline: isSelected ? '2px solid #1976d2' : 'none',
-                          outlineOffset: '1px',
-                          boxShadow: isSelected ? '0 0 0 2px #1976d2' : 'none',
-                        }}
-                      />
-                    )
-                  })
-                )}
-              </Box>
-            </Box>
-          </Box>
-
-          {/* Selected cell info panel (above the graph) */}
-          {selectedCell && (() => {
-            const v = filteredVideos.find((vid) => vid.id === selectedCell.videoId)
-            if (!v) return null
-            const uploaded = !!v[`${selectedCell.platform}_url` as keyof Video]
-            return (
-              <Box
-                sx={{
-                  mt: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  flexWrap: 'wrap',
-                  p: 1.5,
-                  borderRadius: 1,
-                  bgcolor: 'action.hover',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: '2px',
-                    bgcolor: uploaded ? '#4CAF50' : '#F44336',
-                    flexShrink: 0,
-                  }}
-                />
-                <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main', cursor: 'pointer' }} onClick={() => focusVideo(v.id)}>
-                  {v.title}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  — {platformConfig[selectedCell.platform].label}: {uploaded ? 'Uploaded' : 'Gap'}
-                </Typography>
-                <Box sx={{ flexGrow: 1 }} />
-                <Typography
-                  variant="caption"
-                  sx={{ color: 'primary.main', cursor: 'pointer', userSelect: 'none' }}
-                  onClick={() => setSelectedCell(null)}
-                >
-                  clear ✕
-                </Typography>
-              </Box>
-            )
-          })()}
-
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-            {filteredVideos.length} video · kotak hijau = di-upload, merah = belum. Tarik ke kanan untuk lihat lebih.
-          </Typography>
         </Card>
       )}
 
