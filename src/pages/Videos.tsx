@@ -493,6 +493,7 @@ export default function Videos() {
   const [threadsUploadDate, setThreadsUploadDate] = useState<string | null>(null); const [tiktokUrl, setTiktokUrl] = useState('')
   const [tiktokUploadDate, setTiktokUploadDate] = useState<string | null>(null); const [tiktokProductUrl, setTiktokProductUrl] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
+  const [updatingVideo, setUpdatingVideo] = useState(false)
   const [bookmarkedVideoIds, setBookmarkedVideoIds] = useState<Set<string>>(new Set())
   const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false)
 
@@ -1330,9 +1331,11 @@ export default function Videos() {
 
   const handleUpdateVideo = async () => {
     if (!editingVideo) return
+    setUpdatingVideo(true)
     const u: any = { title, description, srt: srt || null, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null }
     if (createdAt) u.created_at = new Date(createdAt).toISOString()
     const { error } = await supabase.from('videos').update(u).eq('id', editingVideo.id)
+    setUpdatingVideo(false)
     if (!error) {
       setOpen(false);
       setEditingVideo(null);
@@ -2266,7 +2269,7 @@ Hari ini kita nak tengok produk terbaru" />
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           {!isMobile && <Button onClick={() => setOpen(false)}>Cancel</Button>}
-          <Button onClick={editingVideo ? handleUpdateVideo : handleAddVideo} variant="contained" fullWidth={isMobile}>{editingVideo ? 'Update' : 'Add'}</Button>
+          <Button onClick={editingVideo ? handleUpdateVideo : handleAddVideo} variant="contained" fullWidth={isMobile} disabled={updatingVideo} startIcon={updatingVideo ? <CircularProgress size={16} /> : undefined}>{updatingVideo ? 'Saving…' : (editingVideo ? 'Update' : 'Add')}</Button>
         </DialogActions>
       </Dialog>
 
