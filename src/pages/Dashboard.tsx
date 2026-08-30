@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -72,7 +72,7 @@ export default function Dashboard() {
     const fetchData = async () => {
       const { data: videosData } = await supabase
         .from('videos')
-        .select('*')
+        .select('id, title, created_at, youtube_url, tiktok_url, facebook_url, instagram_url, shopee_url, threads_url, youtube_upload_date, tiktok_upload_date, facebook_upload_date, instagram_upload_date, shopee_upload_date, threads_upload_date')
         .order('created_at', { ascending: false })
 
       setVideos(videosData || [])
@@ -125,19 +125,19 @@ export default function Dashboard() {
       }))
   }
 
-  const platformStats = getPlatformStats()
-  const uploadTrend = getUploadTrend()
+  const platformStats = useMemo(() => getPlatformStats(), [videos])
+  const uploadTrend = useMemo(() => getUploadTrend(), [videos])
 
   // Platform balance data for donut (count of videos uploaded per platform)
-  const platformBalance = platforms.map((p) => ({
+  const platformBalance = useMemo(() => platforms.map((p) => ({
     platform: p,
     name: platformConfig[p].label,
     value: platformStats[p]?.count || 0,
     color: platformConfig[p].color,
-  })).filter((d) => d.value > 0)
+  })).filter((d) => d.value > 0), [platformStats])
 
   // Status breakdown: a video is "Uploaded" if it has ≥1 platform URL, else "Draft" (never uploaded)
-  const statusBreakdown = (() => {
+  const statusBreakdown = useMemo(() => {
     let uploaded = 0
     let draft = 0
     videos.forEach((v) => {
@@ -148,10 +148,10 @@ export default function Dashboard() {
       { name: 'Uploaded', value: uploaded, color: '#4CAF50' },
       { name: 'Draft (never uploaded)', value: draft, color: '#F44336' },
     ]
-  })()
+  }, [videos])
 
   // Upload lag: average days from created_at to upload_date per platform
-  const uploadLag = platforms.map((p) => {
+  const uploadLag = useMemo(() => platforms.map((p) => {
     const diffs: number[] = []
     videos.forEach((v) => {
       const uploadDate = v[`${p}_upload_date` as keyof Video] as string | null
@@ -169,10 +169,10 @@ export default function Dashboard() {
       avgDays: Math.round(avg * 10) / 10,
       count: diffs.length,
     }
-  }).filter((d) => d.count > 0)
+  }).filter((d) => d.count > 0), [videos])
 
   // Year comparison: total uploads per year (from upload_date)
-  const yearComparison = (() => {
+  const yearComparison = useMemo(() => {
     const yearTotals: Record<string, number> = {}
     videos.forEach((v) => {
       platforms.forEach((p) => {
@@ -186,10 +186,10 @@ export default function Dashboard() {
     return Object.keys(yearTotals)
       .sort()
       .map((year) => ({ year, count: yearTotals[year] }))
-  })()
+  }, [videos])
 
   // Cumulative uploads per month (running total across all platforms) — recomputed from videos
-  const cumulativeTrend = (() => {
+  const cumulativeTrend = useMemo(() => {
     const monthTotals: Record<string, number> = {}
     videos.forEach((video) => {
       platforms.forEach((platform) => {
@@ -207,20 +207,20 @@ export default function Dashboard() {
         running += monthTotals[month]
         return { month, total: running }
       })
-  })()
+  }, [videos])
 
   // Heatmap data: content gap analysis per video per platform
   // Determine available years for filtering
-  const allYears = [...new Set(videos.map(v => new Date(v.created_at).getFullYear()))].sort((a, b) => b - a)
+  const allYears = useMemo(() => [...new Set(videos.map(v => new Date(v.created_at).getFullYear()))].sort((a, b) => b - a), [videos])
   const [selectedYear, setSelectedYear] = useState<number | 'all'>('all')
 
   // Selected heatmap cell (tap to highlight, info panel shows above graph)
   const [selectedCell, setSelectedCell] = useState<{ videoId: string; platform: string } | null>(null)
 
   // Filter videos by selected year
-  const filteredVideos = selectedYear === 'all' 
-    ? videos 
-    : videos.filter(v => new Date(v.created_at).getFullYear() === selectedYear)
+  const filteredVideos = useMemo(() => selectedYear === 'all'
+    ? videos
+    : videos.filter(v => new Date(v.created_at).getFullYear() === selectedYear), [selectedYear, videos])
 
   const handlePlatformClick = (platform: string) => {
     if (platform === 'total') {
@@ -253,7 +253,7 @@ export default function Dashboard() {
   }
 
   // Gap Finder: videos uploaded to >=1 platform but missing others (cross-post opportunities)
-  const gapVideos = videos
+  const gapVideos = useMemo(() => videos
     .map((video) => {
       const available = getAvailablePlatforms(video)
       const missing = platforms.filter((p) => !available.includes(p))
@@ -264,12 +264,12 @@ export default function Dashboard() {
       // most complete first, then oldest first (longest waiting)
       if (a.available.length !== b.available.length) return b.available.length - a.available.length
       return (a.video.created_at || '').localeCompare(b.video.created_at || '')
-    })
+    }), [videos])
 
-  const missingCounts = platforms
+  const missingCounts = useMemo(() => platforms
     .map((p) => ({ platform: p, count: gapVideos.filter(({ missing }) => missing.includes(p)).length }))
     .filter(({ count }) => count > 0)
-    .sort((a, b) => b.count - a.count)
+    .sort((a, b) => b.count - a.count), [gapVideos])
 
   // Cross-Post: selected platform toggle + shuffled (random) result list
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null)
@@ -504,7 +504,7 @@ export default function Dashboard() {
                     flexShrink: 0,
                   }}
                 />
-                <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main', cursor: 'pointer' }} onClick={() => window.open(`/#/videos?focus=${v.id}`, '_blank')}>
+                <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main', cursor: 'pointer' }} onClick={() => focusVideo(v.id)}>
                   {v.title}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -525,6 +525,100 @@ export default function Dashboard() {
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
             {filteredVideos.length} video · kotak hijau = di-upload, merah = belum. Tarik ke kanan untuk lihat lebih.
           </Typography>
+        </Card>
+      )}
+
+      {/* Cross-Post Opportunities (Gap Finder) */}
+      {gapVideos.length > 0 && (
+        <Card sx={{ mb: 4, p: { xs: 2, md: 3 } }}>
+          <Typography variant="h5" gutterBottom sx={{ mb: 0.5 }}>
+            🔍 Cross-Post Opportunities
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {gapVideos.length} video{gapVideos.length !== 1 ? 's' : ''} uploaded to at least one platform but still missing others. Tap a platform to filter videos that need it.
+          </Typography>
+
+          {/* Platform toggle — pick a platform to see shuffled cross-post candidates */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2.5 }}>
+            {missingCounts.map(({ platform, count }) => {
+              const selected = selectedPlatform === platform
+              return (
+                <Chip
+                  key={platform}
+                  icon={platformConfig[platform].icon}
+                  label={`${platformConfig[platform].label} · ${count}`}
+                  color={selected ? 'primary' : 'default'}
+                  variant={selected ? 'filled' : 'outlined'}
+                  size="small"
+                  onClick={() => setSelectedPlatform(selected ? null : platform)}
+                  sx={{ '& .MuiChip-icon': { color: selected ? undefined : platformConfig[platform].color } }}
+                />
+              )
+            })}
+          </Box>
+
+          {/* Shuffled candidate videos for the selected platform */}
+          {selectedPlatform ? (
+            shuffled.length > 0 ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Typography variant="caption" color="text.secondary">
+                  {shuffled.length} cadangan rawak untuk {platformConfig[selectedPlatform].label} — klik untuk fokus
+                </Typography>
+                {shuffled.map((video) => {
+                  const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
+                  const available = getAvailablePlatforms(video)
+                  return (
+                    <Box
+                      key={video.id}
+                      sx={{
+                        display: 'flex',
+                        gap: 1.5,
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        p: 1,
+                        borderRadius: 1.5,
+                        transition: 'background-color 0.2s',
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
+                      onClick={() => focusVideo(video.id)}
+                    >
+                      {videoId && (
+                        <Box
+                          component="img"
+                          src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
+                          alt={video.title}
+                          sx={{ width: 48, height: 84, objectFit: 'cover', borderRadius: 1, flexShrink: 0 }}
+                        />
+                      )}
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5, lineHeight: 1.2 }} noWrap>
+                          {video.title}
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
+                            posted →
+                          </Typography>
+                          {available.map((p) => (
+                            <Box key={p} sx={{ color: platformConfig[p].color, display: 'flex' }}>
+                              {platformConfig[p].icon}
+                            </Box>
+                          ))}
+                        </Box>
+                      </Box>
+                    </Box>
+                  )
+                })}
+              </Box>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                ✅ Semua video dah ada di {platformConfig[selectedPlatform].label}.
+              </Typography>
+            )
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Pilih platform di atas untuk lihat cadangan cross-post secara rawak.
+            </Typography>
+          )}
         </Card>
       )}
 
@@ -754,100 +848,6 @@ export default function Dashboard() {
               </AreaChart>
             </ResponsiveContainer>
           </Box>
-        </Card>
-      )}
-
-      {/* Cross-Post Opportunities (Gap Finder) */}
-      {gapVideos.length > 0 && (
-        <Card sx={{ mb: 4, p: { xs: 2, md: 3 } }}>
-          <Typography variant="h5" gutterBottom sx={{ mb: 0.5 }}>
-            🔍 Cross-Post Opportunities
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {gapVideos.length} video{gapVideos.length !== 1 ? 's' : ''} uploaded to at least one platform but still missing others. Tap a platform to filter videos that need it.
-          </Typography>
-
-          {/* Platform toggle — pick a platform to see shuffled cross-post candidates */}
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2.5 }}>
-            {missingCounts.map(({ platform, count }) => {
-              const selected = selectedPlatform === platform
-              return (
-                <Chip
-                  key={platform}
-                  icon={platformConfig[platform].icon}
-                  label={`${platformConfig[platform].label} · ${count}`}
-                  color={selected ? 'primary' : 'default'}
-                  variant={selected ? 'filled' : 'outlined'}
-                  size="small"
-                  onClick={() => setSelectedPlatform(selected ? null : platform)}
-                  sx={{ '& .MuiChip-icon': { color: selected ? undefined : platformConfig[platform].color } }}
-                />
-              )
-            })}
-          </Box>
-
-          {/* Shuffled candidate videos for the selected platform */}
-          {selectedPlatform ? (
-            shuffled.length > 0 ? (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                <Typography variant="caption" color="text.secondary">
-                  {shuffled.length} cadangan rawak untuk {platformConfig[selectedPlatform].label} — klik untuk fokus
-                </Typography>
-                {shuffled.map((video) => {
-                  const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
-                  const available = getAvailablePlatforms(video)
-                  return (
-                    <Box
-                      key={video.id}
-                      sx={{
-                        display: 'flex',
-                        gap: 1.5,
-                        alignItems: 'center',
-                        cursor: 'pointer',
-                        p: 1,
-                        borderRadius: 1.5,
-                        transition: 'background-color 0.2s',
-                        '&:hover': { bgcolor: 'action.hover' },
-                      }}
-                      onClick={() => focusVideo(video.id)}
-                    >
-                      {videoId && (
-                        <Box
-                          component="img"
-                          src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
-                          alt={video.title}
-                          sx={{ width: 48, height: 84, objectFit: 'cover', borderRadius: 1, flexShrink: 0 }}
-                        />
-                      )}
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5, lineHeight: 1.2 }} noWrap>
-                          {video.title}
-                        </Typography>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
-                          <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
-                            posted →
-                          </Typography>
-                          {available.map((p) => (
-                            <Box key={p} sx={{ color: platformConfig[p].color, display: 'flex' }}>
-                              {platformConfig[p].icon}
-                            </Box>
-                          ))}
-                        </Box>
-                      </Box>
-                    </Box>
-                  )
-                })}
-              </Box>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                ✅ Semua video dah ada di {platformConfig[selectedPlatform].label}.
-              </Typography>
-            )
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              Pilih platform di atas untuk lihat cadangan cross-post secara rawak.
-            </Typography>
-          )}
         </Card>
       )}
 
