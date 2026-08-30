@@ -504,7 +504,7 @@ export default function Dashboard() {
                     flexShrink: 0,
                   }}
                 />
-                <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main', cursor: 'pointer' }} onClick={() => focusVideo(v.id)}>
+                <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main', cursor: 'pointer' }} onClick={() => window.open(`/#/videos?focus=${v.id}`, '_blank')}>
                   {v.title}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">

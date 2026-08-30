@@ -417,6 +417,7 @@ export default function Videos() {
   const [customUploadDateFilter, setCustomUploadDateFilter] = useState('')
   const dflt = () => platforms.map(p => ({ key: p.key, original: 0, reupload: 0 }))
   const [todayStats, setTodayStats] = useState({ videoCount: 0, reuploadCount: 0, platformBreakdown: dflt() })
+  const [statsLoading, setStatsLoading] = useState(true)
   const [yesterdayStats, setYesterdayStats] = useState({ videoCount: 0, reuploadCount: 0, platformBreakdown: dflt() })
   const [range3to9Stats, setRange3to9Stats] = useState({ videoCount: 0, reuploadCount: 0, platformBreakdown: dflt() })
   const [reuploadDialogOpen, setReuploadDialogOpen] = useState(false); const [reuploadPlatform, setReuploadPlatform] = useState('')
@@ -502,6 +503,7 @@ export default function Videos() {
     }
     return null
   })
+  const [pendingFocusId, setPendingFocusId] = useState<string | null>(null)
   // Separate toggle for filter - allows showing focused video or not without clearing the focused ID
   const [filterFocusActive, setFilterFocusActive] = useState(false)
 
@@ -686,6 +688,7 @@ export default function Videos() {
   // Optimized fetchStats using RPC functions (GROUP BY + FILTER on server)
   // Requires rpc-get-stats.sql to be run in Supabase SQL editor
   const fetchStats = useCallback(async () => {
+    setStatsLoading(true)
     const todayStr = todayDate
     const yesterdayStr = yesterdayDate
     const d3to9 = dates3to9
@@ -696,6 +699,7 @@ export default function Videos() {
     if (cached && (now - cacheAge) < 5 * 60 * 1000) {
       const { todayStats: ts, yesterdayStats: ys, range3to9Stats: rs } = JSON.parse(cached)
       setTodayStats(ts); setYesterdayStats(ys); setRange3to9Stats(rs)
+      setStatsLoading(false)
       return
     }
 
@@ -781,6 +785,7 @@ export default function Videos() {
     const rs = { videoCount: getUniqueCount(rVIds, rRIds), reuploadCount: rRIds.length, platformBreakdown: rB }
     localStorage.setItem(cacheKey, JSON.stringify({ todayStats: ts, yesterdayStats: ys, range3to9Stats: rs, timestamp: now }))
     setTodayStats(ts); setYesterdayStats(ys); setRange3to9Stats(rs)
+    setStatsLoading(false)
   }, [])
 
   // Campaign Day: fetch campaigns + compute current period stats
@@ -882,7 +887,7 @@ export default function Videos() {
     // token and RLS returns 0 rows (filter appears broken/empty)
     if (authLoading) return
     const state = location.state as any
-    const stateKey = state ? JSON.stringify(state) : null
+    const stateKey = state ? JSON.stringify(state) : (new URLSearchParams(window.location.hash.split('?')[1] || '').get('focus') || null)
     // Only process if this is a new state (not same as before)
     if (processedLocationStateRef.current === stateKey) return
     processedLocationStateRef.current = stateKey
@@ -924,9 +929,13 @@ export default function Videos() {
       })()
       return
     }
-    if (state?.focusVideoId) {
-      // Coming from Dashboard Cross-Post: focus the chosen video (existing focus feature)
-      const fid = state.focusVideoId as string
+    const focusParamId = (state?.focusVideoId as string)
+      || new URLSearchParams(window.location.hash.split('?')[1] || '').get('focus')
+      || new URLSearchParams(window.location.search).get('focus')
+      || null
+    if (focusParamId) {
+      // Coming from Dashboard Cross-Post (same tab via state) OR Content Gap link (new tab via ?focus=)
+      const fid = focusParamId
       setFocusedVideoId(fid)
       localStorage.setItem('videos_focused_video_id', fid)
       setFilterFocusActive(true)
@@ -940,11 +949,11 @@ export default function Videos() {
         await supabase.from('reuploads').select('*').eq('video_id', fid)
         setHasMore(false)
         setLoading(false)
-        // Auto-scroll to the focused video card once it's rendered
-        setTimeout(() => {
-          const el = document.getElementById(`video-card-${fid}`)
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        }, 150)
+        // Fetch stats so the statsLoading flag settles (main fetch effect is skipped in focus mode)
+        fetchStats()
+        // Don't scroll yet — wait until statistics & campaign panels finish loading
+        // (they render above the video list and push cards down, losing focus).
+        setPendingFocusId(fid)
       })()
       return
     }
@@ -952,6 +961,25 @@ export default function Videos() {
       openAddDialog()
     }
   }, [location.key, authLoading])
+
+  // Auto-scroll to focused video ONLY after statistics & campaign panels finish loading.
+  // They render above the list and push cards down, which would lose focus if we scrolled early.
+  // Retry briefly in case a panel is still rendering when the card mounts.
+  useEffect(() => {
+    if (!pendingFocusId) return
+    if (statsLoading || campaignLoading) return
+    let tries = 0
+    const tryScroll = () => {
+      const el = document.getElementById(`video-card-${pendingFocusId}`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        setPendingFocusId(null)
+        return
+      }
+      if (tries++ < 20) setTimeout(tryScroll, 100)
+    }
+    tryScroll()
+  }, [pendingFocusId, statsLoading, campaignLoading])
 
   // Handle stat card click - reset other filters when clicking stat card
   const handleStatCardClick = (filterKey: 'today' | 'yesterday' | 'range-3-9') => {
