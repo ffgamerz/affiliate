@@ -382,9 +382,10 @@ export default function Dashboard() {
           )}
 
           {/* CSS-grid heatmap - proper cell alignment, scrollable for many videos */}
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', maxWidth: '100%' }}>
+          {/* grid 90px 1fr: the 1fr track gets a definite width so overflow-x:auto scrolls on mobile too (flex min-width:0 fails on mobile Safari/Chrome) */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: 1, alignItems: 'flex-start', width: '100%', maxWidth: '100%' }}>
             {/* Y-axis: platform labels (sticky, NOT inside scroll area) */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', flexShrink: 0, width: 90 }}>
+            <Box sx={{ display: 'grid', gridTemplateRows: `repeat(${platforms.length}, 22px)`, gap: '2px', width: 90, overflow: 'hidden' }}>
               {platforms.map((p) => (
                 <Box
                   key={p}
@@ -403,8 +404,8 @@ export default function Dashboard() {
               ))}
             </Box>
 
-            {/* Scrollable heatmap grid: one column per video */}
-            <Box sx={{ overflowX: 'auto', pb: 1, flex: 1, minWidth: 0 }}>
+            {/* Scrollable heatmap grid: one column per video (1fr = definite width → scrolls on mobile) */}
+            <Box sx={{ overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', overscrollBehaviorX: 'contain', pb: 1, minWidth: 0, width: '100%', maxWidth: '100%' }}>
               <Box
                 onMouseMove={(e) => {
                   const t = e.target as HTMLElement
