@@ -127,6 +127,24 @@ export default function Dashboard() {
   const platformStats = getPlatformStats()
   const uploadTrend = getUploadTrend()
 
+  // Heatmap data: content gap analysis per video per platform
+  // Determine available years for filtering
+  const allYears = [...new Set(videos.map(v => new Date(v.created_at).getFullYear()))].sort((a, b) => b - a)
+  const [selectedYear, setSelectedYear] = useState<number | 'all'>('all')
+
+  // Custom hover tooltip state (fast, follows cursor)
+  const [tip, setTip] = useState<{ show: boolean; x: number; y: number; text: string }>({
+    show: false,
+    x: 0,
+    y: 0,
+    text: '',
+  })
+
+  // Filter videos by selected year
+  const filteredVideos = selectedYear === 'all' 
+    ? videos 
+    : videos.filter(v => new Date(v.created_at).getFullYear() === selectedYear)
+
   const handlePlatformClick = (platform: string) => {
     if (platform === 'total') {
       navigate('/videos')
@@ -323,6 +341,143 @@ export default function Dashboard() {
               </BarChart>
             </ResponsiveContainer>
           </Box>
+        </Card>
+      )}:
+
+      {/* Content Gap Heatmap */}
+
+      {filteredVideos.length > 0 && (
+        <Card sx={{ mb: 4, p: { xs: 2, md: 3 } }}>
+          <Typography variant="h5" gutterBottom sx={{ mb: 2 }}>
+            📉 Content Gap Analysis
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Heatmap menunjukkan status upload setiap video ke setiap platform. Hijau = sudah di-upload, Merah = belum di-upload.
+          </Typography>
+
+          {/* Year selector - only show if more than 1 year of data */}
+          {allYears.length > 1 && (
+            <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
+                Filter by year:
+              </Typography>
+              <Chip
+                label="All Years"
+                size="small"
+                color={selectedYear === 'all' ? 'primary' : 'default'}
+                onClick={() => setSelectedYear('all')}
+                variant={selectedYear === 'all' ? 'filled' : 'outlined'}
+              />
+              {allYears.map((year) => (
+                <Chip
+                  key={year}
+                  label={year.toString()}
+                  size="small"
+                  color={selectedYear === year ? 'primary' : 'default'}
+                  onClick={() => setSelectedYear(year)}
+                  variant={selectedYear === year ? 'filled' : 'outlined'}
+                />
+              ))}
+            </Box>
+          )}
+
+          {/* CSS-grid heatmap - proper cell alignment, scrollable for many videos */}
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', maxWidth: '100%' }}>
+            {/* Y-axis: platform labels (sticky, NOT inside scroll area) */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', flexShrink: 0, width: 90 }}>
+              {platforms.map((p) => (
+                <Box
+                  key={p}
+                  sx={{
+                    height: 22,
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: '#333',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {platformConfig[p].label}
+                </Box>
+              ))}
+            </Box>
+
+            {/* Scrollable heatmap grid: one column per video */}
+            <Box sx={{ overflowX: 'auto', pb: 1, flex: 1, minWidth: 0 }}>
+              <Box
+                onMouseMove={(e) => {
+                  const t = e.target as HTMLElement
+                  if (t.dataset && t.dataset.p) {
+                    setTip({
+                      show: true,
+                      x: e.clientX,
+                      y: e.clientY,
+                      text: `${t.dataset.title} — ${platformConfig[t.dataset.p as keyof typeof platformConfig]?.label}: ${t.dataset.uploaded === '1' ? 'Uploaded' : 'Gap'}`,
+                    })
+                  }
+                }}
+                onMouseLeave={() => setTip((s) => ({ ...s, show: false }))}
+                sx={{
+                  display: 'grid',
+                  gridTemplateRows: `repeat(${platforms.length}, 22px)`,
+                  gridAutoFlow: 'column',
+                  gridAutoColumns: '10px',
+                  gap: '2px',
+                  width: 'max-content',
+                }}
+              >
+                {filteredVideos.map((video) =>
+                  platforms.map((platform) => {
+                    const url = video[`${platform}_url` as keyof Video] as string | null
+                    const uploaded = !!url
+                    return (
+                      <Box
+                        key={`${video.id}-${platform}`}
+                        data-v={video.id}
+                        data-p={platform}
+                        data-title={video.title}
+                        data-uploaded={uploaded ? '1' : '0'}
+                        sx={{
+                          width: 10,
+                          height: 22,
+                          borderRadius: '2px',
+                          bgcolor: uploaded ? '#4CAF50' : '#F44336',
+                          cursor: 'pointer',
+                        }}
+                      />
+                    )
+                  })
+                )}
+              </Box>
+            </Box>
+          </Box>
+
+          {tip.show && (
+            <Box
+              sx={{
+                position: 'fixed',
+                left: tip.x,
+                top: tip.y + 14,
+                transform: 'translateX(-50%)',
+                bgcolor: 'rgba(0,0,0,0.85)',
+                color: '#fff',
+                fontSize: 11,
+                px: 1,
+                py: 0.5,
+                borderRadius: 1,
+                whiteSpace: 'nowrap',
+                pointerEvents: 'none',
+                zIndex: 9999,
+              }}
+            >
+              {tip.text}
+            </Box>
+          )}
+
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            {filteredVideos.length} video · kotak hijau = di-upload, merah = belum. Tarik ke kanan untuk lihat lebih.
+          </Typography>
         </Card>
       )}
 
