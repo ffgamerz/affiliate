@@ -940,6 +940,11 @@ export default function Videos() {
         await supabase.from('reuploads').select('*').eq('video_id', fid)
         setHasMore(false)
         setLoading(false)
+        // Auto-scroll to the focused video card once it's rendered
+        setTimeout(() => {
+          const el = document.getElementById(`video-card-${fid}`)
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }, 150)
       })()
       return
     }
@@ -2061,7 +2066,7 @@ export default function Videos() {
             const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
             const isFocused = focusedVideoId === video.id
             return (
-              <Card key={video.id} sx={{ border: isFocused ? '2px solid' : '1px solid', borderColor: isFocused ? 'warning.main' : '#f0f0f0', '&:hover': { transform: isFocused ? 'translateY(0)' : 'translateY(-2px)', boxShadow: isFocused ? '0 2px 8px rgba(0,0,0,0.15)' : '0 4px 12px rgba(0,0,0,0.1)' } }}>
+              <Card key={video.id} id={`video-card-${video.id}`} sx={{ border: isFocused ? '2px solid' : '1px solid', borderColor: isFocused ? 'warning.main' : '#f0f0f0', '&:hover': { transform: isFocused ? 'translateY(0)' : 'translateY(-2px)', boxShadow: isFocused ? '0 2px 8px rgba(0,0,0,0.15)' : '0 4px 12px rgba(0,0,0,0.1)' } }}>
                 <CardContent sx={{ py: 2, px: { xs: 2, md: 2.5 } }}>
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
                     {videoId ? (

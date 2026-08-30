@@ -603,7 +603,7 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </Box>
         </Card>
-      )}:
+      )}
 
       {/* Content Gap Heatmap */}
 
