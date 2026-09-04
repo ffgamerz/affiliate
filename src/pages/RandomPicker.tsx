@@ -166,6 +166,7 @@ export default function RandomPicker() {
   // Random picker state
   const [selectedRandomVideo, setSelectedRandomVideo] = useState<Video | null>(null)
   const [randomPickerPlatform, setRandomPickerPlatform] = useState<string>('')
+  const [randomPickerUploadStatus, setRandomPickerUploadStatus] = useState<'' | 'uploaded' | 'not_uploaded'>('')
   const [randomPickerDateFilter, setRandomPickerDateFilter] = useState<string>('')
   const [randomPickerMonth, setRandomPickerMonth] = useState<string>('')
   const [randomPickerYear, setRandomPickerYear] = useState<string>('')
@@ -368,14 +369,20 @@ export default function RandomPicker() {
   // Pick random video from filtered list (optionally filtered by platform and date)
   const pickRandomVideo = () => {
     let videosToPick = videos
-    
+
+    if (randomPickerUploadStatus && !randomPickerPlatform) {
+      setSnackbar({ open: true, message: 'Select a platform first when using upload status filter' })
+      return
+    }
+
     if (randomPickerPlatform) {
       videosToPick = videosToPick.filter(video => {
         const url = video[`${randomPickerPlatform}_url` as keyof Video] as string | null
+        if (randomPickerUploadStatus === 'not_uploaded') return !url || url.trim() === ''
         return !!url
       })
     }
-    
+
     if (randomPickerDateFilter === 'old') {
       videosToPick = videosToPick.filter(video => {
         const videoDate = new Date(video.created_at)
@@ -431,18 +438,35 @@ export default function RandomPicker() {
           select
           value={randomPickerPlatform}
           onChange={(e) => setRandomPickerPlatform(e.target.value)}
-          sx={{ minWidth: 120 }}
+          sx={{ minWidth: 120, ...(randomPickerUploadStatus && !randomPickerPlatform ? { '& .MuiOutlinedInput-notchedOutline': { borderColor: '#ed6c02' } } : {}) }}
           slotProps={{
-            select: { 
+            select: {
               native: true,
               displayEmpty: true,
-            } 
+            }
           }}
         >
           <option value="">All Platforms</option>
           {platforms.map((opt) => (
             <option key={opt.key} value={opt.key}>{opt.label}</option>
           ))}
+        </TextField>
+        <TextField
+          size="small"
+          select
+          value={randomPickerUploadStatus}
+          onChange={(e) => setRandomPickerUploadStatus(e.target.value as '' | 'uploaded' | 'not_uploaded')}
+          sx={{ minWidth: 150 }}
+          slotProps={{
+            select: {
+              native: true,
+              displayEmpty: true,
+            }
+          }}
+        >
+          <option value="">All Status</option>
+          <option value="uploaded">Uploaded</option>
+          <option value="not_uploaded">Not Uploaded</option>
         </TextField>
         <TextField
           size="small"
