@@ -27,6 +27,7 @@ import {
   resolveTier,
   maxTierTarget,
   periodLabel,
+  repeatLabel,
   todayStr,
   computeTierProgresses,
 } from '../lib/campaigns'
@@ -1805,7 +1806,7 @@ export default function Videos() {
         <DialogContent>
           {historyCampaign && (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-              {historyCampaign.platform.charAt(0).toUpperCase() + historyCampaign.platform.slice(1)} · Repeat {historyCampaign.repeat_interval} · {formatDateLabel(historyCampaign.start_date)} – {formatDateLabel(historyCampaign.end_date)}
+              {historyCampaign.platform.charAt(0).toUpperCase() + historyCampaign.platform.slice(1)} · {repeatLabel(historyCampaign.repeat_interval)} · {formatDateLabel(historyCampaign.start_date)} – {formatDateLabel(historyCampaign.end_date)}
             </Typography>
           )}
           {historyLoading ? (
@@ -1864,7 +1865,7 @@ export default function Videos() {
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>{c.name}</Typography>
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                        {formatDateLabel(c.start_date)} - {formatDateLabel(c.end_date)} · Repeat {c.repeat_interval}
+                        {formatDateLabel(c.start_date)} - {formatDateLabel(c.end_date)} · {repeatLabel(c.repeat_interval)}
                       </Typography>
                     </Box>
                     <Box sx={{ textAlign: 'right' }}>

@@ -35,6 +35,7 @@ import {
     createCampaign,
     updateCampaign,
     deleteCampaign,
+    repeatLabel,
 } from '../lib/campaigns'
 import type { CampaignWithTiers, CampaignDraft, RepeatInterval } from '../lib/campaigns'
 
@@ -200,7 +201,7 @@ export default function Campaigns() {
                                             <Chip size="small" label={c.platform} sx={{ height: 20, fontSize: 11, bgcolor: '#e3f2fd', color: '#1565c0', fontWeight: 600 }} />
                                         </Box>
                                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                                            {c.repeat_interval.charAt(0).toUpperCase() + c.repeat_interval.slice(1)} · {formatDate(c.start_date)} – {formatDate(c.end_date)}
+                                            {repeatLabel(c.repeat_interval)} · {formatDate(c.start_date)} – {formatDate(c.end_date)}
                                         </Typography>
                                         {c.tiers.length > 0 ? (
                                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 1 }}>
@@ -273,6 +274,7 @@ export default function Campaigns() {
                                 sx={{ minWidth: 180, flex: 1 }}
                                 size="small"
                             >
+                                <MenuItem value="none">No Repeat</MenuItem>
                                 <MenuItem value="daily">Daily</MenuItem>
                                 <MenuItem value="weekly">Weekly</MenuItem>
                                 <MenuItem value="monthly">Monthly</MenuItem>

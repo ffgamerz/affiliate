@@ -1,12 +1,16 @@
 -- Migration: Campaign Day tables (campaigns + campaign_tiers)
 -- Run this in Supabase SQL editor
 
+-- NOTE: repeat_interval CHECK constraint was REMOVED (2026-09-04) to allow 'none' (No Repeat).
+-- If you created the table with the old constraint, run:
+--   ALTER TABLE campaigns DROP CONSTRAINT IF EXISTS campaigns_repeat_interval_check;
+
 -- Campaigns table - defines a campaign with repeat cadence and date range
 CREATE TABLE IF NOT EXISTS campaigns (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   platform TEXT NOT NULL,
-  repeat_interval TEXT NOT NULL CHECK (repeat_interval IN ('daily', 'weekly', 'monthly')),
+  repeat_interval TEXT NOT NULL,
   start_date DATE NOT NULL,
   end_date DATE,
   track_history BOOLEAN NOT NULL DEFAULT false,

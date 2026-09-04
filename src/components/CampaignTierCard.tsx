@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Box, Button, Card, CardContent, Typography } from '@mui/material'
 import { CalendarMonth as CalendarMonthIcon, History as HistoryIcon, Schedule as ScheduleIcon } from '@mui/icons-material'
 import type { CampaignPeriod, CampaignTier, CampaignWithTiers, TierProgress } from '../lib/campaigns'
-import { periodLabel, todayStr } from '../lib/campaigns'
+import { periodLabel, repeatLabel, todayStr } from '../lib/campaigns'
 
 export interface CampaignCardItem {
   campaign: CampaignWithTiers
@@ -83,7 +83,7 @@ export function CampaignTierCard({
       ? { label: 'On Track', color: '#2e7d32', bg: '#e8f5e9' }
       : { label: 'Behind', color: '#e65100', bg: '#fff3e0' }
 
-  const freqLetter = campaign.repeat_interval === 'weekly' ? 'W' : campaign.repeat_interval === 'monthly' ? 'M' : 'D'
+  const freqLetter = campaign.repeat_interval === 'weekly' ? 'W' : campaign.repeat_interval === 'monthly' ? 'M' : campaign.repeat_interval === 'daily' ? 'D' : 'N'
 
   return (
     <Card sx={{
@@ -104,7 +104,7 @@ export function CampaignTierCard({
             <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {period ? periodLabel(campaign.repeat_interval, period.periodNumber) : 'Not started'}
               <Typography component="span" sx={{ color: '#999', fontWeight: 400 }}> | </Typography>
-              Repeat {campaign.repeat_interval}
+              {repeatLabel(campaign.repeat_interval)}
             </Box>
           </Box>
           <Box sx={{

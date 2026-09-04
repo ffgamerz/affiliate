@@ -2,7 +2,7 @@ import { supabase } from './supabase'
 
 // ============ Types ============
 
-export type RepeatInterval = 'daily' | 'weekly' | 'monthly'
+export type RepeatInterval = 'none' | 'daily' | 'weekly' | 'monthly'
 
 export interface Campaign {
     id: string
@@ -112,6 +112,11 @@ const compare = (a: string, b: string): number => a.localeCompare(b) // YYYY-MM-
  */
 export function computePeriods(campaign: Pick<Campaign, 'start_date' | 'end_date' | 'repeat_interval'>, asOfDate?: string): CampaignPeriod[] {
     const asOf = asOfDate || todayStr()
+    // No repeat: one single period spanning start_date → end_date (or today if continuous).
+    if (campaign.repeat_interval === 'none') {
+        const endStr = campaign.end_date && compare(campaign.end_date, asOf) < 0 ? campaign.end_date : asOf
+        return [{ periodNumber: 1, start: campaign.start_date, end: endStr }]
+    }
     // Generation cap: don't create future periods. Ended campaigns cap at end_date; continuous/ongoing cap at asOf.
     const genCap = campaign.end_date && compare(campaign.end_date, asOf) < 0 ? campaign.end_date : asOf
     const periods: CampaignPeriod[] = []
@@ -150,10 +155,16 @@ export function computeCurrentPeriod(campaign: Pick<Campaign, 'start_date' | 'en
     return periods.find((p) => compare(p.start, t) <= 0 && compare(p.end, t) >= 0) || null
 }
 
-/** Human label for a period, e.g. "Week 3", "Day 12", "Month 2". */
+/** Human label for a period, e.g. "Week 3", "Day 12", "Month 2". No-repeat campaigns: "Period 1". */
 export function periodLabel(repeat: RepeatInterval, periodNumber: number): string {
-    const prefix = repeat === 'weekly' ? 'Week' : repeat === 'monthly' ? 'Month' : 'Day'
+    const prefix = repeat === 'weekly' ? 'Week' : repeat === 'monthly' ? 'Month' : repeat === 'daily' ? 'Day' : 'Period'
     return `${prefix} ${periodNumber}`
+}
+
+/** Human label for a repeat interval, e.g. "Weekly", "No repeat". */
+export function repeatLabel(repeat: RepeatInterval): string {
+    if (repeat === 'none') return 'No repeat'
+    return repeat.charAt(0).toUpperCase() + repeat.slice(1)
 }
 
 // ============ Upload counting ============

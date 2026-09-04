@@ -72,7 +72,7 @@ export default function Dashboard() {
     const fetchData = async () => {
       const { data: videosData } = await supabase
         .from('videos')
-        .select('id, title, created_at, youtube_url, tiktok_url, facebook_url, instagram_url, shopee_url, threads_url, youtube_upload_date, tiktok_upload_date, facebook_upload_date, instagram_upload_date, shopee_upload_date, threads_upload_date')
+        .select('id, title, description, created_at, youtube_url, tiktok_url, facebook_url, instagram_url, shopee_url, threads_url, youtube_upload_date, tiktok_upload_date, facebook_upload_date, instagram_upload_date, shopee_upload_date, threads_upload_date')
         .order('created_at', { ascending: false })
 
       setVideos(videosData || [])
