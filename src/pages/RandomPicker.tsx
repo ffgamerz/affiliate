@@ -24,6 +24,7 @@ import {
   TableRow,
   Paper,
   Divider,
+  MenuItem,
   useTheme,
   useMediaQuery,
 } from '@mui/material'
@@ -71,6 +72,7 @@ interface Video {
   tiktok_upload_date: string | null
   tiktok_product_url: string | null
   shopee_product_url: string | null
+  video_type: string | null
 }
 
 const platforms = [
@@ -190,6 +192,7 @@ export default function RandomPicker() {
   const [tiktokUrl, setTiktokUrl] = useState('')
   const [tiktokUploadDate, setTiktokUploadDate] = useState('')
   const [tiktokProductUrl, setTiktokProductUrl] = useState('')
+  const [videoType, setVideoType] = useState('voice')
 
   // Snackbar state
   const [snackbar, setSnackbar] = useState({ open: false, message: '' })
@@ -236,6 +239,7 @@ export default function RandomPicker() {
       tiktok_url: tiktokUrl || null,
       tiktok_upload_date: tiktokUploadDate || null,
       tiktok_product_url: tiktokProductUrl || null,
+      video_type: videoType,
     }
 
     if (createdAt) {
@@ -280,6 +284,7 @@ export default function RandomPicker() {
     setTiktokUrl('')
     setTiktokUploadDate('')
     setTiktokProductUrl('')
+    setVideoType('voice')
   }
 
   const openEditDialog = (video: Video) => {
@@ -301,6 +306,7 @@ export default function RandomPicker() {
     setTiktokUrl(video.tiktok_url || '')
     setTiktokUploadDate(video.tiktok_upload_date || '')
     setTiktokProductUrl(video.tiktok_product_url || '')
+    setVideoType(video.video_type || 'voice')
     setOpen(true)
   }
 
@@ -598,6 +604,9 @@ export default function RandomPicker() {
                   >
                     {selectedRandomVideo.title}
                   </Typography>
+                  {selectedRandomVideo.video_type && (
+                    <Chip size="small" label={selectedRandomVideo.video_type === 'no_voice' ? 'No Voice' : 'Voice'} color="primary" sx={{ flexShrink: 0, fontSize: 11, height: 20, ...(selectedRandomVideo.video_type === 'no_voice' && { bgcolor: '#9c27b0', color: 'white' }) }} />
+                  )}
                   {selectedRandomVideo.description && (
                     <IconButton
                       size="small"
@@ -758,6 +767,18 @@ export default function RandomPicker() {
             required
             size={isMobile ? 'small' : 'medium'}
           />
+          <TextField
+            select
+            label="Video Type"
+            value={videoType}
+            onChange={(e) => setVideoType(e.target.value)}
+            fullWidth
+            margin="normal"
+            size={isMobile ? 'small' : 'medium'}
+          >
+            <MenuItem value="voice">Voice</MenuItem>
+            <MenuItem value="no_voice">No Voice</MenuItem>
+          </TextField>
           <TextField
             label="Description"
             value={description}

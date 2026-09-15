@@ -45,6 +45,7 @@ interface Video {
   threads_url: string | null; threads_upload_date: string | null
   tiktok_url: string | null; tiktok_upload_date: string | null
   tiktok_product_url: string | null; shopee_product_url: string | null
+  video_type: string | null
 }
 
 interface Reupload {
@@ -485,6 +486,7 @@ export default function Videos() {
     localStorage.setItem('videos_hide_stats', String(hideStats))
   }, [hideStats])
   const [title, setTitle] = useState(''); const [description, setDescription] = useState(''); const [srt, setSrt] = useState('')
+  const [videoType, setVideoType] = useState('voice')
   const [descriptionFocused, setDescriptionFocused] = useState(false); const [createdAt, setCreatedAt] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState(''); const [youtubeUploadDate, setYoutubeUploadDate] = useState<string | null>(null)
   const [facebookUrl, setFacebookUrl] = useState(''); const [facebookUploadDate, setFacebookUploadDate] = useState<string | null>(null)
@@ -1326,14 +1328,14 @@ export default function Videos() {
 
   const handleAddVideo = async () => {
     if (!title) return
-    const { error } = await supabase.from('videos').insert({ title, description, srt: srt || null, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null })
+    const { error } = await supabase.from('videos').insert({ title, description, srt: srt || null, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null, video_type: videoType })
     if (!error) { setOpen(false); resetForm(); fetchData(0, true) }
   }
 
   const handleUpdateVideo = async () => {
     if (!editingVideo) return
     setUpdatingVideo(true)
-    const u: any = { title, description, srt: srt || null, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null }
+    const u: any = { title, description, srt: srt || null, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null, video_type: videoType }
     if (createdAt) u.created_at = new Date(createdAt).toISOString()
     const { error } = await supabase.from('videos').update(u).eq('id', editingVideo.id)
     setUpdatingVideo(false)
@@ -1360,7 +1362,7 @@ export default function Videos() {
 
   const handleDeleteVideo = async (id: string) => { if (confirm('Are you sure you want to delete this video?')) { await supabase.from('videos').delete().eq('id', id); fetchData(0, true) } }
 
-  const resetForm = () => { setTitle(''); setDescription(''); setSrt(''); setCreatedAt(''); setYoutubeUrl(''); setYoutubeUploadDate(null); setFacebookUrl(''); setFacebookUploadDate(null); setInstagramUrl(''); setInstagramUploadDate(null); setShopeeUrl(''); setShopeeUploadDate(null); setShopeeProductUrl(''); setThreadsUrl(''); setThreadsUploadDate(null); setTiktokUrl(''); setTiktokUploadDate(null); setTiktokProductUrl(''); setAiGenerating(false) }
+  const resetForm = () => { setTitle(''); setDescription(''); setSrt(''); setCreatedAt(''); setYoutubeUrl(''); setYoutubeUploadDate(null); setFacebookUrl(''); setFacebookUploadDate(null); setInstagramUrl(''); setInstagramUploadDate(null); setShopeeUrl(''); setShopeeUploadDate(null); setShopeeProductUrl(''); setThreadsUrl(''); setThreadsUploadDate(null); setTiktokUrl(''); setTiktokUploadDate(null); setTiktokProductUrl(''); setVideoType('voice'); setAiGenerating(false) }
 
   const handleGenerateDescription = async () => {
     if (!editingVideo) return
@@ -1398,7 +1400,7 @@ export default function Videos() {
   }
 
   const openEditDialog = (video: Video) => {
-    setEditingVideo(video); setTitle(video.title); setDescription(video.description || ''); setSrt(video.srt || ''); setDescriptionFocused(false)
+    setEditingVideo(video); setTitle(video.title); setDescription(video.description || ''); setSrt(video.srt || ''); setVideoType(video.video_type || 'voice'); setDescriptionFocused(false)
     setCreatedAt(video.created_at ? video.created_at.split('T')[0] : '')
     setYoutubeUrl(video.youtube_url || ''); setYoutubeUploadDate(video.youtube_upload_date || null)
     setFacebookUrl(video.facebook_url || ''); setFacebookUploadDate(video.facebook_upload_date || null)
@@ -2113,6 +2115,7 @@ export default function Videos() {
                     <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mb: 0.5 }}>
                         <Typography variant="h6" sx={{ fontWeight: 600, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', flex: 1 }}>{video.title}</Typography>
+                        {video.video_type && (<Chip size="small" label={video.video_type === 'no_voice' ? 'No Voice' : 'Voice'} color="primary" sx={{ flexShrink: 0, fontSize: 11, height: 20, ...(video.video_type === 'no_voice' && { bgcolor: '#9c27b0', color: 'white' }) }} />)}
                         {video.description && (<IconButton size="small" onClick={() => { setSelectedDescription(video.description || ''); setSelectedDescriptionVideo(video); setDescriptionOpen(true) }} sx={{ p: 0.5 }} title="View description"><Info fontSize="small" /></IconButton>)}
                         <IconButton
                           size="small"
@@ -2179,6 +2182,18 @@ export default function Videos() {
           {isMobile && <IconButton onClick={() => setOpen(false)} size="small"><CloseIcon /></IconButton>}</Box></DialogTitle>
         <DialogContent sx={{ pb: 1 }}>
           <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} fullWidth margin="normal" required size={isMobile ? 'small' : 'medium'} />
+          <TextField
+            select
+            label="Video Type"
+            value={videoType}
+            onChange={(e) => setVideoType(e.target.value)}
+            fullWidth
+            margin="normal"
+            size={isMobile ? 'small' : 'medium'}
+          >
+            <MenuItem value="voice">Voice</MenuItem>
+            <MenuItem value="no_voice">No Voice</MenuItem>
+          </TextField>
           <Typography variant="subtitle1" sx={{ mt: 1, mb: 0.5, fontWeight: 600 }}>SRT / Subtitle</Typography>
           <TextField label="SRT Content" value={srt} onChange={(e) => setSrt(e.target.value)} fullWidth margin="normal" multiline minRows={4} maxRows={10} size={isMobile ? 'small' : 'medium'} placeholder="Paste SRT/subtitle content here...
 Example:

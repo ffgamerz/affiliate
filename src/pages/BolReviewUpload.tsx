@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import {
   Box, Typography, Card, CardContent, Button, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, IconButton, Chip, Snackbar, Alert, CircularProgress,
-  useTheme, useMediaQuery,
+  useTheme, useMediaQuery, MenuItem,
 } from '@mui/material'
 import {
   Edit, Delete, Facebook, Info,
@@ -34,6 +34,7 @@ interface Video {
   created_at: string;
   youtube_url: string | null;
   shopee_product_url: string | null;
+  video_type: string | null;
   bolreview_uploads: BolReviewRecord[];
 }
 
@@ -45,6 +46,7 @@ interface VideoRaw {
   created_at: string;
   youtube_url: string | null;
   shopee_product_url: string | null;
+  video_type: string | null;
   bolreview_uploads: {
     id: string;
     created_at: string;
@@ -87,6 +89,7 @@ const transformVideoData = (raw: VideoRaw): Video => {
     created_at: raw.created_at,
     youtube_url: raw.youtube_url,
     shopee_product_url: raw.shopee_product_url,
+    video_type: raw.video_type,
     bolreview_uploads: uploads,
   }
 }
@@ -226,6 +229,7 @@ export default function BolReviewUpload() {
   const [srt, setSrt] = useState('')
   const [createdAt, setCreatedAt] = useState('')
   const [shopeeProductUrl, setShopeeProductUrl] = useState('')
+  const [videoType, setVideoType] = useState('voice')
   const [aiGenerating, setAiGenerating] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -265,7 +269,7 @@ export default function BolReviewUpload() {
         setLoading(false)
         return
       }
-      const selectQuery = 'id, title, description, srt, created_at, youtube_url, shopee_product_url, bolreview_uploads!left(id, created_at, upload_date, facebook_url)'
+      const selectQuery = 'id, title, description, srt, created_at, youtube_url, shopee_product_url, video_type, bolreview_uploads!left(id, created_at, upload_date, facebook_url)'
       const { data: vData } = await supabase.from('videos')
         .select(selectQuery, { count: 'exact' })
         .eq('id', focusedVideoId)
@@ -287,7 +291,7 @@ export default function BolReviewUpload() {
         setLoading(false)
         return
       }
-      const selectQuery = 'id, title, description, srt, created_at, youtube_url, shopee_product_url, bolreview_uploads!left(id, created_at, upload_date, facebook_url)'
+      const selectQuery = 'id, title, description, srt, created_at, youtube_url, shopee_product_url, video_type, bolreview_uploads!left(id, created_at, upload_date, facebook_url)'
       const { data: vData } = await supabase.from('videos')
         .select(selectQuery, { count: 'exact' })
         .in('id', bookmarkedIdArray)
@@ -304,7 +308,7 @@ export default function BolReviewUpload() {
     // Build select query - use !inner when filtering by upload date to only return matching videos
     // Use !left otherwise to get all videos with their upload records
     const joinType = uploadDateFilter ? 'inner' : 'left'
-    const selectQuery = `id, title, description, srt, created_at, youtube_url, shopee_product_url, bolreview_uploads!${joinType}(id, created_at, upload_date, facebook_url)`
+    const selectQuery = `id, title, description, srt, created_at, youtube_url, shopee_product_url, video_type, bolreview_uploads!${joinType}(id, created_at, upload_date, facebook_url)`
 
     let q = supabase.from('videos')
       .select(selectQuery, { count: 'exact' })
@@ -469,6 +473,7 @@ export default function BolReviewUpload() {
     setSrt(video.srt || '')
     setCreatedAt(video.created_at ? video.created_at.split('T')[0] : '')
     setShopeeProductUrl(video.shopee_product_url || '')
+    setVideoType(video.video_type || 'voice')
     setOpen(true)
   }
 
@@ -486,7 +491,8 @@ export default function BolReviewUpload() {
       description,
       srt: srt || null,
       created_at: createdAt ? new Date(createdAt).toISOString() : null,
-      shopee_product_url: shopeeProductUrl || null
+      shopee_product_url: shopeeProductUrl || null,
+      video_type: videoType
     }).eq('id', editingVideo.id)
 
     if (!error) {
@@ -761,6 +767,7 @@ export default function BolReviewUpload() {
                         <Typography variant="h6" sx={{ fontWeight: 600, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', flex: 1 }}>
                           {video.title}
                         </Typography>
+                        {video.video_type && (<Chip size="small" label={video.video_type === 'no_voice' ? 'No Voice' : 'Voice'} color="primary" sx={{ flexShrink: 0, fontSize: 11, height: 20, ...(video.video_type === 'no_voice' && { bgcolor: '#9c27b0', color: 'white' }) }} />)}
                         {video.description && (
                           <IconButton size="small" onClick={() => openDescription(video)} sx={{ p: 0.5 }} title="View description">
                             <Info fontSize="small" />
@@ -970,6 +977,18 @@ export default function BolReviewUpload() {
             required
             size={isMobile ? 'small' : 'medium'}
           />
+          <TextField
+            select
+            label="Video Type"
+            value={videoType}
+            onChange={(e) => setVideoType(e.target.value)}
+            fullWidth
+            margin="normal"
+            size={isMobile ? 'small' : 'medium'}
+          >
+            <MenuItem value="voice">Voice</MenuItem>
+            <MenuItem value="no_voice">No Voice</MenuItem>
+          </TextField>
           <TextField
             label="SRT Content"
             value={srt}

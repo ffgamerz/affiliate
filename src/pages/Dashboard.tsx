@@ -42,6 +42,7 @@ interface Video {
   instagram_upload_date: string | null
   shopee_upload_date: string | null
   threads_upload_date: string | null
+  video_type: string | null
 }
 
 const platforms = ['youtube', 'tiktok', 'facebook', 'instagram', 'threads', 'shopee']
@@ -72,7 +73,7 @@ export default function Dashboard() {
     const fetchData = async () => {
       const { data: videosData } = await supabase
         .from('videos')
-        .select('id, title, description, created_at, youtube_url, tiktok_url, facebook_url, instagram_url, shopee_url, threads_url, youtube_upload_date, tiktok_upload_date, facebook_upload_date, instagram_upload_date, shopee_upload_date, threads_upload_date')
+        .select('id, title, description, created_at, youtube_url, tiktok_url, facebook_url, instagram_url, shopee_url, threads_url, youtube_upload_date, tiktok_upload_date, facebook_upload_date, instagram_upload_date, shopee_upload_date, threads_upload_date, video_type')
         .order('created_at', { ascending: false })
 
       setVideos(videosData || [])
@@ -535,6 +536,7 @@ export default function Dashboard() {
                 <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main', cursor: 'pointer' }} onClick={() => focusVideo(v.id)}>
                   {v.title}
                 </Typography>
+                {v.video_type && (<Chip size="small" label={v.video_type === 'no_voice' ? 'No Voice' : 'Voice'} color="primary" sx={{ flexShrink: 0, fontSize: 11, height: 20, ...(v.video_type === 'no_voice' && { bgcolor: '#9c27b0', color: 'white' }) }} />)}
                 <Typography variant="body2" color="text.secondary">
                   — {platformConfig[selectedCell.platform].label}: {uploaded ? `Uploaded${v[`${selectedCell.platform}_upload_date` as keyof Video] ? ` (${new Date(v[`${selectedCell.platform}_upload_date` as keyof Video] as string).toLocaleDateString('ms-MY')})` : ''}` : 'Gap'}
                 </Typography>
