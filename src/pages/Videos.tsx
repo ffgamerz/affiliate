@@ -423,25 +423,6 @@ export default function Videos() {
   const [yesterdayStats, setYesterdayStats] = useState({ videoCount: 0, reuploadCount: 0, platformBreakdown: dflt() })
   const [range3to9Stats, setRange3to9Stats] = useState({ videoCount: 0, reuploadCount: 0, platformBreakdown: dflt() })
   const [reuploadDialogOpen, setReuploadDialogOpen] = useState(false); const [reuploadPlatform, setReuploadPlatform] = useState('')
-
-  // Original Creator stats
-  const [creatorStats, setCreatorStats] = useState({
-    weekNumber: 0,
-    shopeeCount: 0,
-    target: 20,
-    weekStart: '',
-    weekEnd: '',
-    platformBreakdown: dflt()
-  })
-  const [weeklyHistory, setWeeklyHistory] = useState<Array<{
-    weekNumber: number;
-    shopeeCount: number;
-    dates: string[];
-    platformBreakdown: { key: string; original: number; reupload: number }[]
-  }>>([])
-  const [weeklyHistoryOpen, setWeeklyHistoryOpen] = useState(false)
-  const [shopeeWeekFilter, setShopeeWeekFilter] = useState(false) // Filter for shopee videos in current week
-  const [shopeeWeekDateRange, setShopeeWeekDateRange] = useState<string[] | null>(null) // Specific week date range for filtering
   const [reuploadUrl, setReuploadUrl] = useState(''); const [reuploadUploadDate, setReuploadUploadDate] = useState('')
   const [reuploadNotes, setReuploadNotes] = useState(''); const searchInputRef = useRef<HTMLInputElement>(null)
   const processedLocationStateRef = useRef<string | null>(null)
@@ -564,62 +545,6 @@ export default function Videos() {
   const todayDate = useMemo(() => getTodayDate(), [])
   const yesterdayDate = useMemo(() => getDateDaysAgo(1), [])
   const dates3to9 = useMemo(() => Array.from({ length: 7 }, (_, i) => getDateDaysAgo(i + 3)), [])
-
-  // Helper: Get current week range (Wednesday-Tuesday) in MY timezone
-  const getCurrentWeekRange = () => {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Kuala_Lumpur',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    })
-    const now = new Date()
-    const myDateStr = formatter.format(now)
-    const myDate = new Date(myDateStr)
-
-    // Get Wednesday of current week (0 = Sunday, 3 = Wednesday)
-    const dayOfWeek = myDate.getDay()
-    const wednesday = new Date(myDate)
-    // Calculate days to go back to get to Wednesday
-    // If day is Wed(3), go back 0; Thu(4), go back 1; ... Sun(0), go back 4; Mon(1), go back 5; Tue(2), go back 6
-    const daysToWednesday = (dayOfWeek + 4) % 7
-    wednesday.setDate(myDate.getDate() - daysToWednesday)
-
-    const tuesday = new Date(wednesday)
-    tuesday.setDate(wednesday.getDate() + 6)
-
-    // Generate all 7 dates in the week (Wed to Tue)
-    const weekDates: string[] = []
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(wednesday)
-      d.setDate(wednesday.getDate() + i)
-      weekDates.push(formatter.format(d))
-    }
-
-    return { monday: wednesday, sunday: tuesday, weekDates }
-  }
-
-  // Helper: Get ISO week number
-  const getISOWeekNumber = (date: Date): number => {
-    const d = new Date(date)
-    d.setDate(d.getDate() + 4 - (d.getDay() || 7))
-    const yearStart = new Date(d.getFullYear(), 0, 1)
-    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-  }
-
-  // Helper: Format date range for display
-  const formatWeekRange = (monday: Date, sunday: Date): { start: string, end: string } => {
-    const formatter = new Intl.DateTimeFormat('en-GB', {
-      timeZone: 'Asia/Kuala_Lumpur',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    })
-    return {
-      start: formatter.format(monday),
-      end: formatter.format(sunday)
-    }
-  }
 
   // Auto-set/clear upload dates when URL changes - using useEffect for Safari compatibility
   useEffect(() => {
@@ -1170,23 +1095,6 @@ export default function Videos() {
       setVideos(vData)
       setHasMore(false)
 
-      // ELSEIF - shopee week filter (dengan pagination)
-    } else if (shopeeWeekFilter || shopeeWeekDateRange) {
-      const range = shopeeWeekDateRange || getCurrentWeekRange().weekDates
-      const { data: videoData } = await supabase.from('videos').select('*', { count: 'exact' })
-        .gte('shopee_upload_date', range[0])
-        .lte('shopee_upload_date', range[6])
-        .order('created_at', { ascending: sortOrder === 'asc' }).order('id', { ascending: sortOrder === 'asc' })
-        .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
-      vData = (videoData as Video[]) || []
-
-      if (reset || page === 0) {
-        setVideos(vData)
-      } else {
-        setVideos(prev => [...prev, ...vData])
-      }
-      setHasMore(vData.length === ITEMS_PER_PAGE)
-
       // ELSE - default load video page, tanpa filter
     } else {
       const vR = await supabase.from('videos').select('*', { count: 'exact' })
@@ -1208,13 +1116,13 @@ export default function Videos() {
     // For ELSE branch: reuploads already in join via buildFilteredQuery
     // For default ELSE branch: reuploads fetched inline above
     // Only fetch fallback if actually needed for other branches
-    if (rData.length === 0 && !showBookmarkedOnly && !filterEmptyPlatform && !shopeeWeekFilter && !shopeeWeekDateRange && !uploadDateFilter && !(focusedVideoId && filterFocusActive)) {
+    if (rData.length === 0 && !showBookmarkedOnly && !filterEmptyPlatform && !uploadDateFilter && !(focusedVideoId && filterFocusActive)) {
       const rR = await supabase.from('reuploads').select('*')
       rData = (rR.data as Reupload[]) || []
     }
     setReuploads(rData)
     setLoading(false); setLoadingMore(false); fetchStats()
-  }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, shopeeWeekFilter, shopeeWeekDateRange, activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, pendingUploadFilter, showBookmarkedOnly, focusedVideoId, filterFocusActive])
+  }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, pendingUploadFilter, showBookmarkedOnly, focusedVideoId, filterFocusActive])
 
   // Fetch bookmarks (for bookmark icons display)
   const fetchBookmarks = useCallback(async () => {
@@ -1244,85 +1152,7 @@ export default function Videos() {
     hasLocationState.current = true
     setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSearchQuery, dateFilter, customUploadDateFilter, platformFilter, pendingUploadFilter, uploadDateFilter, showBookmarkedOnly, shopeeWeekFilter, shopeeWeekDateRange, filterFocusActive, sortOrder, authLoading, filterEmptyPlatform])
-
-  // Fetch creator stats - single query for ALL weeks, filter client-side
-  const fetchCreatorStats = useCallback(async () => {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Kuala_Lumpur',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    })
-
-    const { monday, sunday, weekDates } = getCurrentWeekRange()
-    const weekNumber = getISOWeekNumber(monday)
-    const { start, end } = formatWeekRange(monday, sunday)
-
-    // Fetch ALL upload_date columns in 1 query (no date filter - get everything once)
-    // This replaces 6 queries (5 history weeks + 1 current week)
-    const allDateFields = platforms.map(p => `${p.key}_upload_date`).join(', ')
-    const { data: allData } = await supabase.from('videos').select(allDateFields)
-    const allRows = (allData || []) as any[]
-
-    // Helper: count per week
-    const countPerWeek = (rows: any[], ws: string, we: string) => {
-      const breakdown = platforms.map(p => ({ key: p.key, original: 0, reupload: 0 }))
-      let shopeeCnt = 0
-      for (const v of rows) {
-        for (const p of platforms) {
-          const ud = v[`${p.key}_upload_date`]
-          if (ud && ud >= ws && ud <= we) {
-            const entry = breakdown.find(x => x.key === p.key)
-            if (entry) entry.original++
-            if (p.key === 'shopee') shopeeCnt++
-          }
-        }
-      }
-      return { shopeeCnt, breakdown }
-    }
-
-    // Current week
-    const curr = countPerWeek(allRows, weekDates[0], weekDates[6])
-    setCreatorStats({
-      weekNumber,
-      shopeeCount: curr.shopeeCnt,
-      target: 20,
-      weekStart: start,
-      weekEnd: end,
-      platformBreakdown: curr.breakdown
-    })
-
-    // Last 5 weeks - all from the same 1 query, just different date ranges
-    const history = []
-    for (let i = 1; i <= 5; i++) {
-      const pastMonday = new Date(monday)
-      pastMonday.setDate(monday.getDate() - (i * 7))
-      const pastWeekNumber = getISOWeekNumber(pastMonday)
-
-      const pastWeekDates: string[] = []
-      for (let j = 0; j < 7; j++) {
-        const d = new Date(pastMonday)
-        d.setDate(pastMonday.getDate() + j)
-        pastWeekDates.push(formatter.format(d))
-      }
-
-      const past = countPerWeek(allRows, pastWeekDates[0], pastWeekDates[6])
-      history.push({
-        weekNumber: pastWeekNumber,
-        shopeeCount: past.shopeeCnt,
-        dates: pastWeekDates,
-        platformBreakdown: past.breakdown
-      })
-    }
-    setWeeklyHistory(history)
-  }, [])
-
-  // Fetch creator stats on mount
-  useEffect(() => {
-    fetchCreatorStats()
-  }, [fetchCreatorStats])
-
+  }, [activeSearchQuery, dateFilter, customUploadDateFilter, platformFilter, pendingUploadFilter, uploadDateFilter, showBookmarkedOnly, filterFocusActive, sortOrder, authLoading, filterEmptyPlatform])
 
   const handleLoadMore = () => { const np = currentPage + 1; setCurrentPage(np); fetchData(np, false) }
 
@@ -1506,231 +1336,7 @@ export default function Videos() {
   }
 
 
-  // Original Creator Card Component
-  const OriginalCreatorCard = () => {
-    const progressPercent = Math.min((creatorStats.shopeeCount / creatorStats.target) * 100, 100)
-    const isReached = creatorStats.shopeeCount >= creatorStats.target
 
-    const getProgressColor = () => {
-      if (creatorStats.shopeeCount >= creatorStats.target) return '#4caf50'
-      if (creatorStats.shopeeCount >= 15) return '#66bb6a'
-      if (creatorStats.shopeeCount >= 10) return '#ff9800'
-      return '#ef5350'
-    }
-
-    const getStatusText = () => {
-      if (isReached) return { text: 'Target Reached', color: 'success' }
-      const remaining = creatorStats.target - creatorStats.shopeeCount
-      return { text: `${remaining} more needed`, color: 'warning' }
-    }
-
-    const status = getStatusText()
-
-    return (
-      <Card
-        sx={{
-          bgcolor: 'background.paper',
-          cursor: 'pointer',
-          transition: 'all 0.2s ease',
-          border: (shopeeWeekFilter || shopeeWeekDateRange !== null) ? '1px solid' : '1px solid #f0f0f0',
-          borderColor: (shopeeWeekFilter || shopeeWeekDateRange !== null) ? 'primary.main' : '#f0f0f0',
-          '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }
-        }}
-        onClick={() => {
-          // Toggle filter - if already active, clear it
-          if (shopeeWeekFilter) {
-            setShopeeWeekFilter(false)
-            setShopeeWeekDateRange(null)
-            // Don't need to fetch again - just reset filter, data is already loaded
-          } else {
-            // Filter to show shopee videos in current week
-            // Don't set platformFilter - we want to show videos with shopee_upload_date even if shopee_url is empty
-            setUploadDateFilter('')
-            setCustomUploadDateFilter('')
-            setSearchQuery('')
-            setActiveSearchQuery('')
-            setDateFilter('')
-            setFilterEmptyPlatform(null)
-            setPendingUploadFilter([])
-            setShopeeWeekFilter(true)
-            setShopeeWeekDateRange(null)
-          }
-        }}
-      >
-        <CardContent sx={{ p: 2.5 }}>
-          {/* Duration Badge */}
-          <Box sx={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 0.5,
-            px: 1,
-            py: 0.25,
-            bgcolor: '#f3e5f5',
-            borderRadius: 10,
-            fontSize: 11,
-            fontWeight: 600,
-            color: '#7c4dff',
-            mb: 1
-          }}>
-            <Box sx={{
-              bgcolor: '#7c4dff',
-              color: 'white',
-              borderRadius: '50%',
-              width: 16,
-              height: 16,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 10
-            }}>W</Box>
-            Week {creatorStats.weekNumber}
-            <Typography component="span" sx={{ color: '#999', fontWeight: 400 }}>|</Typography>
-            Repeat weekly
-          </Box>
-
-          {/* Header */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Shop sx={{ fontSize: 18, color: '#EE4D2D' }} />
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                Original Creator
-              </Typography>
-            </Box>
-            <Chip
-              label={isReached ? "✓ Target Reached" : "⏳ In Progress"}
-              size="small"
-              sx={{
-                height: 20,
-                fontSize: 11,
-                bgcolor: isReached ? '#e8f5e9' : '#fff3e0',
-                color: isReached ? '#2e7d32' : '#e65100',
-                fontWeight: 600
-              }}
-            />
-          </Box>
-
-          {/* Duration Text */}
-          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1.5 }}>
-            Wed, {creatorStats.weekStart} 12:00am – Tue, {creatorStats.weekEnd} 11:59pm
-          </Typography>
-
-          {/* Progress Section */}
-          <Box sx={{ bgcolor: '#f9f9f9', borderRadius: 1, p: 1.5, mb: 1 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
-                Shopee Videos
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 16 }}>
-                <Typography component="span" sx={{ color: 'text.primary' }}>{creatorStats.shopeeCount}</Typography>
-                <Typography component="span" sx={{ color: '#999', fontWeight: 400 }}> / </Typography>
-                <Typography component="span" sx={{ color: '#7c4dff' }}>{creatorStats.target}</Typography>
-              </Typography>
-            </Box>
-
-            {/* Progress Bar */}
-            <Box sx={{ width: '100%', height: 8, bgcolor: '#e0e0e0', borderRadius: 1, overflow: 'hidden', mb: 1 }}>
-              <Box sx={{
-                width: `${progressPercent}%`,
-                height: '100%',
-                bgcolor: getProgressColor(),
-                transition: 'width 0.5s ease'
-              }} />
-            </Box>
-
-            {/* Status */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 11 }}>
-                {isReached ? 'Target achieved 🎉' : <><strong>{creatorStats.target - creatorStats.shopeeCount}</strong> more needed</>}
-              </Typography>
-              <Typography variant="caption" sx={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: isReached ? '#2e7d32' : '#e65100'
-              }}>
-                {status.text}
-              </Typography>
-            </Box>
-          </Box>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  // Weekly History Dialog Component
-  const WeeklyHistoryDialog = () => {
-    const getProgressColor = (count: number) => {
-      if (count >= 20) return '#4caf50'
-      if (count >= 15) return '#66bb6a'
-      if (count >= 10) return '#ff9800'
-      return '#ef5350'
-    }
-
-    return (
-      <Dialog open={weeklyHistoryOpen} onClose={() => setWeeklyHistoryOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography variant="h6">Weekly History (Last 5 Weeks)</Typography>
-            <IconButton onClick={() => setWeeklyHistoryOpen(false)} size="small">
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 1 }}>
-            {weeklyHistory.map((week, index) => (
-              <Box
-                key={index}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1.5,
-                  py: 1,
-                  borderBottom: index < weeklyHistory.length - 1 ? '1px solid #eee' : 'none',
-                  cursor: 'pointer',
-                  '&:hover': { bgcolor: '#f5f5f5' }
-                }}
-                onClick={() => {
-                  // Filter to show shopee videos for this specific week
-                  setPlatformFilter('')
-                  setUploadDateFilter('')
-                  setCustomUploadDateFilter('')
-                  setSearchQuery('')
-                  setActiveSearchQuery('')
-                  setDateFilter('')
-                  setFilterEmptyPlatform(null)
-                  setPendingUploadFilter([])
-                  setShopeeWeekFilter(false)
-                  setShopeeWeekDateRange(week.dates)
-                  setWeeklyHistoryOpen(false)
-                }}
-              >
-                <Box sx={{ width: 40, flexShrink: 0 }}>
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>W{week.weekNumber}</Typography>
-                </Box>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                      {week.dates[0]} - {week.dates[6]}
-                    </Typography>
-                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                      {week.shopeeCount} / 20
-                    </Typography>
-                  </Box>
-                  <Box sx={{ width: '100%', height: 6, bgcolor: '#e0e0e0', borderRadius: 1, overflow: 'hidden' }}>
-                    <Box sx={{
-                      width: `${Math.min((week.shopeeCount / 20) * 100, 100)}%`,
-                      height: '100%',
-                      bgcolor: getProgressColor(week.shopeeCount)
-                    }} />
-                  </Box>
-                </Box>
-              </Box>
-            ))}
-          </Box>
-        </DialogContent>
-      </Dialog>
-    )
-  }
 
   // Campaign Day: History dialog — row helper
   const CampaignHistoryRow = ({ p, campaign, getProgressColor }: {
@@ -1938,11 +1544,10 @@ export default function Videos() {
         <Box sx={{ display: 'flex', gap: 1, mb: 2, justifyContent: 'flex-end' }}>
           <Button variant="outlined" startIcon={<ReplayIcon />} onClick={() => { localStorage.removeItem(`stats_${getTodayDate()}`); fetchStats() }} size="medium">Refresh Stats</Button>
         </Box>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
         <StatCard filterKey="today" title="Total videos uploaded today" videoCount={todayStats.videoCount} platformUploadCount={todayStats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={todayStats.platformBreakdown} />
         <StatCard filterKey="yesterday" title="Total videos uploaded yesterday" videoCount={yesterdayStats.videoCount} platformUploadCount={yesterdayStats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={yesterdayStats.platformBreakdown} />
         <StatCard filterKey="range-3-9" title="Days 3-9 uploads" videoCount={range3to9Stats.videoCount} platformUploadCount={range3to9Stats.platformBreakdown.reduce((t, p) => t + p.original + p.reupload, 0)} uploadDateFilter={uploadDateFilter} onFilterClick={handleStatCardClick} platformBreakdown={range3to9Stats.platformBreakdown} />
-        <OriginalCreatorCard />
       </Box>
       </Collapse>
 
@@ -2066,12 +1671,12 @@ export default function Videos() {
       >
         {sortOrder === 'asc' ? <ArrowUpward /> : <ArrowDownward />}
       </IconButton>
-      {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter || showBookmarkedOnly || shopeeWeekFilter || shopeeWeekDateRange || focusedVideoId || filterFocusActive || pendingUploadFilter.length > 0) && (
+      {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter || showBookmarkedOnly || focusedVideoId || filterFocusActive || pendingUploadFilter.length > 0) && (
         <Button variant="outlined" size="small" onClick={() => {
           setSearchQuery(''); setActiveSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter('');
           const hadFilter = !!filterEmptyPlatform
           setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter(''); setPendingUploadFilter([]);
-          setShowBookmarkedOnly(false); setShopeeWeekFilter(false); setShopeeWeekDateRange(null)
+          setShowBookmarkedOnly(false);
           setFocusedVideoId(null); localStorage.removeItem('videos_focused_video_id')
           setFilterFocusActive(false)
           if (hadFilter) setTimeout(() => { setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true) }, 0)
@@ -2082,8 +1687,6 @@ export default function Videos() {
       {focusedVideoId && filterFocusActive && <Alert severity="info" sx={{ mb: 2 }}>Showing focused video only. Click the star ⭐ on any video to change focus or Clear button.</Alert>}
       {filterEmptyPlatform && <Alert severity="info" sx={{ mb: 2 }}>Showing videos without {filterEmptyPlatform} URL</Alert>}
       {showBookmarkedOnly && <Alert severity="info" sx={{ mb: 2 }}>Showing only bookmarked videos</Alert>}
-      {shopeeWeekFilter && <Alert severity="info" sx={{ mb: 2 }}>Showing Shopee videos uploaded this week (Wed-Tue)</Alert>}
-      {shopeeWeekDateRange && <Alert severity="info" sx={{ mb: 2 }}>Showing Shopee videos for selected week</Alert>}
       {pendingUploadFilter.length > 0 && (
         <Alert severity="info" sx={{ mb: 2 }}>
           Showing videos not uploaded to: {pendingUploadFilter.map(k => platforms.find(p => p.key === k)?.label).filter(Boolean).join(', ')}
@@ -2428,7 +2031,6 @@ Hari ini kita nak tengok produk terbaru" />
         </DialogContent>
       </Dialog>
 
-      <WeeklyHistoryDialog />
       <CampaignHistoryDialog />
       <PastCampaignsDialog />
     </Box>
