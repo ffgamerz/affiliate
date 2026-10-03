@@ -46,6 +46,9 @@ interface Video {
   tiktok_url: string | null; tiktok_upload_date: string | null
   tiktok_product_url: string | null; shopee_product_url: string | null
   video_type: string | null
+  youtube_status: string | null; tiktok_status: string | null
+  facebook_status: string | null; instagram_status: string | null
+  shopee_status: string | null; threads_status: string | null
 }
 
 interface Reupload {
@@ -476,6 +479,11 @@ export default function Videos() {
   const [shopeeProductUrl, setShopeeProductUrl] = useState(''); const [threadsUrl, setThreadsUrl] = useState('')
   const [threadsUploadDate, setThreadsUploadDate] = useState<string | null>(null); const [tiktokUrl, setTiktokUrl] = useState('')
   const [tiktokUploadDate, setTiktokUploadDate] = useState<string | null>(null); const [tiktokProductUrl, setTiktokProductUrl] = useState('')
+  // Per-platform publish status: '' (blank) | 'publish' | 'schedule' | 'draft'
+  const [youtubeStatus, setYoutubeStatus] = useState(''); const [tiktokStatus, setTiktokStatus] = useState('')
+  const [facebookStatus, setFacebookStatus] = useState(''); const [instagramStatus, setInstagramStatus] = useState('')
+  const [shopeeStatus, setShopeeStatus] = useState(''); const [threadsStatus, setThreadsStatus] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'' | 'publish' | 'schedule' | 'draft'>('')
   const [aiGenerating, setAiGenerating] = useState(false)
   const [updatingVideo, setUpdatingVideo] = useState(false)
   const [bookmarkedVideoIds, setBookmarkedVideoIds] = useState<Set<string>>(new Set())
@@ -922,6 +930,7 @@ export default function Videos() {
       setFilterEmptyPlatform(null)
       setPendingUploadFilter([])
       setCustomUploadDateFilter('')
+      setStatusFilter('')
       // Don't fetch - data is already loaded, just reset filter
       // Reset loading state to false since we're not fetching
       setLoading(false)
@@ -935,6 +944,7 @@ export default function Videos() {
       setFilterEmptyPlatform(null)
       setPendingUploadFilter([])
       setCustomUploadDateFilter('')
+      setStatusFilter('')
     }
   }
 
@@ -957,8 +967,10 @@ export default function Videos() {
     }
     if (customUploadDateFilter) q = q.or(buildUploadDateOrFilter(customUploadDateFilter))
     if (filterEmptyPlatform) q = q.or(`${filterEmptyPlatform}_url.is.null,${filterEmptyPlatform}_url.eq.`)
+    // Status filter: videos where at least one platform has the selected status
+    if (statusFilter) q = q.or(platforms.map(p => `${p.key}_status.eq.${statusFilter}`).join(','))
     return q
-  }, [activeSearchQuery, dateFilter, platformFilter, pendingUploadFilter, customUploadDateFilter, sortOrder, filterEmptyPlatform])
+  }, [activeSearchQuery, dateFilter, platformFilter, pendingUploadFilter, customUploadDateFilter, sortOrder, filterEmptyPlatform, statusFilter])
 
   const fetchData = useCallback(async (page: number = 0, reset: boolean = false) => {
     if (page === 0) setLoading(true); else setLoadingMore(true)
@@ -979,7 +991,7 @@ export default function Videos() {
       setHasMore(false) // Only one video when focused
 
     // IF - ada search query, date filter, platform filter, atau custom upload date
-    } else if (activeSearchQuery || dateFilter || platformFilter || customUploadDateFilter || pendingUploadFilter.length > 0) {
+    } else if (activeSearchQuery || dateFilter || platformFilter || customUploadDateFilter || pendingUploadFilter.length > 0 || statusFilter) {
       const vR = await buildFilteredQuery(page)
       vData = (vR.data as Video[]) || []
       const rR = await supabase.from('reuploads').select('*')
@@ -1122,7 +1134,7 @@ export default function Videos() {
     }
     setReuploads(rData)
     setLoading(false); setLoadingMore(false); fetchStats()
-  }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, pendingUploadFilter, showBookmarkedOnly, focusedVideoId, filterFocusActive])
+  }, [buildFilteredQuery, fetchStats, uploadDateFilter, customUploadDateFilter, todayDate, yesterdayDate, dates3to9, activeSearchQuery, dateFilter, platformFilter, filterEmptyPlatform, pendingUploadFilter, showBookmarkedOnly, focusedVideoId, filterFocusActive, statusFilter])
 
   // Fetch bookmarks (for bookmark icons display)
   const fetchBookmarks = useCallback(async () => {
@@ -1152,20 +1164,20 @@ export default function Videos() {
     hasLocationState.current = true
     setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSearchQuery, dateFilter, customUploadDateFilter, platformFilter, pendingUploadFilter, uploadDateFilter, showBookmarkedOnly, filterFocusActive, sortOrder, authLoading, filterEmptyPlatform])
+  }, [activeSearchQuery, dateFilter, customUploadDateFilter, platformFilter, pendingUploadFilter, uploadDateFilter, showBookmarkedOnly, filterFocusActive, sortOrder, authLoading, filterEmptyPlatform, statusFilter])
 
   const handleLoadMore = () => { const np = currentPage + 1; setCurrentPage(np); fetchData(np, false) }
 
   const handleAddVideo = async () => {
     if (!title) return
-    const { error } = await supabase.from('videos').insert({ title, description, srt: srt || null, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null, video_type: videoType })
+    const { error } = await supabase.from('videos').insert({ title, description, srt: srt || null, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null, video_type: videoType, youtube_status: youtubeStatus || null, tiktok_status: tiktokStatus || null, facebook_status: facebookStatus || null, instagram_status: instagramStatus || null, shopee_status: shopeeStatus || null, threads_status: threadsStatus || null })
     if (!error) { setOpen(false); resetForm(); fetchData(0, true) }
   }
 
   const handleUpdateVideo = async () => {
     if (!editingVideo) return
     setUpdatingVideo(true)
-    const u: any = { title, description, srt: srt || null, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null, video_type: videoType }
+    const u: any = { title, description, srt: srt || null, youtube_url: youtubeUrl || null, youtube_upload_date: youtubeUploadDate, facebook_url: facebookUrl || null, facebook_upload_date: facebookUploadDate, instagram_url: instagramUrl || null, instagram_upload_date: instagramUploadDate, shopee_url: shopeeUrl || null, shopee_upload_date: shopeeUploadDate, shopee_product_url: shopeeProductUrl || null, threads_url: threadsUrl || null, threads_upload_date: threadsUploadDate, tiktok_url: tiktokUrl || null, tiktok_upload_date: tiktokUploadDate, tiktok_product_url: tiktokProductUrl || null, video_type: videoType, youtube_status: youtubeStatus || null, tiktok_status: tiktokStatus || null, facebook_status: facebookStatus || null, instagram_status: instagramStatus || null, shopee_status: shopeeStatus || null, threads_status: threadsStatus || null }
     if (createdAt) u.created_at = new Date(createdAt).toISOString()
     const { error } = await supabase.from('videos').update(u).eq('id', editingVideo.id)
     setUpdatingVideo(false)
@@ -1192,7 +1204,7 @@ export default function Videos() {
 
   const handleDeleteVideo = async (id: string) => { if (confirm('Are you sure you want to delete this video?')) { await supabase.from('videos').delete().eq('id', id); fetchData(0, true) } }
 
-  const resetForm = () => { setTitle(''); setDescription(''); setSrt(''); setCreatedAt(''); setYoutubeUrl(''); setYoutubeUploadDate(null); setFacebookUrl(''); setFacebookUploadDate(null); setInstagramUrl(''); setInstagramUploadDate(null); setShopeeUrl(''); setShopeeUploadDate(null); setShopeeProductUrl(''); setThreadsUrl(''); setThreadsUploadDate(null); setTiktokUrl(''); setTiktokUploadDate(null); setTiktokProductUrl(''); setVideoType('voice'); setAiGenerating(false) }
+  const resetForm = () => { setTitle(''); setDescription(''); setSrt(''); setCreatedAt(''); setYoutubeUrl(''); setYoutubeUploadDate(null); setFacebookUrl(''); setFacebookUploadDate(null); setInstagramUrl(''); setInstagramUploadDate(null); setShopeeUrl(''); setShopeeUploadDate(null); setShopeeProductUrl(''); setThreadsUrl(''); setThreadsUploadDate(null); setTiktokUrl(''); setTiktokUploadDate(null); setTiktokProductUrl(''); setVideoType('voice'); setYoutubeStatus(''); setTiktokStatus(''); setFacebookStatus(''); setInstagramStatus(''); setShopeeStatus(''); setThreadsStatus(''); setAiGenerating(false) }
 
   const handleGenerateDescription = async () => {
     if (!editingVideo) return
@@ -1238,6 +1250,9 @@ export default function Videos() {
     setShopeeUrl(video.shopee_url || ''); setShopeeUploadDate(video.shopee_upload_date || null); setShopeeProductUrl(video.shopee_product_url || '')
     setThreadsUrl(video.threads_url || ''); setThreadsUploadDate(video.threads_upload_date || null)
     setTiktokUrl(video.tiktok_url || ''); setTiktokUploadDate(video.tiktok_upload_date || null); setTiktokProductUrl(video.tiktok_product_url || '')
+    setYoutubeStatus(video.youtube_status || ''); setTiktokStatus(video.tiktok_status || '')
+    setFacebookStatus(video.facebook_status || ''); setInstagramStatus(video.instagram_status || '')
+    setShopeeStatus(video.shopee_status || ''); setThreadsStatus(video.threads_status || '')
     setOpen(true)
   }
 
@@ -1302,6 +1317,38 @@ export default function Videos() {
     else if (uploadDateFilter === 'range-3-9') return dates3to9.some(d => reuploads.some(r => r.video_id === vid && r.platform === pk && r.upload_date === d))
     else if (customUploadDateFilter) td = customUploadDateFilter
     if (!td) return false; return reuploads.some(r => r.video_id === vid && r.platform === pk && r.upload_date === td)
+  }
+
+  // ---- Per-platform publish status helpers ----
+  const STATUS_OPTIONS: { value: '' | 'publish' | 'schedule' | 'draft'; label: string }[] = [
+    { value: '', label: 'Blank' },
+    { value: 'publish', label: 'Publish' },
+    { value: 'schedule', label: 'Schedule' },
+    { value: 'draft', label: 'Draft' },
+  ]
+  const isStatusPlaceholderUrl = (url: string | null | undefined): boolean => url === 'schedule' || url === 'draft'
+  const getPlatformStatusColor = (s: string | null | undefined): string | null =>
+    s === 'publish' ? '#2e7d32' : s === 'schedule' ? '#1565c0' : s === 'draft' ? '#c62828' : null
+  const getPlatformStatusLabel = (s: string | null | undefined): string =>
+    s === 'schedule' ? 'Sched' : s === 'draft' ? 'Draft' : s === 'publish' ? 'Publish' : ''
+
+  // Set platform status + auto-populate URL placeholder (schedule/draft)
+  const applyPlatformStatus = (p: string, val: '' | 'publish' | 'schedule' | 'draft') => {
+    const setSt = p === 'tiktok' ? setTiktokStatus : p === 'youtube' ? setYoutubeStatus : p === 'facebook' ? setFacebookStatus : p === 'instagram' ? setInstagramStatus : p === 'shopee' ? setShopeeStatus : setThreadsStatus
+    const curUrl = p === 'tiktok' ? tiktokUrl : p === 'youtube' ? youtubeUrl : p === 'facebook' ? facebookUrl : p === 'instagram' ? instagramUrl : p === 'shopee' ? shopeeUrl : threadsUrl
+    const setU = p === 'tiktok' ? setTiktokUrl : p === 'youtube' ? setYoutubeUrl : p === 'facebook' ? setFacebookUrl : p === 'instagram' ? setInstagramUrl : p === 'shopee' ? setShopeeUrl : setThreadsUrl
+    setSt(val)
+    if (val === 'schedule' || val === 'draft') setU(val)
+    else if (isStatusPlaceholderUrl(curUrl)) setU('')
+  }
+
+  // Set a platform URL + flip its status to publish when a real link is entered/pasted
+  const applyPlatformUrl = (p: string, val: string) => {
+    const setU = p === 'tiktok' ? setTiktokUrl : p === 'youtube' ? setYoutubeUrl : p === 'facebook' ? setFacebookUrl : p === 'instagram' ? setInstagramUrl : p === 'shopee' ? setShopeeUrl : setThreadsUrl
+    const setSt = p === 'tiktok' ? setTiktokStatus : p === 'youtube' ? setYoutubeStatus : p === 'facebook' ? setFacebookStatus : p === 'instagram' ? setInstagramStatus : p === 'shopee' ? setShopeeStatus : setThreadsStatus
+    const curSt = p === 'tiktok' ? tiktokStatus : p === 'youtube' ? youtubeStatus : p === 'facebook' ? facebookStatus : p === 'instagram' ? instagramStatus : p === 'shopee' ? shopeeStatus : threadsStatus
+    setU(val)
+    if (val && !isStatusPlaceholderUrl(val) && curSt !== 'publish') setSt('publish')
   }
 
   // Toggle bookmark for a video
@@ -1637,6 +1684,12 @@ export default function Videos() {
             Apply
           </MenuItem>
         </Menu>
+        <TextField size="small" select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | 'publish' | 'schedule' | 'draft')} sx={{ minWidth: { xs: '100%', sm: 150 } }} slotProps={{ select: { native: true, displayEmpty: true } }}>
+          <option value="">All Status</option>
+          <option value="publish">Publish</option>
+          <option value="schedule">Schedule</option>
+          <option value="draft">Draft</option>
+        </TextField>
         <Chip
           label="Bookmarked"
           size="small"
@@ -1671,12 +1724,12 @@ export default function Videos() {
       >
         {sortOrder === 'asc' ? <ArrowUpward /> : <ArrowDownward />}
       </IconButton>
-      {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter || showBookmarkedOnly || focusedVideoId || filterFocusActive || pendingUploadFilter.length > 0) && (
+      {(searchQuery || dateFilter || customUploadDateFilter || filterEmptyPlatform || platformFilter || uploadDateFilter || showBookmarkedOnly || focusedVideoId || filterFocusActive || pendingUploadFilter.length > 0 || statusFilter) && (
         <Button variant="outlined" size="small" onClick={() => {
           setSearchQuery(''); setActiveSearchQuery(''); setDateFilter(''); setCustomUploadDateFilter('');
           const hadFilter = !!filterEmptyPlatform
           setFilterEmptyPlatform(null); setPlatformFilter(''); setUploadDateFilter(''); setPendingUploadFilter([]);
-          setShowBookmarkedOnly(false);
+          setShowBookmarkedOnly(false); setStatusFilter('');
           setFocusedVideoId(null); localStorage.removeItem('videos_focused_video_id')
           setFilterFocusActive(false)
           if (hadFilter) setTimeout(() => { setCurrentPage(0); setVideos([]); setHasMore(true); fetchData(0, true) }, 0)
@@ -1692,6 +1745,11 @@ export default function Videos() {
           Showing videos not uploaded to: {pendingUploadFilter.map(k => platforms.find(p => p.key === k)?.label).filter(Boolean).join(', ')}
         </Alert>
       )}
+      {statusFilter && (
+        <Alert severity={statusFilter === 'draft' ? 'warning' : 'info'} sx={{ mb: 2 }}>
+          Showing videos with "{statusFilter}" status on at least one platform
+        </Alert>
+      )}
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}><CircularProgress /></Box>
@@ -1702,16 +1760,23 @@ export default function Videos() {
           {displayedVideos.map((video) => {
             const videoId = video.youtube_url ? getYouTubeVideoId(video.youtube_url) : null
             const isFocused = focusedVideoId === video.id
+            const alertStatuses = platforms
+              .map(pp => ({ status: video[`${pp.key}_status` as keyof Video] as string | null }))
+              .filter(ss => ss.status === 'schedule' || ss.status === 'draft')
+            const hasSchedule = alertStatuses.some(ss => ss.status === 'schedule')
+            const hasDraft = alertStatuses.some(ss => ss.status === 'draft')
+            const cardAlert = hasDraft ? '#c62828' : hasSchedule ? '#1565c0' : null
+            const thumbRing = cardAlert ? { outline: `3px solid ${cardAlert}`, outlineOffset: 2 } : {}
             return (
-              <Card key={video.id} id={`video-card-${video.id}`} sx={{ border: isFocused ? '2px solid' : '1px solid', borderColor: isFocused ? 'warning.main' : '#f0f0f0', '&:hover': { transform: isFocused ? 'translateY(0)' : 'translateY(-2px)', boxShadow: isFocused ? '0 2px 8px rgba(0,0,0,0.15)' : '0 4px 12px rgba(0,0,0,0.1)' } }}>
+              <Card key={video.id} id={`video-card-${video.id}`} sx={{ border: isFocused || cardAlert ? '2px solid' : '1px solid', borderColor: isFocused ? 'warning.main' : (cardAlert || '#f0f0f0'), ...(cardAlert && !isFocused && { boxShadow: `0 0 0 3px ${cardAlert}22` }), '&:hover': { transform: isFocused ? 'translateY(0)' : 'translateY(-2px)', boxShadow: cardAlert && !isFocused ? `0 0 0 4px ${cardAlert}33` : (isFocused ? '0 2px 8px rgba(0,0,0,0.15)' : '0 4px 12px rgba(0,0,0,0.1)') } }}>
                 <CardContent sx={{ py: 2, px: { xs: 2, md: 2.5 } }}>
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
                     {videoId ? (
                       <Box component="img" src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`} alt={video.title} onClick={() => openVideoPlayer(video.youtube_url!)}
                         onError={(e) => { const t = e.target as HTMLImageElement; if (t.src.includes('mqdefault')) t.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`; else if (t.src.includes('hqdefault')) t.src = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`; else t.style.display = 'none' }}
-                        sx={{ width: 120, height: 160, objectFit: 'cover', borderRadius: 1, cursor: 'pointer', flexShrink: 0, '&:hover': { opacity: 0.8 } }} />
+                        sx={{ width: 120, height: 160, objectFit: 'cover', borderRadius: 1, cursor: 'pointer', flexShrink: 0, '&:hover': { opacity: 0.8 }, ...thumbRing }} />
                     ) : (
-                      <Box sx={{ width: 120, height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1, bgcolor: 'grey.200', flexShrink: 0 }}>
+                      <Box sx={{ width: 120, height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1, bgcolor: 'grey.200', flexShrink: 0, ...thumbRing }}>
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>No Video</Typography>
                       </Box>
                     )}
@@ -1719,6 +1784,7 @@ export default function Videos() {
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mb: 0.5 }}>
                         <Typography variant="h6" sx={{ fontWeight: 600, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', flex: 1 }}>{video.title}</Typography>
                         {video.video_type && (<Chip size="small" label={video.video_type === 'no_voice' ? 'No Voice' : 'Voice'} color="primary" sx={{ flexShrink: 0, fontSize: 11, height: 20, ...(video.video_type === 'no_voice' && { bgcolor: '#9c27b0', color: 'white' }) }} />)}
+                        {cardAlert && (<Chip size="small" label={hasDraft ? '⚠ Draft' : '⏰ Schedule'} sx={{ flexShrink: 0, fontSize: 11, height: 20, fontWeight: 700, color: 'white', bgcolor: cardAlert }} />)}
                         {video.description && (<IconButton size="small" onClick={() => { setSelectedDescription(video.description || ''); setSelectedDescriptionVideo(video); setDescriptionOpen(true) }} sx={{ p: 0.5 }} title="View description"><Info fontSize="small" /></IconButton>)}
                         <IconButton
                           size="small"
@@ -1743,10 +1809,10 @@ export default function Videos() {
                           <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', letterSpacing: 0.5, mb: 0.5, display: 'block' }}>Platforms</Typography>
                           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, auto)' }, gap: 0.5, mb: 1.5, width: '100%' }}>
                             {platforms.map((p) => {
-                              const has = !!video[`${p.key}_url` as keyof Video]; const ic = platformIcons[p.key]; const dm = isPlatformDateMatch(p.key, video); const rm = isPlatformReuploadMatch(p.key, video.id)
-                              return (<Chip key={p.key} icon={ic || undefined} label={p.label} size="small" onClick={() => has && copyToClipboard(video[`${p.key}_url` as keyof Video] as string, p.label)}
-                                sx={{ cursor: has ? 'pointer' : 'default', opacity: has ? 1 : 0.4, fontWeight: 500, fontSize: 12, height: 28, '&:hover': has ? { opacity: 0.8 } : {}, '& .MuiChip-icon': { fontSize: 16 }, ...(dm && !rm && { border: '1px solid', borderColor: '#81c784' }), ...(rm && { border: '1px solid', borderColor: '#ffb74d', color: '#ff9800', '& .MuiChip-icon': { color: '#ff9800', fontSize: 16 } }) }}
-                                variant={has ? 'filled' : 'outlined'} color={has ? 'default' : 'default'} />)
+                              const urlRaw = video[`${p.key}_url` as keyof Video] as string | null; const has = !!urlRaw && !isStatusPlaceholderUrl(urlRaw); const ic = platformIcons[p.key]; const dm = isPlatformDateMatch(p.key, video); const rm = isPlatformReuploadMatch(p.key, video.id); const st = video[`${p.key}_status` as keyof Video] as string | null; const stColor = getPlatformStatusColor(st)
+                              return (<Chip key={p.key} icon={ic || undefined} label={stColor ? `${p.label} · ${getPlatformStatusLabel(st)}` : p.label} size="small" onClick={() => has && copyToClipboard(urlRaw as string, p.label)}
+                                sx={{ cursor: has ? 'pointer' : 'default', opacity: has || stColor ? 1 : 0.4, fontWeight: stColor ? 700 : 500, fontSize: 12, height: 28, '&:hover': has ? { opacity: 0.85 } : {}, '& .MuiChip-icon': { fontSize: 16 }, ...(stColor && { border: '2px solid', borderColor: stColor, bgcolor: stColor, color: 'white', '& .MuiChip-icon': { color: 'white', fontSize: 16 } }), ...(!stColor && dm && !rm && { border: '1px solid', borderColor: '#81c784' }), ...(!stColor && rm && { border: '1px solid', borderColor: '#ffb74d', color: '#ff9800', '& .MuiChip-icon': { color: '#ff9800', fontSize: 16 } }) }}
+                                variant={has || stColor ? 'filled' : 'outlined'} color="default" />)
                             })}
                           </Box>
                           <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', letterSpacing: 0.5, mb: 0.5, display: 'block' }}>Google Drive</Typography>
@@ -1832,16 +1898,17 @@ Hari ini kita nak tengok produk terbaru" />
             {(['tiktok', 'youtube', 'facebook', 'instagram', 'shopee', 'threads'] as const).map((p) => {
               const urlVal = p === 'tiktok' ? tiktokUrl : p === 'youtube' ? youtubeUrl : p === 'facebook' ? facebookUrl : p === 'instagram' ? instagramUrl : p === 'shopee' ? shopeeUrl : threadsUrl
               const dateVal = p === 'tiktok' ? tiktokUploadDate : p === 'youtube' ? youtubeUploadDate : p === 'facebook' ? facebookUploadDate : p === 'instagram' ? instagramUploadDate : p === 'shopee' ? shopeeUploadDate : threadsUploadDate
-              const setUrl = p === 'tiktok' ? setTiktokUrl : p === 'youtube' ? setYoutubeUrl : p === 'facebook' ? setFacebookUrl : p === 'instagram' ? setInstagramUrl : p === 'shopee' ? setShopeeUrl : setThreadsUrl
+              const statusVal = p === 'tiktok' ? tiktokStatus : p === 'youtube' ? youtubeStatus : p === 'facebook' ? facebookStatus : p === 'instagram' ? instagramStatus : p === 'shopee' ? shopeeStatus : threadsStatus
               const setDate = p === 'tiktok' ? setTiktokUploadDate : p === 'youtube' ? setYoutubeUploadDate : p === 'facebook' ? setFacebookUploadDate : p === 'instagram' ? setInstagramUploadDate : p === 'shopee' ? setShopeeUploadDate : setThreadsUploadDate
               return (<Box key={p} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <TextField label="Upload Date" type="date" value={dateVal || ''} onChange={(e) => setDate(e.target.value || null)} sx={{ flex: 1 }} size="small" slotProps={{ inputLabel: { shrink: true } }} key={`${p}-date-${urlVal ? 'has-url' : 'no-url'}`} />
-                <TextField label={`${p.charAt(0).toUpperCase() + p.slice(1)} URL`} value={urlVal} onChange={(e) => setUrl(e.target.value)} sx={{ flex: 2 }} size="small" placeholder="https://..."
+                <TextField select label="Status" value={statusVal} onChange={(e) => applyPlatformStatus(p, e.target.value as '' | 'publish' | 'schedule' | 'draft')} sx={{ flex: 1, minWidth: 110 }} size="small">{STATUS_OPTIONS.map(o => <MenuItem key={o.value || 'blank'} value={o.value}>{o.label}</MenuItem>)}</TextField>
+                <TextField label={`${p.charAt(0).toUpperCase() + p.slice(1)} URL`} value={urlVal} onChange={(e) => applyPlatformUrl(p, e.target.value)} sx={{ flex: 2 }} size="small" placeholder="https://..."
                   slotProps={{
                     input: {
                       startAdornment: (
                         <InputAdornment position="start">
-                          <IconButton size="small" onClick={async () => { try { const t = await navigator.clipboard.readText(); setUrl(t); setSnackbar({ open: true, message: `Pasted to ${p.charAt(0).toUpperCase() + p.slice(1)} URL` }) } catch { } }} title="Paste" sx={{ p: 0.5, opacity: 0.7, '&:hover': { opacity: 1 } }}>
+                          <IconButton size="small" onClick={async () => { try { const t = await navigator.clipboard.readText(); applyPlatformUrl(p, t); setSnackbar({ open: true, message: `Pasted to ${p.charAt(0).toUpperCase() + p.slice(1)} URL` }) } catch { } }} title="Paste" sx={{ p: 0.5, opacity: 0.7, '&:hover': { opacity: 1 } }}>
                             <PasteIcon fontSize="small" />
                           </IconButton>
                         </InputAdornment>
