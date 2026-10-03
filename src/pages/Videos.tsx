@@ -91,6 +91,9 @@ const getPlatformColor = (p: string): string => {
 }
 
 const buildUploadDateOrFilter = (date: string): string => platforms.map(p => `${p.key}_upload_date.eq.${date}`).join(',')
+// Corner triangle marker colour for a platform chip uploaded on the selected date filter
+const DATE_MATCH_BORDER = '#f9a825'
+const DATE_MATCH_TRIANGLE = 14 // px size of the top-left corner marker
 
 const formatDateLabel = (s?: string | null): string => {
   if (!s) return 'Continuous'
@@ -1816,10 +1819,10 @@ export default function Videos() {
                           <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', letterSpacing: 0.5, mb: 0.5, display: 'block' }}>Platforms</Typography>
                           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, auto)' }, gap: 0.5, mb: 1.5, width: '100%' }}>
                             {platforms.map((p) => {
-                              const urlRaw = video[`${p.key}_url` as keyof Video] as string | null; const has = !!urlRaw && !isStatusPlaceholderUrl(urlRaw); const ic = platformIcons[p.key]; const dm = isPlatformDateMatch(p.key, video); const rm = isPlatformReuploadMatch(p.key, video.id); const st = video[`${p.key}_status` as keyof Video] as string | null; const stColor = getPlatformStatusColor(st)
+                              const urlRaw = video[`${p.key}_url` as keyof Video] as string | null; const has = !!urlRaw && !isStatusPlaceholderUrl(urlRaw); const ic = platformIcons[p.key]; const dm = isPlatformDateMatch(p.key, video); const rm = isPlatformReuploadMatch(p.key, video.id); const st = video[`${p.key}_status` as keyof Video] as string | null; const stColor = getPlatformStatusColor(st); const dateMatched = dm || rm
                               const statusLabel = getPlatformStatusLabel(st); const platformStatusLabel = stColor && statusLabel ? (<Box component="span" sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, gap: { xs: 0, sm: 0.5 }, lineHeight: 1.25, whiteSpace: 'nowrap' }}><Box component="span">{p.label}</Box><Box component="span" sx={{ display: { xs: 'block', sm: 'none' } }}>{statusLabel}</Box><Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>{`· ${statusLabel}`}</Box></Box>) : p.label
                                return (<Chip key={p.key} icon={ic || undefined} label={platformStatusLabel} size="small" onClick={() => has && copyToClipboard(urlRaw as string, p.label)}
-                                sx={{ cursor: has ? 'pointer' : 'default', opacity: has || stColor ? 1 : 0.4, fontWeight: 400, fontSize: 12, height: stColor ? 'auto' : 28, minHeight: 28, py: stColor ? 0.5 : 0, '& .MuiChip-label': { whiteSpace: 'normal', overflow: 'visible', py: 0 }, '&:hover': has ? { opacity: 0.85 } : {}, '& .MuiChip-icon': { fontSize: 16 }, ...(stColor && { border: '1px solid', borderColor: stColor, bgcolor: stColor, color: 'white', '& .MuiChip-icon': { color: 'white', fontSize: 16 } }), ...(!stColor && dm && !rm && { border: '1px solid', borderColor: '#81c784' }), ...(!stColor && rm && { border: '1px solid', borderColor: '#ffb74d', color: '#ff9800', '& .MuiChip-icon': { color: '#ff9800', fontSize: 16 } }) }}
+                                sx={{ cursor: has ? 'pointer' : 'default', opacity: has || stColor ? 1 : 0.4, fontWeight: 400, fontSize: 12, height: stColor ? 'auto' : 28, minHeight: 28, py: stColor ? 0.5 : 0, '& .MuiChip-label': { whiteSpace: 'normal', overflow: 'visible', py: 0 }, '&:hover': has ? { opacity: 0.85 } : {}, '& .MuiChip-icon': { fontSize: 16 }, ...(stColor && { border: '1px solid', borderColor: stColor, bgcolor: stColor, color: 'white', '& .MuiChip-icon': { color: 'white', fontSize: 16 } }), ...(!stColor && rm && { color: '#ff9800', '& .MuiChip-icon': { color: '#ff9800' } }), ...(dateMatched && { position: 'relative', zIndex: 0, '&::before': { content: '""', position: 'absolute', top: 0, left: 0, width: 0, height: 0, borderTop: `${DATE_MATCH_TRIANGLE}px solid ${DATE_MATCH_BORDER}`, borderRight: `${DATE_MATCH_TRIANGLE}px solid transparent`, zIndex: -1, pointerEvents: 'none' } }) }}
                                 variant={has || stColor ? 'filled' : 'outlined'} color="default" />)
                             })}
                           </Box>
