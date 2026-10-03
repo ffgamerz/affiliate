@@ -1786,8 +1786,6 @@ export default function Videos() {
                     <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mb: 0.5 }}>
                         <Typography variant="h6" sx={{ fontWeight: 600, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', flex: 1 }}>{video.title}</Typography>
-                        {video.video_type && (<Chip size="small" label={video.video_type === 'no_voice' ? 'No Voice' : 'Voice'} color="primary" sx={{ flexShrink: 0, fontSize: 11, height: 20, ...(video.video_type === 'no_voice' && { bgcolor: '#9c27b0', color: 'white' }) }} />)}
-                        {cardAlert && (<Chip size="small" label={hasDraft ? '⚠ Draft' : '⏰ Schedule'} sx={{ flexShrink: 0, fontSize: 11, height: 20, fontWeight: 700, color: 'white', bgcolor: cardAlert }} />)}
                         {video.description && (<IconButton size="small" onClick={() => { setSelectedDescription(video.description || ''); setSelectedDescriptionVideo(video); setDescriptionOpen(true) }} sx={{ p: 0.5 }} title="View description"><Info fontSize="small" /></IconButton>)}
                         <IconButton
                           size="small"
@@ -1806,7 +1804,13 @@ export default function Videos() {
                           {bookmarkedVideoIds.has(video.id) ? <Bookmark fontSize="small" /> : <BookmarkBorder fontSize="small" />}
                         </IconButton>
                       </Box>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>{new Date(video.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5, flexWrap: 'wrap' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>{new Date(video.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+                          {video.video_type && (<Chip size="small" label={video.video_type === 'no_voice' ? 'No Voice' : 'Voice'} color="primary" sx={{ flexShrink: 0, fontSize: 11, height: 20, ...(video.video_type === 'no_voice' && { bgcolor: '#9c27b0', color: 'white' }) }} />)}
+                          {cardAlert && (<Chip size="small" label={hasDraft ? '⚠ Draft' : '⏰ Schedule'} sx={{ flexShrink: 0, fontSize: 11, height: 20, fontWeight: 700, color: 'white', bgcolor: cardAlert }} />)}
+                        </Box>
+                      </Box>
                       <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
                         <Box sx={{ flex: 1, minWidth: 0 }}>
                           <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', letterSpacing: 0.5, mb: 0.5, display: 'block' }}>Platforms</Typography>
