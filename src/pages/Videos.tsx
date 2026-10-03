@@ -1332,13 +1332,14 @@ export default function Videos() {
   const getPlatformStatusLabel = (s: string | null | undefined): string =>
     s === 'schedule' ? 'Sched' : s === 'draft' ? 'Draft' : s === 'publish' ? 'Publish' : ''
 
-  // Set platform status + auto-populate URL placeholder (schedule/draft)
+  // Set platform status. Draft auto-fills the URL with the word 'draft'.
+  // Schedule and publish/blank NEVER overwrite a real URL — they only clear a stale placeholder.
   const applyPlatformStatus = (p: string, val: '' | 'publish' | 'schedule' | 'draft') => {
     const setSt = p === 'tiktok' ? setTiktokStatus : p === 'youtube' ? setYoutubeStatus : p === 'facebook' ? setFacebookStatus : p === 'instagram' ? setInstagramStatus : p === 'shopee' ? setShopeeStatus : setThreadsStatus
     const curUrl = p === 'tiktok' ? tiktokUrl : p === 'youtube' ? youtubeUrl : p === 'facebook' ? facebookUrl : p === 'instagram' ? instagramUrl : p === 'shopee' ? shopeeUrl : threadsUrl
     const setU = p === 'tiktok' ? setTiktokUrl : p === 'youtube' ? setYoutubeUrl : p === 'facebook' ? setFacebookUrl : p === 'instagram' ? setInstagramUrl : p === 'shopee' ? setShopeeUrl : setThreadsUrl
     setSt(val)
-    if (val === 'schedule' || val === 'draft') setU(val)
+    if (val === 'draft') setU('draft')
     else if (isStatusPlaceholderUrl(curUrl)) setU('')
   }
 
@@ -1348,7 +1349,9 @@ export default function Videos() {
     const setSt = p === 'tiktok' ? setTiktokStatus : p === 'youtube' ? setYoutubeStatus : p === 'facebook' ? setFacebookStatus : p === 'instagram' ? setInstagramStatus : p === 'shopee' ? setShopeeStatus : setThreadsStatus
     const curSt = p === 'tiktok' ? tiktokStatus : p === 'youtube' ? youtubeStatus : p === 'facebook' ? facebookStatus : p === 'instagram' ? instagramStatus : p === 'shopee' ? shopeeStatus : threadsStatus
     setU(val)
-    if (val && !isStatusPlaceholderUrl(val) && curSt !== 'publish') setSt('publish')
+    // Flip to publish only when entering/pasting a real link, except when it is a schedule
+    // (a scheduled video may already have a valid link, so keep the status as-is).
+    if (val && !isStatusPlaceholderUrl(val) && curSt !== 'publish' && curSt !== 'schedule') setSt('publish')
   }
 
   // Toggle bookmark for a video
