@@ -1908,10 +1908,10 @@ Hari ini kita nak tengok produk terbaru" />
               const dateVal = p === 'tiktok' ? tiktokUploadDate : p === 'youtube' ? youtubeUploadDate : p === 'facebook' ? facebookUploadDate : p === 'instagram' ? instagramUploadDate : p === 'shopee' ? shopeeUploadDate : threadsUploadDate
               const statusVal = p === 'tiktok' ? tiktokStatus : p === 'youtube' ? youtubeStatus : p === 'facebook' ? facebookStatus : p === 'instagram' ? instagramStatus : p === 'shopee' ? shopeeStatus : threadsStatus
               const setDate = p === 'tiktok' ? setTiktokUploadDate : p === 'youtube' ? setYoutubeUploadDate : p === 'facebook' ? setFacebookUploadDate : p === 'instagram' ? setInstagramUploadDate : p === 'shopee' ? setShopeeUploadDate : setThreadsUploadDate
-              return (<Box key={p} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <TextField label="Upload Date" type="date" value={dateVal || ''} onChange={(e) => setDate(e.target.value || null)} sx={{ flex: 1 }} size="small" slotProps={{ inputLabel: { shrink: true } }} key={`${p}-date-${urlVal ? 'has-url' : 'no-url'}`} />
-                <TextField select label="Status" value={statusVal} onChange={(e) => applyPlatformStatus(p, e.target.value as '' | 'publish' | 'schedule' | 'draft')} sx={{ flex: 1, minWidth: 110 }} size="small">{STATUS_OPTIONS.map(o => <MenuItem key={o.value || 'blank'} value={o.value}>{o.label}</MenuItem>)}</TextField>
-                <TextField label={`${p.charAt(0).toUpperCase() + p.slice(1)} URL`} value={urlVal} onChange={(e) => applyPlatformUrl(p, e.target.value)} sx={{ flex: 2 }} size="small" placeholder="https://..."
+              return (<Box key={p} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
+                <TextField label="Upload Date" type="date" value={dateVal || ''} onChange={(e) => setDate(e.target.value || null)} sx={{ flex: { xs: '1 1 calc(50% - 4px)', md: 1 }, minWidth: 0 }} size="small" slotProps={{ inputLabel: { shrink: true } }} key={`${p}-date-${urlVal ? 'has-url' : 'no-url'}`} />
+                <TextField select label="Status" value={statusVal} onChange={(e) => applyPlatformStatus(p, e.target.value as '' | 'publish' | 'schedule' | 'draft')} sx={{ flex: { xs: '1 1 calc(50% - 4px)', md: 1 }, minWidth: 110 }} size="small">{STATUS_OPTIONS.map(o => <MenuItem key={o.value || 'blank'} value={o.value}>{o.label}</MenuItem>)}</TextField>
+                <TextField label={`${p.charAt(0).toUpperCase() + p.slice(1)} URL`} value={urlVal} onChange={(e) => applyPlatformUrl(p, e.target.value)} sx={{ flex: { xs: '1 1 calc(100% - 48px)', md: 2 }, minWidth: 0 }} size="small" placeholder="https://..."
                   slotProps={{
                     input: {
                       startAdornment: (
