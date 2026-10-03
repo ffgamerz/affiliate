@@ -1330,7 +1330,7 @@ export default function Videos() {
   const getPlatformStatusColor = (s: string | null | undefined): string | null =>
     s === 'publish' ? '#2e7d32' : s === 'schedule' ? '#1565c0' : s === 'draft' ? '#c62828' : null
   const getPlatformStatusLabel = (s: string | null | undefined): string =>
-    s === 'schedule' ? 'Sched' : s === 'draft' ? 'Draft' : s === 'publish' ? 'Publish' : ''
+    s === 'schedule' ? 'Scheduled' : s === 'draft' ? 'Draft' : s === 'publish' ? 'Published' : ''
 
   // Set platform status. Draft auto-fills the URL with the word 'draft'.
   // Schedule and publish/blank NEVER overwrite a real URL — they only clear a stale placeholder.
