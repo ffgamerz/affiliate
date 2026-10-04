@@ -486,6 +486,12 @@ export default function Videos() {
   const [youtubeStatus, setYoutubeStatus] = useState(''); const [tiktokStatus, setTiktokStatus] = useState('')
   const [facebookStatus, setFacebookStatus] = useState(''); const [instagramStatus, setInstagramStatus] = useState('')
   const [shopeeStatus, setShopeeStatus] = useState(''); const [threadsStatus, setThreadsStatus] = useState('')
+  // Desktop Status select width = measured longest option label + chrome (14 left pad + 32 right pad + 2 border + 4 slack)
+  const statusMeasureRef = useRef<HTMLDivElement>(null); const [statusFieldWidth, setStatusFieldWidth] = useState(118)
+  useEffect(() => {
+    const measure = () => { const el = statusMeasureRef.current; if (el) setStatusFieldWidth(Math.ceil(el.getBoundingClientRect().width) + 52) }
+    measure(); if (document.fonts) document.fonts.ready.then(measure).catch(() => {})
+  }, [])
   const [statusFilter, setStatusFilter] = useState<'' | 'publish' | 'schedule' | 'draft'>('')
   const [aiGenerating, setAiGenerating] = useState(false)
   const [updatingVideo, setUpdatingVideo] = useState(false)
@@ -1856,6 +1862,11 @@ export default function Videos() {
         </Box>
       )}
 
+      {/* Hidden ruler: keeps Status select width snug with the longest option label */}
+      <Box ref={statusMeasureRef} aria-hidden sx={{ position: 'absolute', top: 0, left: 0, width: 'max-content', whiteSpace: 'nowrap', visibility: 'hidden', pointerEvents: 'none', fontFamily: theme.typography.fontFamily, fontSize: theme.typography.body1.fontSize, fontWeight: theme.typography.body1.fontWeight, letterSpacing: theme.typography.body1.letterSpacing }}>
+        {STATUS_OPTIONS.map(o => <Box component="span" key={`measure-${o.value || 'blank'}`} sx={{ display: 'block' }}>{o.label}</Box>)}
+      </Box>
+
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth fullScreen={isMobile}>
         <DialogTitle sx={{ pb: 1 }}><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="h6">{editingVideo ? 'Edit Video' : 'Add Video'}</Typography>
@@ -1913,7 +1924,7 @@ Hari ini kita nak tengok produk terbaru" />
               const setDate = p === 'tiktok' ? setTiktokUploadDate : p === 'youtube' ? setYoutubeUploadDate : p === 'facebook' ? setFacebookUploadDate : p === 'instagram' ? setInstagramUploadDate : p === 'shopee' ? setShopeeUploadDate : setThreadsUploadDate
               return (<Box key={p} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
                 <TextField label="Upload Date" type="date" value={dateVal || ''} onChange={(e) => setDate(e.target.value || null)} sx={{ flex: { xs: '1 1 calc(50% - 4px)', md: 1 }, minWidth: 0 }} size="small" slotProps={{ inputLabel: { shrink: true } }} key={`${p}-date-${urlVal ? 'has-url' : 'no-url'}`} />
-                <TextField select label="Status" value={statusVal} onChange={(e) => applyPlatformStatus(p, e.target.value as '' | 'publish' | 'schedule' | 'draft')} sx={{ flex: { xs: '1 1 calc(50% - 4px)', md: 1 }, minWidth: 110 }} size="small">{STATUS_OPTIONS.map(o => <MenuItem key={o.value || 'blank'} value={o.value}>{o.label}</MenuItem>)}</TextField>
+                <TextField select label="Status" value={statusVal} onChange={(e) => applyPlatformStatus(p, e.target.value as '' | 'publish' | 'schedule' | 'draft')} sx={{ flex: { xs: '1 1 calc(50% - 4px)', md: '0 0 auto' }, width: { md: statusFieldWidth }, minWidth: { xs: 110 } }} size="small">{STATUS_OPTIONS.map(o => <MenuItem key={o.value || 'blank'} value={o.value}>{o.label}</MenuItem>)}</TextField>
                 <TextField label={`${p.charAt(0).toUpperCase() + p.slice(1)} URL`} value={urlVal} onChange={(e) => applyPlatformUrl(p, e.target.value)} sx={{ flex: { xs: '1 1 calc(100% - 48px)', md: 2 }, minWidth: 0 }} size="small" placeholder="https://..."
                   slotProps={{
                     input: {
