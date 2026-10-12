@@ -19,6 +19,7 @@ import {
   Star, StarOutlined, ArrowDropDown
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
+import { authFetch } from '../lib/authFetch'
 import {
   fetchCampaignsWithTiers,
   computePeriods,
@@ -1220,7 +1221,7 @@ export default function Videos() {
     setAiGenerating(true)
     try {
       const endpoint = import.meta.env.VITE_GENERATE_DESCRIPTION_URL || '/api/generate-description'
-      const response = await fetch(endpoint, {
+      const response = await authFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ video_id: editingVideo.id }),

@@ -20,6 +20,7 @@ import {
   SmartToy as SmartToyIcon,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
+import { authFetch } from '../lib/authFetch'
 import { useAuth } from '../hooks/useAuth.tsx'
 import type { User } from '@supabase/supabase-js'
 
@@ -366,7 +367,7 @@ function AiModelSection({ user }: { user: User }) {
   useEffect(() => {
     const loadModels = async () => {
       try {
-        const res = await fetch('/api/ai-check')
+        const res = await authFetch('/api/ai-check')
         if (!res.ok) return
         const data = await res.json() as { models?: string[] }
         if (data.models?.length) {
@@ -413,7 +414,7 @@ function AiModelSection({ user }: { user: User }) {
     setError(null)
 
     try {
-      const res = await fetch('/api/ai-check', {
+      const res = await authFetch('/api/ai-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: trimmed }),

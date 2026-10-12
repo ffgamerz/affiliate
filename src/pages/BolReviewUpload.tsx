@@ -10,6 +10,7 @@ import {
   AutoAwesome as AutoAwesomeIcon, Star, StarOutlined, Bookmark, BookmarkBorder,
 } from '@mui/icons-material'
 import { supabase } from '../lib/supabase'
+import { authFetch } from '../lib/authFetch'
 import { useBookmarks } from '../hooks/useBookmarks'
 
 const GoogleDriveIcon = () => (
@@ -508,7 +509,7 @@ export default function BolReviewUpload() {
     setAiGenerating(true)
     try {
       const endpoint = import.meta.env.VITE_GENERATE_DESCRIPTION_URL || '/api/generate-description'
-      const response = await fetch(endpoint, {
+      const response = await authFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ video_id: editingVideo.id }),

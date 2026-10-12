@@ -5,13 +5,18 @@
 //   GEMINI_API_KEY       - Your Google Gemini API key
 //   SUPABASE_URL         - Your Supabase project URL
 //   SUPABASE_SERVICE_KEY - Your Supabase service_role key (for server-side writes)
+//   BOT_API_KEY          - Shared secret for the bot CLI (sent as X-Bot-Key)
+// Auth: Authorization: Bearer <Supabase access token of an admin user>  OR  X-Bot-Key: <BOT_API_KEY>
 //
 // Local dev: add to .dev.vars or wrangler.toml [env.dev.vars]
+
+import { authenticate, callerKey, corsHeaders, json, rateLimited, UUID_RE } from '../_lib/security'
 
 interface Env {
     GEMINI_API_KEY: string
     SUPABASE_URL: string
     SUPABASE_SERVICE_KEY: string
+    BOT_API_KEY?: string // secret header value for the bot CLI (X-Bot-Key)
 }
 
 interface GenerateRequest {
@@ -91,6 +96,8 @@ hanya output hasil yg diformat sahaja, tak perlu sebarang dialog`;
 /** Default AI model used if no ai_model is saved in the profiles table */
 const DEFAULT_MODEL = 'gemini-3.6-flash'
 
+const MODEL_RE = /^[A-Za-z0-9._-]{1,64}$/
+
 /** Fetch the ai_format_rules and ai_model from the profiles table, falling back to defaults */
 async function fetchAiConfig(supabaseUrl: string, serviceKey: string): Promise<{ rules: string; model: string }> {
     const url = `${supabaseUrl}/rest/v1/profiles?select=ai_format_rules,ai_model&is_admin=eq.true&limit=1`
@@ -104,174 +111,97 @@ async function fetchAiConfig(supabaseUrl: string, serviceKey: string): Promise<{
     const rows = await resp.json() as Array<{ ai_format_rules: string | null; ai_model: string | null }>
     return {
         rules: rows?.[0]?.ai_format_rules?.trim() || DEFAULT_RULES,
-        model: rows?.[0]?.ai_model?.trim() || DEFAULT_MODEL,
+        model: MODEL_RE.test(rows?.[0]?.ai_model?.trim() || '') ? rows[0].ai_model!.trim() : DEFAULT_MODEL,
     }
 }
 
 export async function onRequest(context: { request: Request; env: Env }): Promise<Response> {
-    const headers = {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-    }
+    const { request, env } = context
+    const headers = corsHeaders(request, 'POST, OPTIONS')
 
-    // Handle CORS preflight
-    if (context.request.method === 'OPTIONS') {
-        return new Response(null, { status: 204, headers })
-    }
-
-    if (context.request.method !== 'POST') {
-        return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-            status: 405,
-            headers,
-        })
-    }
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers })
+    if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405, headers)
 
     try {
-        const { GEMINI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY } = context.env
-
-        if (!GEMINI_API_KEY) {
-            return new Response(JSON.stringify({ error: 'GEMINI_API_KEY is not configured' }), {
-                status: 500,
-                headers,
-            })
+        const { GEMINI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY } = env
+        if (!GEMINI_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+            console.error('generate-description: missing server configuration')
+            return json({ error: 'Server not configured' }, 500, headers)
         }
 
-        if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-            return new Response(JSON.stringify({ error: 'Supabase credentials are not configured' }), {
-                status: 500,
-                headers,
-            })
+        const caller = await authenticate(request, env)
+        if (!caller) return json({ error: 'Unauthorized' }, 401, headers)
+        if (rateLimited(callerKey(caller, request), 10, 60_000)) {
+            return json({ error: 'Too many requests, cuba lagi sebentar.' }, 429, { ...headers, 'Retry-After': '60' })
         }
 
-        const body: GenerateRequest = await context.request.json()
-        const { video_id } = body
+        let body: { video_id?: unknown }
+        try { body = await request.json() } catch { return json({ error: 'Invalid JSON body' }, 400, headers) }
+        const video_id = typeof body?.video_id === 'string' ? body.video_id.trim() : ''
+        if (!UUID_RE.test(video_id)) return json({ error: 'video_id must be a valid UUID' }, 400, headers)
 
-        if (!video_id) {
-            return new Response(JSON.stringify({ error: 'video_id is required' }), {
-                status: 400,
-                headers,
-            })
-        }
+        const svc = { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` }
 
-        // ── Step 1: Fetch video data from Supabase ──
-        const fetchUrl = `${SUPABASE_URL}/rest/v1/videos?id=eq.${video_id}&select=title,srt,description`
-        const fetchResponse = await fetch(fetchUrl, {
-            headers: {
-                'apikey': SUPABASE_SERVICE_KEY,
-                'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-            },
-        })
-
+        // ── Step 1: Fetch video ──
+        const fetchResponse = await fetch(
+            `${SUPABASE_URL}/rest/v1/videos?id=eq.${encodeURIComponent(video_id)}&select=title,srt,description`,
+            { headers: svc },
+        )
         if (!fetchResponse.ok) {
-            const errText = await fetchResponse.text()
-            return new Response(JSON.stringify({ error: `Failed to fetch video: ${errText}` }), {
-                status: 500,
-                headers,
-            })
+            console.error('generate-description: fetch video failed', fetchResponse.status, await fetchResponse.text())
+            return json({ error: 'Failed to fetch video' }, 502, headers)
         }
-
         const videos = await fetchResponse.json() as Array<{ title: string; srt: string | null; description: string | null }>
-
-        if (!videos || videos.length === 0) {
-            return new Response(JSON.stringify({ error: 'Video not found' }), {
-                status: 404,
-                headers,
-            })
-        }
-
+        if (!videos?.length) return json({ error: 'Video not found' }, 404, headers)
         const video = videos[0]
-
         if (!video.srt) {
-            return new Response(JSON.stringify({ error: 'No SRT/subtitle content found for this video. Please upload SRT content first.' }), {
-                status: 400,
-                headers,
-            })
+            return json({ error: 'No SRT/subtitle content found for this video. Please upload SRT content first.' }, 400, headers)
         }
 
-        // ── Step 2: Fetch AI format rules & model from profiles table ──
+        // ── Step 2: AI config ──
         const aiConfig = await fetchAiConfig(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-        const systemRules = aiConfig.rules
 
-        // ── Step 3: Call Gemini API ──
-        const prompt = `Video Title: ${video.title || 'Untitled'}\n\nSRT Content (subtitle/script):\n${video.srt}\n\n---\n\nBased on the SRT content above, generate a compelling video description following these rules:\n${systemRules}`
-
-        const geminiPayload = {
-            contents: [{
-                parts: [{ text: prompt }],
-            }],
-            generationConfig: {
-                temperature: 0.7,
-                maxOutputTokens: 8192,
-                topP: 0.9,
-                topK: 40,
-            },
-        }
-
+        // ── Step 3: Gemini ──
+        const prompt = `Video Title: ${video.title || 'Untitled'}\n\nSRT Content (subtitle/script):\n${video.srt}\n\n---\n\nBased on the SRT content above, generate a compelling video description following these rules:\n${aiConfig.rules}`
         const geminiResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/${aiConfig.model}:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(aiConfig.model)}:generateContent`,
             {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(geminiPayload),
-            }
-        )
-
-        if (!geminiResponse.ok) {
-            const errText = await geminiResponse.text()
-            return new Response(JSON.stringify({ error: `Gemini API error: ${errText}` }), {
-                status: 500,
-                headers,
-            })
-        }
-
-        const geminiResult = await geminiResponse.json() as { candidates?: Array<{ content?: { parts?: Array<{ text: string }> } }> }
-
-        const generatedText = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
-
-        if (!generatedText) {
-            return new Response(JSON.stringify({ error: 'Gemini returned empty response' }), {
-                status: 500,
-                headers,
-            })
-        }
-
-        // ── Step 3: Update description in Supabase ──
-        const updateUrl = `${SUPABASE_URL}/rest/v1/videos?id=eq.${video_id}`
-        const updateResponse = await fetch(updateUrl, {
-            method: 'PATCH',
-            headers: {
-                'apikey': SUPABASE_SERVICE_KEY,
-                'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=minimal',
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: 0.7, maxOutputTokens: 8192, topP: 0.9, topK: 40 },
+                }),
             },
+        )
+        if (!geminiResponse.ok) {
+            console.error('generate-description: gemini error', geminiResponse.status, await geminiResponse.text())
+            return json({ error: 'AI service error, cuba lagi.' }, 502, headers)
+        }
+        const geminiResult = await geminiResponse.json() as { candidates?: Array<{ content?: { parts?: Array<{ text: string }> } }> }
+        const generatedText = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
+        if (!generatedText) return json({ error: 'AI returned empty response' }, 502, headers)
+
+        // ── Step 4: Save (previous description is returned to the caller so it can be restored) ──
+        const updateResponse = await fetch(`${SUPABASE_URL}/rest/v1/videos?id=eq.${encodeURIComponent(video_id)}`, {
+            method: 'PATCH',
+            headers: { ...svc, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
             body: JSON.stringify({ description: generatedText }),
         })
-
         if (!updateResponse.ok) {
-            const errText = await updateResponse.text()
-            return new Response(JSON.stringify({ error: `Failed to update description: ${errText}` }), {
-                status: 500,
-                headers,
-            })
+            console.error('generate-description: update failed', updateResponse.status, await updateResponse.text())
+            return json({ error: 'Failed to save description' }, 502, headers)
         }
+        console.log('generate-description: ok', caller.kind, video_id)
 
-        // ── Step 4: Return success ──
-        return new Response(
-            JSON.stringify({
-                success: true,
-                message: 'Description berjaya dijana & disimpan!',
-                description: generatedText,
-            }),
-            { status: 200, headers }
-        )
+        return json({
+            success: true,
+            message: 'Description berjaya dijana & disimpan!',
+            description: generatedText,
+            previous_description: video.description,
+        }, 200, headers)
     } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-        return new Response(JSON.stringify({ error: `Internal server error: ${errorMessage}` }), {
-            status: 500,
-            headers,
-        })
+        console.error('generate-description: unhandled', err)
+        return json({ error: 'Internal server error' }, 500, headers)
     }
 }
