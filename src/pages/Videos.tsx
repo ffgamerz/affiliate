@@ -833,7 +833,11 @@ export default function Videos() {
     // Wait for auth session to restore first — otherwise queries run without
     // token and RLS returns 0 rows (filter appears broken/empty)
     if (authLoading) return
-    const state = location.state as any
+    let state = location.state as any
+    // Support ?q=<title> URL param (either before or after the #hash) to prefill search
+    const urlQ = new URLSearchParams(window.location.search).get('q')
+      || new URLSearchParams(window.location.hash.split('?')[1] || '').get('q')
+    if (!state && urlQ) state = { searchQuery: urlQ }
     const stateKey = state ? JSON.stringify(state) : (new URLSearchParams(window.location.hash.split('?')[1] || '').get('focus') || null)
     // Only process if this is a new state (not same as before)
     if (processedLocationStateRef.current === stateKey) return

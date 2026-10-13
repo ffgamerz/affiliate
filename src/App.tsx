@@ -5,6 +5,11 @@ import { Suspense, lazy } from 'react'
 import { AuthProvider, useAuth } from './hooks/useAuth.tsx'
 import Layout from './components/Layout'
 
+// Deep link: /?q=<title> opens the Videos page with the search prefilled
+if (new URLSearchParams(window.location.search).get('q') && (!window.location.hash || window.location.hash === '#/' || window.location.hash === '#')) {
+  window.location.hash = '#/videos'
+}
+
 // Lazy load pages for code splitting
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
