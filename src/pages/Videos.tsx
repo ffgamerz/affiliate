@@ -1170,7 +1170,11 @@ export default function Videos() {
     // Wait for auth session to restore before fetching (RLS needs the token)
     if (authLoading) return
     // If there's location state pending, skip mount fetch (location handler will trigger it)
-    if (location.state && !hasLocationState.current) {
+    // Also treat a ?q= deep link as pending state: otherwise an unfiltered fetch
+    // races the filtered one and may overwrite the search results
+    const pendingUrlQ = new URLSearchParams(window.location.search).get('q')
+      || new URLSearchParams(window.location.hash.split('?')[1] || '').get('q')
+    if ((location.state || pendingUrlQ) && !hasLocationState.current) {
       hasLocationState.current = true
       setLoading(false)
       return
