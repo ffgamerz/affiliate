@@ -838,7 +838,7 @@ export default function Videos() {
     const urlQ = new URLSearchParams(window.location.search).get('q')
       || new URLSearchParams(window.location.hash.split('?')[1] || '').get('q')
     if (!state && urlQ) state = { searchQuery: urlQ }
-    const stateKey = state ? JSON.stringify(state) : (new URLSearchParams(window.location.hash.split('?')[1] || '').get('focus') || null)
+    const stateKey = state ? JSON.stringify(state) : (new URLSearchParams(window.location.hash.split('?')[1] || '').get('focus') || new URLSearchParams(window.location.hash.split('?')[1] || '').get('id') || new URLSearchParams(window.location.search).get('id') || null)
     // Only process if this is a new state (not same as before)
     if (processedLocationStateRef.current === stateKey) return
     processedLocationStateRef.current = stateKey
@@ -883,6 +883,9 @@ export default function Videos() {
     const focusParamId = (state?.focusVideoId as string)
       || new URLSearchParams(window.location.hash.split('?')[1] || '').get('focus')
       || new URLSearchParams(window.location.search).get('focus')
+      // ?id=<uuid> deep link: same behaviour as ?focus= (filter to that video + scroll)
+      || new URLSearchParams(window.location.hash.split('?')[1] || '').get('id')
+      || new URLSearchParams(window.location.search).get('id')
       || null
     if (focusParamId) {
       // Coming from Dashboard Cross-Post (same tab via state) OR Content Gap link (new tab via ?focus=)
@@ -1174,7 +1177,9 @@ export default function Videos() {
     // races the filtered one and may overwrite the search results
     const pendingUrlQ = new URLSearchParams(window.location.search).get('q')
       || new URLSearchParams(window.location.hash.split('?')[1] || '').get('q')
-    if ((location.state || pendingUrlQ) && !hasLocationState.current) {
+    const pendingUrlId = new URLSearchParams(window.location.hash.split('?')[1] || '').get('id') || new URLSearchParams(window.location.hash.split('?')[1] || '').get('focus')
+      || new URLSearchParams(window.location.search).get('id')
+    if ((location.state || pendingUrlQ || pendingUrlId) && !hasLocationState.current) {
       hasLocationState.current = true
       setLoading(false)
       return
