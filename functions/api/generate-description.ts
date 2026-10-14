@@ -94,7 +94,7 @@ Beli Sekarang xxxlinkshopeexxx
 hanya output hasil yg diformat sahaja, tak perlu sebarang dialog`;
 
 /** Default AI model used if no ai_model is saved in the profiles table */
-const DEFAULT_MODEL = 'gemini-3.6-flash'
+const DEFAULT_MODEL = 'gemini-3.5-flash-lite'
 
 const MODEL_RE = /^[A-Za-z0-9._-]{1,64}$/
 

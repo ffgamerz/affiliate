@@ -323,13 +323,11 @@ function AiFormatRulesSection({ user }: { user: User }) {
   )
 }
 
+// Models verified via /api/ai-check on 2026-10-14 (non-empty reply, <30s), fastest first.
+// Removed: 2.5/2.0 (404), 3.5-flash/3.6-flash/4-argon (429 or empty reply), 3.7/3.8-flash (empty/slow).
 const DEFAULT_MODEL_OPTIONS = [
-  'gemini-3.6-flash',
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.5-pro',
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
+  'gemini-3.5-flash-lite', // ~0.8s
+  'gemini-3.1-flash-lite', // ~1.8s
 ]
 
 function AiModelSection({ user }: { user: User }) {
@@ -355,7 +353,7 @@ function AiModelSection({ user }: { user: User }) {
       if (error) {
         console.error('Failed to load AI model:', error)
       }
-      const saved = data?.ai_model ?? 'gemini-3.6-flash'
+      const saved = data?.ai_model ?? 'gemini-3.5-flash-lite'
       setModel(saved)
       setSavedModel(saved)
       setLoading(false)
@@ -371,7 +369,8 @@ function AiModelSection({ user }: { user: User }) {
         if (!res.ok) return
         const data = await res.json() as { models?: string[] }
         if (data.models?.length) {
-          setModelOptions((prev) => Array.from(new Set([...prev, ...data.models!])).sort())
+          // Only keep verified models that the API key still lists (no unverified extras)
+          setModelOptions((prev) => prev.filter((m) => data.models!.includes(m)))
         }
       } catch {
         // ignore - fall back to static list
